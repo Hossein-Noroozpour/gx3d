@@ -1021,7 +1021,7 @@ def assigner():
 	                else:
 	                    continue
 	            else:
-	                texture = Gearoenix.Texture(t, len(Gearoenix.TextureManager.textures))
+	                texture = Gearoenix.Texture(t, len(Gearoenix.TextureManager.textures)) # Doubt !!!!!!!!!!!!!!!!!!!!!!!!!!!1
 	                texture.type = Gearoenix.TextureManager.TEXTURE_TYPE_2D
 	            try:
 	                t = Gearoenix.TextureManager.textures[texture.file_path]
