@@ -631,8 +631,8 @@ def assigner():
             self.location = geo.location
 
         def save(self, save_file: io.BufferedWriter):
-            save_matrix(save_file, self.matrix)
-            save_vector(save_file, self.location)
+            Gearoenix.save_matrix(save_file, self.matrix)
+            Gearoenix.save_vector(save_file, self.location)
 
         def __hash__(self):
             l = []
@@ -774,7 +774,7 @@ def assigner():
             for t in obj.data.materials[0].texture_slots:
                 if t is not None:
                     self.textures.append(Gearoenix.TextureManager.get_index(t.name))
-            if terrain_debug:
+            if Gearoenix.terrain_debug:
                 print('Terrain debugging')
                 for center, area in self.areas.items():
                     print('Center x: ', center[0], '  y: ', center[1], '   Radius: ', area['radius'], '  Triangles count: ', len(area['triangles']))
@@ -804,12 +804,12 @@ def assigner():
                     for i in indices:
                         ibo[i] = vertices_count
                     vertices_count += 1
-                save_file.write(TYPE_VERTEX_ELEMENT_COUNT(len(vbo)))
+                save_file.write(Gearoenix.TYPE_VERTEX_ELEMENT_COUNT(len(vbo)))
                 for f in vbo:
-                    save_file.write(TYPE_VERTEX_ELEMENT(f))
-                save_file.write(TYPE_INDICES_COUNT(len(ibo)))
+                    save_file.write(Gearoenix.TYPE_VERTEX_ELEMENT(f))
+                save_file.write(Gearoenix.TYPE_INDICES_COUNT(len(ibo)))
                 for i in ibo:
-                    save_file.write(TYPE_INDEX_ELEMENT(i))
+                    save_file.write(Gearoenix.TYPE_INDEX_ELEMENT(i))
             save_file.write(Gearoenix.Terrain.TYPE_TEXTURE_COUNT(len(self.textures)))
             for t in self.textures:
                 save_file.write(Gearoenix.TextureManager.TYPE_TEXTURE_INDEX(t))
@@ -1044,7 +1044,7 @@ def assigner():
 	        for f in Gearoenix.TextureManager.textures.keys():
 	            save_file.write(Gearoenix.TextureManager.TYPE_TEXTURE_NAMES_COUNT(len(Gearoenix.TextureManager.textures[f][0])))
 	            for s in Gearoenix.TextureManager.textures[f][0]:
-	                save_string(save_file, s)
+	                Gearoenix.save_string(save_file, s)
 	            save_file.write(Gearoenix.TextureManager.TYPE_TEXTURE_INDEX(Gearoenix.TextureManager.textures[f][1].index))
 	            save_file.write(Gearoenix.TextureManager.textures[f][1].type)
 	            save_file.write(Gearoenix.TextureManager.TYPE_TEXTURE_OFFSET(Gearoenix.TextureManager.textures[f][2]))
