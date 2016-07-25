@@ -1,15 +1,17 @@
+from gx3d import Animation
+
 bl_info = {
-	"name": "Gearoenix Blender",
-	"author": "Hossein Noroozpour",
-	"version": (1, 0),
-	"blender": (2, 7, 5),
-	"api": 1,
-	"location": "File > Export",
-	"description": "Export several scene into a Gearoenix 3D file format.",
-	"warning": "",
-	"wiki_url": "",
-	"tracker_url": "",
-	"category": "Import-Export",
+    "name": "Gearoenix Blender",
+    "author": "Hossein Noroozpour",
+    "version": (1, 0),
+    "blender": (2, 7, 5),
+    "api": 1,
+    "location": "File > Export",
+    "description": "Export several scene into a Gearoenix 3D file format.",
+    "warning": "",
+    "wiki_url": "",
+    "tracker_url": "",
+    "category": "Import-Export",
 }
 
 import bpy
@@ -22,10 +24,12 @@ from bpy_extras.io_utils import ExportHelper
 from bpy.props import StringProperty, BoolProperty, EnumProperty
 from bpy.types import Operator
 
+
 class Gearoenix:
     class OkOperator(bpy.types.Operator):
         bl_idname = "error.ok"
         bl_label = "OK"
+
         def execute(self, context):
             return {'FINISHED'}
 
@@ -58,6 +62,7 @@ class Gearoenix:
         bpy.ops.error.message('INVOKE_DEFAULT', type="Error", message=s)
         raise Exception(s)
 
+
 # TODO: Encoding in string
 # TODO: New Terrain Importing
 # TODO: Geometry copy
@@ -83,28 +88,37 @@ Gearoenix.render_mode = 'path tracing'
 
 Gearoenix.imported_objects = set()
 
+
 def assigner():
     def save_string(save_file, string):
         save_file.write(Gearoenix.TYPE_STRING_LENGTH(len(string)))
         for c in string:
             save_file.write(Gearoenix.TYPE_CHARACTER(ord(c)))
+
     return save_string
+
 
 Gearoenix.save_string = assigner()
 
+
 def assigner():
     def get_string_size(s: str):
-        return ctypes.sizeof(TYPE_STRING_LENGTH) + ctypes.sizeof(TYPE_CHARACTER) * len(s)
+        return ctypes.sizeof(Gearoenix.TYPE_STRING_LENGTH) + ctypes.sizeof(Gearoenix.TYPE_CHARACTER) * len(s)
+
     return get_string_size
 
+
 Gearoenix.get_string_size = assigner()
+
 
 def assigner():
     def save_matrix(save_file, matrix):
         for i in range(0, 4):
             for j in range(0, 4):
                 save_file.write(Gearoenix.TYPE_MATRIX_ELEMENTS(matrix[j][i]))
+
     return save_matrix
+
 
 Gearoenix.save_matrix = assigner()
 
@@ -113,7 +127,9 @@ def assigner():
     def save_vector(save_file, vector):
         for i in range(3):
             save_file.write(ctypes.c_float(vector[i]))
+
     return save_vector
+
 
 Gearoenix.save_vector = assigner()
 
@@ -121,7 +137,9 @@ Gearoenix.save_vector = assigner()
 def assigner():
     def prefix_check(name, prefix):
         return name[0:len(prefix)] == prefix
+
     return prefix_check
+
 
 Gearoenix.prefix_check = assigner()
 
@@ -129,7 +147,9 @@ Gearoenix.prefix_check = assigner()
 def assigner():
     def postfix_check(name, postfix):
         return name[len(name) - len(postfix):] == postfix
+
     return postfix_check
+
 
 Gearoenix.postfix_check = assigner()
 
@@ -223,9 +243,12 @@ def assigner():
 
         def __str__(self):
             return str(self.data)
+
     return Vertex
 
+
 Gearoenix.Vertex = assigner()
+
 
 def assigner():
     class Triangle:
@@ -245,15 +268,15 @@ def assigner():
             for vertex_index, loop_index in zip(polygon.vertices, polygon.loop_indices):
                 vertex = Gearoenix.Vertex(vertex_index, loop_index, triangle_obj, world_matrix, mesh_type, mesh)
                 self.vertices.append(vertex)
-            # mid_normal = self.vertices[0].normal + self.vertices[1].normal + self.vertices[2].normal
-            # v1 = self.vertices[1].position - self.vertices[0].position
-            # v2 = self.vertices[2].position - self.vertices[0].position
-            # cross_v1_v2 = v1.cross(v2)
-            # cull = cross_v1_v2.dot(mid_normal)
-            # if cull > 0:
-            # v = self.vertices[2]
-            # self.vertices[2] = self.vertices[1]
-            # self.vertices[1] = v
+                # mid_normal = self.vertices[0].normal + self.vertices[1].normal + self.vertices[2].normal
+                # v1 = self.vertices[1].position - self.vertices[0].position
+                # v2 = self.vertices[2].position - self.vertices[0].position
+                # cross_v1_v2 = v1.cross(v2)
+                # cull = cross_v1_v2.dot(mid_normal)
+                # if cull > 0:
+                # v = self.vertices[2]
+                # self.vertices[2] = self.vertices[1]
+                # self.vertices[1] = v
 
         def __str__(self):
             s = ''
@@ -261,9 +284,12 @@ def assigner():
                 s += str(v)
                 s += '\n'
             return s
+
     return Triangle
 
+
 Gearoenix.Triangle = assigner()
+
 
 def assigner():
     class Mesh:
@@ -303,7 +329,8 @@ def assigner():
                     self.ibo[i] = vertices_count
                 vertices_count += 1
             if mesh_type == self.MESH_TYPE_SKIN:
-                print("Maximum number of affecting bone on a vertex is: ", self.max_number_of_affecting_bone_on_a_vertex)
+                print("Maximum number of affecting bone on a vertex is: ",
+                      self.max_number_of_affecting_bone_on_a_vertex)
 
         def save(self, save_file):
             save_file.write(Gearoenix.TYPE_VERTEX_ELEMENT_COUNT(len(self.vbo)))
@@ -312,9 +339,12 @@ def assigner():
             save_file.write(Gearoenix.TYPE_INDICES_COUNT(len(self.ibo)))
             for i in self.ibo:
                 save_file.write(Gearoenix.TYPE_INDEX_ELEMENT(i))
+
     return Mesh
 
+
 Gearoenix.Mesh = assigner()
+
 
 def assigner():
     class Bone:
@@ -332,7 +362,8 @@ def assigner():
         def __init__(self, bone):
             self.name = bone.name
             if len(bone.children) > 255:
-                raise self.OutOfRangeChildrenNumberError("Your bone structure has out of range children at bone[" + self.name + "]")
+                raise self.OutOfRangeChildrenNumberError(
+                    "Your bone structure has out of range children at bone[" + self.name + "]")
             self.children = [Gearoenix.Bone(child) for child in bone.children]
             self.head = bone.head
             self.tail = bone.tail
@@ -359,7 +390,8 @@ def assigner():
             children_size = 0
             for c in self.children:
                 children_size += c.get_size()
-            return get_string_size(self.name) + ctypes.sizeof(self.BONE_TYPE_FLOAT) * 6 + ctypes.sizeof(self.BONE_TYPE_BONE_INDEX) + ctypes.sizeof(self.BONE_TYPE_CHILDREN_COUNT) + children_size
+            return Gearoenix.get_string_size(self.name) + ctypes.sizeof(self.BONE_TYPE_FLOAT) * 6 + ctypes.sizeof(
+                self.BONE_TYPE_BONE_INDEX) + ctypes.sizeof(self.BONE_TYPE_CHILDREN_COUNT) + children_size
 
 
 def assigner():
@@ -387,6 +419,9 @@ def assigner():
 
         def get_size(self):
             return 6 * ctypes.sizeof(self.CHANNEL_KEYFRAME_TYPE_ELEMENT)
+    return ChannelKeyFrame
+
+Gearoenix.ChannelKeyFrame = assigner()
 
 
 def assigner():
@@ -409,7 +444,7 @@ def assigner():
             self.keyframes = []
             data_path = channel.data_path
             array_index = channel.array_index
-            if postfix_check(data_path, 'location'):
+            if Gearoenix.postfix_check(data_path, 'location'):
                 self.bone = data_path[len('pose.bones[\"'):len(data_path) - len('\"].location')]
                 if array_index == 0:
                     self.channel_type = self.X_LOCATION
@@ -420,7 +455,7 @@ def assigner():
                 else:
                     print("Error: Unknown location channel.")
                     exit(1)
-            elif postfix_check(data_path, 'rotation_quaternion'):
+            elif Gearoenix.postfix_check(data_path, 'rotation_quaternion'):
                 self.bone = data_path[len('pose.bones[\"'):len(data_path) - len('\"].rotation_quaternion')]
                 if array_index == 0:
                     self.channel_type = self.W_QUATERNION_ROTATION
@@ -433,7 +468,7 @@ def assigner():
                 else:
                     print("Error: Unknown rotation quaternion channel.")
                     exit(1)
-            elif postfix_check(data_path, 'scale'):
+            elif Gearoenix.postfix_check(data_path, 'scale'):
                 self.bone = data_path[len('pose.bones[\"'):len(data_path) - len('\"].scale')]
                 if array_index == 0:
                     self.channel_type = self.X_SCALE
@@ -465,7 +500,12 @@ def assigner():
             keyframes_size = 0
             for k in self.keyframes:
                 keyframes_size += k.get_size()
-            return ctypes.sizeof(self.channel_type) + ctypes.sizeof(Gearoenix.Bone.BONE_TYPE_BONE_INDEX) + get_string_size(self.bone) + ctypes.sizeof(self.CHANNEL_TYPE_KEYFRAME_COUNT) + keyframes_size
+            return ctypes.sizeof(self.channel_type) + ctypes.sizeof(
+                Gearoenix.Bone.BONE_TYPE_BONE_INDEX) + Gearoenix.get_string_size(self.bone) + ctypes.sizeof(
+                self.CHANNEL_TYPE_KEYFRAME_COUNT) + keyframes_size
+    return AnimationChannel
+
+Gearoenix.AnimationChannel = assigner()
 
 
 def assigner():
@@ -495,12 +535,15 @@ def assigner():
             channels_size = 0
             for c in self.channels:
                 channels_size += c.get_size()
-            return (ctypes.sizeof(self.ACTION_TYPE_FRAME_RANGE) * 2) + ctypes.sizeof(self.ACTION_TYPE_CHANNEL_COUNT) + channels_size
+            return (ctypes.sizeof(self.ACTION_TYPE_FRAME_RANGE) * 2) + ctypes.sizeof(
+                self.ACTION_TYPE_CHANNEL_COUNT) + channels_size
+    return Action
+
+Gearoenix.Action = assigner()
 
 
 def assigner():
     class Animation:
-
         def __init__(self, arm_obj):
             self.action = Gearoenix.Action(arm_obj)
 
@@ -512,6 +555,9 @@ def assigner():
 
         def get_size(self):
             return self.action.get_size()
+    return Animation
+
+Gearoenix.Animation = assigner()
 
 
 def assigner():
@@ -541,8 +587,12 @@ def assigner():
             for b in self.bones:
                 b.save(save_file)
             self.animation_data.save(save_file)
-            save_file.write(self.ARMATURE_TYPE_MAX_NUMBER_OF_AFFECTING_BONE_ON_A_VERTEX_TYPE(self.skin.max_number_of_affecting_bone_on_a_vertex))
+            save_file.write(self.ARMATURE_TYPE_MAX_NUMBER_OF_AFFECTING_BONE_ON_A_VERTEX_TYPE(
+                self.skin.max_number_of_affecting_bone_on_a_vertex))
             self.skin.save(save_file)
+    return Armature
+
+Gearoenix.Armature = assigner()
 
 
 def assigner():
@@ -564,7 +614,8 @@ def assigner():
                     name_commands = c.name.split(":")
                     mesh_name = name_commands[0]
                     if len(name_commands) < 2:
-                        Gearoenix.show_error("Mesh (" + mesh_name + ") child of (" + self.name + ") does not contain commands list.")
+                        Gearoenix.show_error(
+                            "Mesh (" + mesh_name + ") child of (" + self.name + ") does not contain commands list.")
                     commands = name_commands[1]
                     mesh_attributes = commands
                     for attribute in mesh_attributes.split("-"):
@@ -575,7 +626,8 @@ def assigner():
                         elif attribute == "position":
                             mesh_type += "-position"
                         else:
-                            raise Exception("Unknown attribute in mesh (" + mesh_name + ") child of (" + self.name + ")")
+                            raise Exception(
+                                "Unknown attribute in mesh (" + mesh_name + ") child of (" + self.name + ")")
                     mesh = Gearoenix.Mesh(c, mesh_type, inverse_matrix)
                     mesh.name = mesh_name
                     # TODO: In future this condition must be in the command list, not having UV!
@@ -618,9 +670,12 @@ def assigner():
             Gearoenix.save_vector(save_file, self.location)
             save_file.write(ctypes.c_float(self.radius))
             self.occ_mesh.save(save_file)
+
     return Geometry
 
+
 Gearoenix.Geometry = assigner()
+
 
 def assigner():
     class CopyGeometry:
@@ -642,9 +697,12 @@ def assigner():
             for e in self.location:
                 l.append(e)
             return hash(tuple(l))
+
     return CopyGeometry
 
+
 Gearoenix.CopyGeometry = assigner()
+
 
 def assigner():
     class Camera:
@@ -678,9 +736,12 @@ def assigner():
             save_file.write(self.far)
             if self.camera_type == Gearoenix.Camera.PERSPECTIVE_CAMERA:
                 save_file.write(self.field_of_view)
+
     return Camera
 
+
 Gearoenix.Camera = assigner()
+
 
 def assigner():
     class Sun:
@@ -695,9 +756,12 @@ def assigner():
             save_file.write(ctypes.c_float(self.rotation[0]))
             save_file.write(ctypes.c_float(self.rotation[1]))
             save_file.write(ctypes.c_float(self.rotation[2]))
+
     return Sun
 
+
 Gearoenix.Sun = assigner()
+
 
 def assigner():
     class Sky:
@@ -715,9 +779,12 @@ def assigner():
         def save(self, save_file: io.BufferedWriter):
             save_file.write(Gearoenix.TextureManager.TYPE_TEXTURE_INDEX(self.texture_index))
             self.mesh.save(save_file)
+
     return Sky
 
+
 Gearoenix.Sky = assigner()
+
 
 def assigner():
     class Terrain:
@@ -777,7 +844,8 @@ def assigner():
             if Gearoenix.terrain_debug:
                 print('Terrain debugging')
                 for center, area in self.areas.items():
-                    print('Center x: ', center[0], '  y: ', center[1], '   Radius: ', area['radius'], '  Triangles count: ', len(area['triangles']))
+                    print('Center x: ', center[0], '  y: ', center[1], '   Radius: ', area['radius'],
+                          '  Triangles count: ', len(area['triangles']))
 
         def save(self, save_file: io.BufferedWriter):
             save_file.write(Gearoenix.Terrain.TYPE_AREA_COUNT(len(self.areas)))
@@ -789,7 +857,8 @@ def assigner():
                 vertices_count = 0
                 for triangle in area['triangles']:
                     for vertex in triangle:
-                        key = (vertex['position'][0], vertex['position'][1], vertex['position'][2], vertex['normal'][0], vertex['normal'][1], vertex['normal'][2], vertex['uv'][0], vertex['uv'][1])
+                        key = (vertex['position'][0], vertex['position'][1], vertex['position'][2], vertex['normal'][0],
+                               vertex['normal'][1], vertex['normal'][2], vertex['uv'][0], vertex['uv'][1])
                         if key in vert_ind:
                             vert_ind[key].append(vertices_count)
                         else:
@@ -813,9 +882,12 @@ def assigner():
             save_file.write(Gearoenix.Terrain.TYPE_TEXTURE_COUNT(len(self.textures)))
             for t in self.textures:
                 save_file.write(Gearoenix.TextureManager.TYPE_TEXTURE_INDEX(t))
+
     return Terrain
 
+
 Gearoenix.Terrain = assigner()
+
 
 def assigner():
     class Scene:
@@ -910,159 +982,178 @@ def assigner():
                 Gearoenix.save_string(save_file, self.objects[i].name)
                 save_file.write(Gearoenix.Scene.TYPE_OFFSET(offsets[i]))
             save_file.seek(cur_loc, io.SEEK_SET)
+
     return Scene
+
 
 Gearoenix.Scene = assigner()
 
+
 def assigner():
     class Texture:
+        def __init__(self, tex, index):
+            super(Gearoenix.Texture, self).__init__()
+            self.file_path = tex.image.filepath_from_user()
+            self.name = tex.name
+            self.index = index
 
-	    def __init__(self, tex, index):
-	        super(Gearoenix.Texture, self).__init__()
-	        self.file_path = tex.image.filepath_from_user()
-	        self.name = tex.name
-	        self.index = index
-
-	    def save(self, save_file):
-	        tex_file = open(self.file_path, 'rb')
-	        save_file.write(tex_file.read())
+        def save(self, save_file):
+            tex_file = open(self.file_path, 'rb')
+            save_file.write(tex_file.read())
 
     return Texture
 
+
 Gearoenix.Texture = assigner()
 
+
 def assigner():
-	class CubeTexture:
-	    CUBE_TEXTURE_PREFIX = 'cube-'
-	    CUBE_TEXTURE_UP_POSTFIX = '-up'
-	    CUBE_TEXTURE_DOWN_POSTFIX = '-down'
-	    CUBE_TEXTURE_FRONT_POSTFIX = '-front'
-	    CUBE_TEXTURE_BACK_POSTFIX = '-back'
-	    CUBE_TEXTURE_LEFT_POSTFIX = '-left'
-	    CUBE_TEXTURE_RIGHT_POSTFIX = '-right'
+    class CubeTexture:
+        CUBE_TEXTURE_PREFIX = 'cube-'
+        CUBE_TEXTURE_UP_POSTFIX = '-up'
+        CUBE_TEXTURE_DOWN_POSTFIX = '-down'
+        CUBE_TEXTURE_FRONT_POSTFIX = '-front'
+        CUBE_TEXTURE_BACK_POSTFIX = '-back'
+        CUBE_TEXTURE_LEFT_POSTFIX = '-left'
+        CUBE_TEXTURE_RIGHT_POSTFIX = '-right'
 
-	    def __init__(self, name: str, index: int):
-	        file_path = []
-	        self.name = Gearoenix.CubeTexture.CUBE_TEXTURE_PREFIX + name
-	        self.index = index
-	        tex = bpy.data.textures[Gearoenix.CubeTexture.CUBE_TEXTURE_PREFIX + name + Gearoenix.CubeTexture.CUBE_TEXTURE_UP_POSTFIX]
-	        file_path.append(tex.image.filepath_from_user())
-	        tex = bpy.data.textures[Gearoenix.CubeTexture.CUBE_TEXTURE_PREFIX + name + Gearoenix.CubeTexture.CUBE_TEXTURE_DOWN_POSTFIX]
-	        file_path.append(tex.image.filepath_from_user())
-	        tex = bpy.data.textures[Gearoenix.CubeTexture.CUBE_TEXTURE_PREFIX + name + Gearoenix.CubeTexture.CUBE_TEXTURE_FRONT_POSTFIX]
-	        file_path.append(tex.image.filepath_from_user())
-	        tex = bpy.data.textures[Gearoenix.CubeTexture.CUBE_TEXTURE_PREFIX + name + Gearoenix.CubeTexture.CUBE_TEXTURE_BACK_POSTFIX]
-	        file_path.append(tex.image.filepath_from_user())
-	        tex = bpy.data.textures[Gearoenix.CubeTexture.CUBE_TEXTURE_PREFIX + name + Gearoenix.CubeTexture.CUBE_TEXTURE_RIGHT_POSTFIX]
-	        file_path.append(tex.image.filepath_from_user())
-	        tex = bpy.data.textures[Gearoenix.CubeTexture.CUBE_TEXTURE_PREFIX + name + Gearoenix.CubeTexture.CUBE_TEXTURE_LEFT_POSTFIX]
-	        file_path.append(tex.image.filepath_from_user())
-	        self.file_path = (
-	            file_path[0],
-	            file_path[1],
-	            file_path[2],
-	            file_path[3],
-	            file_path[4],
-	            file_path[5]
-	        )
+        def __init__(self, name: str, index: int):
+            file_path = []
+            self.name = Gearoenix.CubeTexture.CUBE_TEXTURE_PREFIX + name
+            self.index = index
+            tex = bpy.data.textures[
+                Gearoenix.CubeTexture.CUBE_TEXTURE_PREFIX + name + Gearoenix.CubeTexture.CUBE_TEXTURE_UP_POSTFIX]
+            file_path.append(tex.image.filepath_from_user())
+            tex = bpy.data.textures[
+                Gearoenix.CubeTexture.CUBE_TEXTURE_PREFIX + name + Gearoenix.CubeTexture.CUBE_TEXTURE_DOWN_POSTFIX]
+            file_path.append(tex.image.filepath_from_user())
+            tex = bpy.data.textures[
+                Gearoenix.CubeTexture.CUBE_TEXTURE_PREFIX + name + Gearoenix.CubeTexture.CUBE_TEXTURE_FRONT_POSTFIX]
+            file_path.append(tex.image.filepath_from_user())
+            tex = bpy.data.textures[
+                Gearoenix.CubeTexture.CUBE_TEXTURE_PREFIX + name + Gearoenix.CubeTexture.CUBE_TEXTURE_BACK_POSTFIX]
+            file_path.append(tex.image.filepath_from_user())
+            tex = bpy.data.textures[
+                Gearoenix.CubeTexture.CUBE_TEXTURE_PREFIX + name + Gearoenix.CubeTexture.CUBE_TEXTURE_RIGHT_POSTFIX]
+            file_path.append(tex.image.filepath_from_user())
+            tex = bpy.data.textures[
+                Gearoenix.CubeTexture.CUBE_TEXTURE_PREFIX + name + Gearoenix.CubeTexture.CUBE_TEXTURE_LEFT_POSTFIX]
+            file_path.append(tex.image.filepath_from_user())
+            self.file_path = (
+                file_path[0],
+                file_path[1],
+                file_path[2],
+                file_path[3],
+                file_path[4],
+                file_path[5]
+            )
 
-	    def save(self, save_file: io.BufferedWriter):
-	        offsets = [0] * 6
-	        offset = save_file.tell()
-	        for i in range(6):
-	            save_file.write(ctypes.c_uint32(offsets[i]))
-	        for i in range(6):
-	            offsets[i] = save_file.tell()
-	            tex_file = open(self.file_path[i], 'rb')
-	            save_file.write(tex_file.read())
-	        tmp_offset = save_file.tell()
-	        save_file.seek(offset, io.SEEK_SET)
-	        for i in range(6):
-	            save_file.write(ctypes.c_uint32(offsets[i]))
-	        save_file.seek(tmp_offset, io.SEEK_SET)
+        def save(self, save_file: io.BufferedWriter):
+            offsets = [0] * 6
+            offset = save_file.tell()
+            for i in range(6):
+                save_file.write(ctypes.c_uint32(offsets[i]))
+            for i in range(6):
+                offsets[i] = save_file.tell()
+                tex_file = open(self.file_path[i], 'rb')
+                save_file.write(tex_file.read())
+            tmp_offset = save_file.tell()
+            save_file.seek(offset, io.SEEK_SET)
+            for i in range(6):
+                save_file.write(ctypes.c_uint32(offsets[i]))
+            save_file.seek(tmp_offset, io.SEEK_SET)
 
-	    @staticmethod
-	    def prepare_name(name: str)-> str:
-	        posts = [
-	            Gearoenix.CubeTexture.CUBE_TEXTURE_UP_POSTFIX,
-	            Gearoenix.CubeTexture.CUBE_TEXTURE_DOWN_POSTFIX,
-	            Gearoenix.CubeTexture.CUBE_TEXTURE_FRONT_POSTFIX,
-	            Gearoenix.CubeTexture.CUBE_TEXTURE_BACK_POSTFIX,
-	            Gearoenix.CubeTexture.CUBE_TEXTURE_LEFT_POSTFIX,
-	            Gearoenix.CubeTexture.CUBE_TEXTURE_RIGHT_POSTFIX
-	        ]
-	        for p in posts:
-	            if name.endswith(p):
-	                return name[:len(name) - len(p)]
-	return CubeTexture
+        @staticmethod
+        def prepare_name(name: str) -> str:
+            posts = [
+                Gearoenix.CubeTexture.CUBE_TEXTURE_UP_POSTFIX,
+                Gearoenix.CubeTexture.CUBE_TEXTURE_DOWN_POSTFIX,
+                Gearoenix.CubeTexture.CUBE_TEXTURE_FRONT_POSTFIX,
+                Gearoenix.CubeTexture.CUBE_TEXTURE_BACK_POSTFIX,
+                Gearoenix.CubeTexture.CUBE_TEXTURE_LEFT_POSTFIX,
+                Gearoenix.CubeTexture.CUBE_TEXTURE_RIGHT_POSTFIX
+            ]
+            for p in posts:
+                if name.endswith(p):
+                    return name[:len(name) - len(p)]
+
+    return CubeTexture
+
 
 Gearoenix.CubeTexture = assigner()
 
+
 def assigner():
     class TextureManager:
-	    textures = dict()
-	    TEXTURE_TYPE_CUBE = ctypes.c_uint8(1)
-	    TEXTURE_TYPE_2D = ctypes.c_uint8(2)
-	    TYPE_TEXTURE_COUNT = ctypes.c_uint16
-	    TYPE_TEXTURE_INDEX = ctypes.c_uint16
-	    TYPE_TEXTURE_NAMES_COUNT = ctypes.c_uint8
-	    TYPE_TEXTURE_OFFSET = ctypes.c_uint32
-	    table_offset = 0
+        textures = dict()
+        TEXTURE_TYPE_CUBE = ctypes.c_uint8(1)
+        TEXTURE_TYPE_2D = ctypes.c_uint8(2)
+        TYPE_TEXTURE_COUNT = ctypes.c_uint16
+        TYPE_TEXTURE_INDEX = ctypes.c_uint16
+        TYPE_TEXTURE_NAMES_COUNT = ctypes.c_uint8
+        TYPE_TEXTURE_OFFSET = ctypes.c_uint32
+        table_offset = 0
 
-	    @staticmethod
-	    def initialize():
-	        for t in bpy.data.textures:
-	            if t.name.startswith(Gearoenix.CubeTexture.CUBE_TEXTURE_PREFIX):
-	                if t.name.endswith(Gearoenix.CubeTexture.CUBE_TEXTURE_UP_POSTFIX):
-	                    texture = Gearoenix.CubeTexture(
-	                        t.name[len(Gearoenix.CubeTexture.CUBE_TEXTURE_PREFIX): len(t.name) - len(Gearoenix.CubeTexture.CUBE_TEXTURE_UP_POSTFIX)],
-	                        len(Gearoenix.TextureManager.textures))
-	                    texture.type = Gearoenix.TextureManager.TEXTURE_TYPE_CUBE
-	                else:
-	                    continue
-	            else:
-	                texture = Gearoenix.Texture(t, len(Gearoenix.TextureManager.textures)) # Doubt !!!!!!!!!!!!!!!!!!!!!!!!!!!1
-	                texture.type = Gearoenix.TextureManager.TEXTURE_TYPE_2D
-	            try:
-	                t = Gearoenix.TextureManager.textures[texture.file_path]
-	                t[0].add(texture.name)
-	            except KeyError:
-	                Gearoenix.TextureManager.textures[texture.file_path] = [{texture.name}, texture, 0]
+        @staticmethod
+        def initialize():
+            for t in bpy.data.textures:
+                if t.name.startswith(Gearoenix.CubeTexture.CUBE_TEXTURE_PREFIX):
+                    if t.name.endswith(Gearoenix.CubeTexture.CUBE_TEXTURE_UP_POSTFIX):
+                        texture = Gearoenix.CubeTexture(
+                            t.name[len(Gearoenix.CubeTexture.CUBE_TEXTURE_PREFIX): len(t.name) - len(
+                                Gearoenix.CubeTexture.CUBE_TEXTURE_UP_POSTFIX)],
+                            len(Gearoenix.TextureManager.textures))
+                        texture.type = Gearoenix.TextureManager.TEXTURE_TYPE_CUBE
+                    else:
+                        continue
+                else:
+                    texture = Gearoenix.Texture(t, len(
+                        Gearoenix.TextureManager.textures))  # Doubt !!!!!!!!!!!!!!!!!!!!!!!!!!!1
+                    texture.type = Gearoenix.TextureManager.TEXTURE_TYPE_2D
+                try:
+                    t = Gearoenix.TextureManager.textures[texture.file_path]
+                    t[0].add(texture.name)
+                except KeyError:
+                    Gearoenix.TextureManager.textures[texture.file_path] = [{texture.name}, texture, 0]
 
-	    @staticmethod
-	    def get_index(name):
-	        for v in Gearoenix.TextureManager.textures.values():
-	            if name in v[0]:
-	                return v[1].index
-	        print('Error texture ' + name + ' not found.')
-	        raise Exception('Error texture ' + name + ' not found.')
+        @staticmethod
+        def get_index(name):
+            for v in Gearoenix.TextureManager.textures.values():
+                if name in v[0]:
+                    return v[1].index
+            print('Error texture ' + name + ' not found.')
+            raise Exception('Error texture ' + name + ' not found.')
 
-	    @staticmethod
-	    def write_table(save_file):
-	        Gearoenix.TextureManager.table_offset = save_file.tell()
-	        save_file.write(Gearoenix.TextureManager.TYPE_TEXTURE_COUNT(len(Gearoenix.TextureManager.textures)))
-	        for f in Gearoenix.TextureManager.textures.keys():
-	            save_file.write(Gearoenix.TextureManager.TYPE_TEXTURE_NAMES_COUNT(len(Gearoenix.TextureManager.textures[f][0])))
-	            for s in Gearoenix.TextureManager.textures[f][0]:
-	                Gearoenix.save_string(save_file, s)
-	            save_file.write(Gearoenix.TextureManager.TYPE_TEXTURE_INDEX(Gearoenix.TextureManager.textures[f][1].index))
-	            save_file.write(Gearoenix.TextureManager.textures[f][1].type)
-	            save_file.write(Gearoenix.TextureManager.TYPE_TEXTURE_OFFSET(Gearoenix.TextureManager.textures[f][2]))
+        @staticmethod
+        def write_table(save_file):
+            Gearoenix.TextureManager.table_offset = save_file.tell()
+            save_file.write(Gearoenix.TextureManager.TYPE_TEXTURE_COUNT(len(Gearoenix.TextureManager.textures)))
+            for f in Gearoenix.TextureManager.textures.keys():
+                save_file.write(
+                    Gearoenix.TextureManager.TYPE_TEXTURE_NAMES_COUNT(len(Gearoenix.TextureManager.textures[f][0])))
+                for s in Gearoenix.TextureManager.textures[f][0]:
+                    Gearoenix.save_string(save_file, s)
+                save_file.write(
+                    Gearoenix.TextureManager.TYPE_TEXTURE_INDEX(Gearoenix.TextureManager.textures[f][1].index))
+                save_file.write(Gearoenix.TextureManager.textures[f][1].type)
+                save_file.write(Gearoenix.TextureManager.TYPE_TEXTURE_OFFSET(Gearoenix.TextureManager.textures[f][2]))
 
-	    @staticmethod
-	    def write_textures(save_file):
-	        for texture in Gearoenix.TextureManager.textures.values():
-	            print(texture)
-	            texture[2] = save_file.tell()
-	            texture[1].save(save_file)
-	        cur_loc = save_file.tell()
-	        save_file.seek(Gearoenix.TextureManager.table_offset, io.SEEK_SET)
-	        Gearoenix.TextureManager.write_table(save_file)
-	        save_file.seek(cur_loc, io.SEEK_SET)
+        @staticmethod
+        def write_textures(save_file):
+            for texture in Gearoenix.TextureManager.textures.values():
+                print(texture)
+                texture[2] = save_file.tell()
+                texture[1].save(save_file)
+            cur_loc = save_file.tell()
+            save_file.seek(Gearoenix.TextureManager.table_offset, io.SEEK_SET)
+            Gearoenix.TextureManager.write_table(save_file)
+            save_file.seek(cur_loc, io.SEEK_SET)
 
     return TextureManager
 
+
 Gearoenix.TextureManager = assigner()
+
 
 def assigner():
     class SceneManager:
@@ -1095,9 +1186,12 @@ def assigner():
             save_file.seek(Gearoenix.SceneManager.table_offset, io.SEEK_SET)
             Gearoenix.SceneManager.write_table(save_file)
             save_file.seek(cur_loc, io.SEEK_SET)
+
     return SceneManager
 
+
 Gearoenix.SceneManager = assigner()
+
 
 def assigner():
     def write_some_data(context, filepath):
@@ -1115,9 +1209,12 @@ def assigner():
         f.close()
 
         return {'FINISHED'}
+
     return write_some_data
 
+
 Gearoenix.write_some_data = assigner()
+
 
 def assigner():
     class Exporter(Operator, ExportHelper):
@@ -1129,8 +1226,8 @@ def assigner():
         filename_ext = ".gx3d"
 
         filter_glob = StringProperty(
-                default="*.gx3d",
-                options={'HIDDEN'},
+            default="*.gx3d",
+            options={'HIDDEN'},
         )
 
         # List of operator properties, the attributes will be assigned
@@ -1150,28 +1247,36 @@ def assigner():
         #         )
 
         def execute(self, context):
-            return Gearoenix.write_some_data(context, self.filepath) # self.use_setting
+            return Gearoenix.write_some_data(context, self.filepath)  # self.use_setting
+
     return Exporter
 
+
 Gearoenix.Exporter = assigner()
+
 
 def assigner():
     # Only needed if you want to add into a dynamic menu
     def menu_func_export(self, context):
         self.layout.operator(Gearoenix.Exporter.bl_idname, text="Gearoenix 3D Exporter (.gx3d)")
+
     return menu_func_export
 
+
 Gearoenix.menu_func_export = assigner()
+
 
 def unregister():
     bpy.utils.unregister_class(Gearoenix.Exporter)
     bpy.types.INFO_MT_file_export.remove(Gearoenix.menu_func_export)
+
 
 def register():
     bpy.utils.register_class(Gearoenix.OkOperator)
     bpy.utils.register_class(Gearoenix.MessageOperator)
     bpy.utils.register_class(Gearoenix.Exporter)
     bpy.types.INFO_MT_file_export.append(Gearoenix.menu_func_export)
+
 
 if __name__ == "__main__":
     register()

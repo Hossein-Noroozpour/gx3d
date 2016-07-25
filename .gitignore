@@ -63,3 +63,8 @@ target/
 
 *.log
 *.txt
+*
+
+!gx3d.py
+!LICENSE
+!README.md
