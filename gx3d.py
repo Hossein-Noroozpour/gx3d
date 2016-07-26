@@ -1,3 +1,5 @@
+from IPython.lib.display import Audio
+
 from gx3d import Animation
 
 bl_info = {
@@ -1194,10 +1196,98 @@ Gearoenix.SceneManager = assigner()
 
 
 def assigner():
+    class Effect:
+        TYPE_FILE_SIZE = ctypes.c_uint32
+
+        def __init__(self, s):
+            self.file_path = s.sound.filepath
+            if not self.file_path.endswith('.ogg'):
+                raise Exception('Error only ogg Vorbis is supported now.')
+
+        def save(self, save_file: io.BufferedWriter):
+            data = open(self.file_path, 'rb')
+            data = data.read()
+            save_file.write(Effect.TYPE_FILE_SIZE(len(data)))
+            save_file.write(data)
+    return Effect
+
+Gearoenix.Effect = assigner()
+
+
+def assigner():
+    class BackgroundMusic:
+        TYPE_FILE_SIZE = ctypes.c_uint32
+
+        def __init__(self, s):
+            self.file_path = s.sound.filepath
+            if not self.file_path.endswith('.ogg'):
+                raise Exception('Error only ogg Vorbis is supported now.')
+
+        def save(self, save_file: io.BufferedWriter):
+            data = open(self.file_path, 'rb')
+            data = data.read()
+            save_file.write(BackgroundMusic.TYPE_FILE_SIZE(len(data)))
+            save_file.write(data)
+    return BackgroundMusic
+
+Gearoenix.BackgroundMusic = assigner()
+
+
+def assigner():
+    class AudioManager:
+        TYPE_OFFSET = ctypes.c_uint32
+        TYPE_AUDIO_COUNT = ctypes.c_uint32
+        TYPE_AUDIO_TYPE = ctypes.c_uint8
+        AUDIO_TYPE_BG_MUSIC = TYPE_AUDIO_TYPE(1)
+        AUDIO_TYPE_EFFECT = TYPE_AUDIO_TYPE(2)
+        PREFIX_BG_MUSIC = "back-music-"
+        PREFIX_EFFECT = "effect-"
+        audios = []
+        table_offset = TYPE_OFFSET(0)
+
+        @staticmethod
+        def initialize():
+            for s in bpy.data.speakers:
+                if s.name.starswith(AudioManager.PREFIX_BG_MUSIC):
+                    audio = Gearoenix.BackgroundMusic(s)
+                    audio.name = s.name[len(AudioManager.PREFIX_BG_MUSIC):]
+                    audio.type = AudioManager.AUDIO_TYPE_BG_MUSIC
+                elif s.name.starswith(AudioManager.PREFIX_EFFECT):
+                    audio = Gearoenix.Effect(s)
+                    audio.name = s.name[len(AudioManager.PREFIX_EFFECT):]
+                    audio.type = AudioManager.AUDIO_TYPE_EFFECT
+                else:
+                    raise Exception("Audio prefix must be 'back-music-' or 'effect-'.")
+                AudioManager.audios.append(audio)
+
+        @staticmethod
+        def write_table(save_file: io.BufferedWriter):
+            AudioManager.table_offset = AudioManager.TYPE_OFFSET(save_file.tell())
+            save_file.write(AudioManager.TYPE_AUDIO_COUNT(len(AudioManager.audios)))
+            for a in AudioManager.audios:
+                save_file.write(a.type)
+                Gearoenix.save_string(save_file, a.name)
+                save_file.write(AudioManager.TYPE_OFFSET(0))
+
+        @staticmethod
+        def write_audios(save_file: io.BufferedWriter):
+            for a in AudioManager.audios:
+                a.offset = AudioManager.TYPE_OFFSET(save_file.tell())
+                save_file.write(a.type)
+                Gearoenix.save_string(save_file, a.name)
+                a.save(save_file)
+
+    return AudioManager
+
+Gearoenix.AudioManager = assigner()
+
+
+def assigner():
     def write_some_data(context, filepath):
         f = open(filepath, 'wb')
         Gearoenix.TextureManager.initialize()
         Gearoenix.SceneManager.initialize()
+        Gearoenix.AudioManager.initialize()
         if sys.byteorder == 'little':
             f.write(ctypes.c_char(1))
         else:
