@@ -1,7 +1,3 @@
-from IPython.lib.display import Audio
-
-from gx3d import Animation
-
 bl_info = {
     "name": "Gearoenix Blender",
     "author": "Hossein Noroozpour",
@@ -1200,7 +1196,7 @@ def assigner():
         TYPE_FILE_SIZE = ctypes.c_uint32
 
         def __init__(self, s):
-            self.file_path = s.sound.filepath
+            self.file_path = bpy.path.abspath(s.sound.filepath)
             if not self.file_path.endswith('.ogg'):
                 raise Exception('Error only ogg Vorbis is supported now.')
 
@@ -1219,7 +1215,7 @@ def assigner():
         TYPE_FILE_SIZE = ctypes.c_uint32
 
         def __init__(self, s):
-            self.file_path = s.sound.filepath
+            self.file_path = bpy.path.abspath(s.sound.filepath)
             if not self.file_path.endswith('.ogg'):
                 raise Exception('Error only ogg Vorbis is supported now.')
 
@@ -1248,11 +1244,11 @@ def assigner():
         @staticmethod
         def initialize():
             for s in bpy.data.speakers:
-                if s.name.starswith(AudioManager.PREFIX_BG_MUSIC):
+                if s.name.startswith(AudioManager.PREFIX_BG_MUSIC):
                     audio = Gearoenix.BackgroundMusic(s)
                     audio.name = s.name[len(AudioManager.PREFIX_BG_MUSIC):]
                     audio.type = AudioManager.AUDIO_TYPE_BG_MUSIC
-                elif s.name.starswith(AudioManager.PREFIX_EFFECT):
+                elif s.name.startswith(AudioManager.PREFIX_EFFECT):
                     audio = Gearoenix.Effect(s)
                     audio.name = s.name[len(AudioManager.PREFIX_EFFECT):]
                     audio.type = AudioManager.AUDIO_TYPE_EFFECT
@@ -1294,8 +1290,10 @@ def assigner():
             f.write(ctypes.c_char(0))
         Gearoenix.TextureManager.write_table(f)
         Gearoenix.SceneManager.write_table(f)
+        Gearoenix.AudioManager.write_table(f)
         Gearoenix.TextureManager.write_textures(f)
         Gearoenix.SceneManager.write_scenes(f)
+        Gearoenix.AudioManager.write_audios(f)
         f.close()
 
         return {'FINISHED'}
