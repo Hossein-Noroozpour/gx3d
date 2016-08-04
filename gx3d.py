@@ -1239,7 +1239,7 @@ def assigner():
         PREFIX_BG_MUSIC = "back-music-"
         PREFIX_EFFECT = "effect-"
         audios = []
-        table_offset = TYPE_OFFSET(0)
+        table_offset = None
 
         @staticmethod
         def initialize():
@@ -1258,9 +1258,12 @@ def assigner():
 
         @staticmethod
         def write_table(save_file: io.BufferedWriter):
-            AudioManager.table_offset = AudioManager.TYPE_OFFSET(save_file.tell())
+            print("Table of audios:")
+            AudioManager.table_offset = save_file.tell()
+            print("Number of audios: ", len(AudioManager.audios))
             save_file.write(AudioManager.TYPE_AUDIO_COUNT(len(AudioManager.audios)))
             for a in AudioManager.audios:
+                print("    Audio ", a.name, " type: ", a.type)
                 save_file.write(a.type)
                 Gearoenix.save_string(save_file, a.name)
                 save_file.write(AudioManager.TYPE_OFFSET(0))
@@ -1272,6 +1275,10 @@ def assigner():
                 save_file.write(a.type)
                 Gearoenix.save_string(save_file, a.name)
                 a.save(save_file)
+            file_off = save_file.tell()
+            save_file.seek(AudioManager.table_offset, io.SEEK_SET)
+            AudioManager.write_table(save_file)
+            save_file.seek(file_off, io.SEEK_SET)
 
     return AudioManager
 
