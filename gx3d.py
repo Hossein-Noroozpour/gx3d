@@ -24,6 +24,9 @@ from bpy.types import Operator
 
 
 class Gearoenix:
+    def __init__(self):
+        pass
+
     class OkOperator(bpy.types.Operator):
         bl_idname = "error.ok"
         bl_label = "OK"
@@ -390,6 +393,9 @@ def assigner():
                 children_size += c.get_size()
             return Gearoenix.get_string_size(self.name) + ctypes.sizeof(self.BONE_TYPE_FLOAT) * 6 + ctypes.sizeof(
                 self.BONE_TYPE_BONE_INDEX) + ctypes.sizeof(self.BONE_TYPE_CHILDREN_COUNT) + children_size
+    return Bone
+
+Gearoenix.Bone = assigner()
 
 
 def assigner():
@@ -764,7 +770,6 @@ Gearoenix.Sun = assigner()
 def assigner():
     class Sky:
         SKY_PREFIX = 'sky-'
-
         def __init__(self, geo_obj):
             self.type = Gearoenix.Scene.OBJECT_TYPE_ID_SKY_BOX
             self.name = geo_obj.name
@@ -777,7 +782,6 @@ def assigner():
         def save(self, save_file: io.BufferedWriter):
             save_file.write(Gearoenix.TextureManager.TYPE_TEXTURE_INDEX(self.texture_index))
             self.mesh.save(save_file)
-
     return Sky
 
 
@@ -1254,6 +1258,7 @@ def assigner():
                     audio.type = AudioManager.AUDIO_TYPE_EFFECT
                 else:
                     raise Exception("Audio prefix must be 'back-music-' or 'effect-'.")
+                audio.offset = AudioManager.TYPE_OFFSET(0)
                 AudioManager.audios.append(audio)
 
         @staticmethod
@@ -1266,7 +1271,7 @@ def assigner():
                 print("    Audio ", a.name, " type: ", a.type)
                 save_file.write(a.type)
                 Gearoenix.save_string(save_file, a.name)
-                save_file.write(AudioManager.TYPE_OFFSET(0))
+                save_file.write(a.offset)
 
         @staticmethod
         def write_audios(save_file: io.BufferedWriter):
@@ -1288,19 +1293,23 @@ Gearoenix.AudioManager = assigner()
 def assigner():
     def write_some_data(context, filepath):
         f = open(filepath, 'wb')
+
         Gearoenix.TextureManager.initialize()
-        Gearoenix.SceneManager.initialize()
         Gearoenix.AudioManager.initialize()
+        Gearoenix.SceneManager.initialize()
+
         if sys.byteorder == 'little':
             f.write(ctypes.c_char(1))
         else:
             f.write(ctypes.c_char(0))
+
         Gearoenix.TextureManager.write_table(f)
-        Gearoenix.SceneManager.write_table(f)
         Gearoenix.AudioManager.write_table(f)
+        Gearoenix.SceneManager.write_table(f)
+
         Gearoenix.TextureManager.write_textures(f)
-        Gearoenix.SceneManager.write_scenes(f)
         Gearoenix.AudioManager.write_audios(f)
+        Gearoenix.SceneManager.write_scenes(f)
         f.close()
 
         return {'FINISHED'}
