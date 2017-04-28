@@ -25,9 +25,20 @@ import mathutils
 
 class Gearoenix:
     TYPE_BOOLEAN = ctypes.c_uint8
-    ENGINE_SDK_NAME = 'NUFRAG_SDK'
-    ENGINE_SDK_PATH = None
-    VULKAN_SDK_PATH = None
+    TYPE_SHDAER_TYPE_ID = ctypes.c_uint16
+
+    SHADER_DIFFUSE_COLORED = TYPE_SHDAER_TYPE_ID(1)
+    SHADER_DIFFUSE_TEXTURED = TYPE_SHDAER_TYPE_ID(2)
+
+    STRING_ENGINE_SDK_VAR_NAME = 'NUFRAG_SDK'
+    STRING_VULKAN_SDK_VAR_NAME = 'VULKAN_SDK'
+
+    PATH_ENGINE_SDK = None
+    PATH_VULKAN_SDK = None
+    PATH_SHADERS_DIR = None
+    PATH_SHADER_COMPILER = None
+
+    shaders = set()
 
     def __init__(self):
         pass
@@ -48,12 +59,32 @@ class Gearoenix:
         bpy.ops.gearoenix_exporter.message_box()
 
     @classmethod
-    def check_env(cls) -> bool:
-        cls.ENGINE_SDK_PATH = os.environ.get(cls.ENGINE_SDK_NAME)
-        cls.VULKAN_SDK_PATH = os.environ.get('VULKAN_SDK')
-        if cls.ENGINE_SDK_PATH is None:
-            cls.show('"NUFRAG_SDK" variable is not set!')
+    def check_env(cls):
+        cls.PATH_ENGINE_SDK = os.environ.get(cls.STRING_ENGINE_SDK_VAR_NAME)
+        if cls.PATH_ENGINE_SDK is None:
+            cls.show('"' + cls.STRING_ENGINE_SDK_VAR_NAME +
+                     '" variable is not set!')
             return False
+        cls.PATH_SHADERS_DIR = cls.PATH_ENGINE_SDK + os.pathsep + 'shaders' + os.pathsep
+        cls.PATH_VULKAN_SDK = os.environ.get(cls.STRING_VULKAN_SDK_VAR_NAME)
+        if cls.PATH_ENGINE_SDK is None:
+            cls.show('"' + cls.STRING_VULKAN_SDK_VAR_NAME +
+                     '" variable is not set!')
+            return False
+        cls.PATH_SHADER_COMPILER = cls.PATH_VULKAN_SDK + os.pathsep + 'bin' + os.pathsep + 'glslangValidator'
+        return True
+
+    @classmethod
+    def write_shaders(cls):
+        for shader in cls.shaders:
+            if cls.SHADER_DIFFUSE_COLORED == shader:
+                shader_name = cls.PATH_SHADERS_DIR + 'diffuse-colored'
+
+        return True
+
+    @classmethod
+    def write_file(cls):
+
         return True
 
     class Exporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
@@ -64,22 +95,6 @@ class Gearoenix:
         filter_glob = bpy.props.StringProperty(
             default="*.gx3d",
             options={'HIDDEN'}, )
-
-        # List of operator properties, the attributes will be assigned
-        # to the class instance from the operator settings before calling.
-        # use_setting = BoolProperty(
-        #         name="Example Boolean",
-        #         description="Example Tooltip.",
-        #         default=True,
-        #         )
-        #
-        # type = EnumProperty(
-        #         name="Example Enum",
-        #         description="Choose between two items.",
-        #         items=(('OPT_A', "First Option", "Description one"),
-        #                ('OPT_B', "Second Option", "Description two")),
-        #         default='OPT_A',
-        #         )
 
         def execute(self, context):
             if not (Gearoenix.check_env()):
