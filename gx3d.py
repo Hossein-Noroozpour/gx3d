@@ -4,7 +4,7 @@ bl_info = {
     "version": (2, 0),
     "blender": (2, 7, 5),
     "api": 1,
-    "location": "File > Export",
+    "location": "File >EDxport",
     "description": "Export several scene into a Gearoenix 3D file format.",
     "warning": "",
     "wiki_url": "",
@@ -27,8 +27,11 @@ import mathutils
 
 class Gearoenix:
     TYPE_BOOLEAN = ctypes.c_uint8
-    TYPE_SHDAER_TYPE_ID = ctypes.c_uint16
-    TYPE_SHDAER_SIZE = ctypes.c_uint16
+    TYPE_OFFSET = ctypes.c_uint32
+
+    TYPE_SHADER_TYPE_ID = ctypes.c_uint16
+    TYPE_SHADER_SIZE = ctypes.c_uint16
+    TYPE_SHADER_COUNT = ctypes.c_uint16
 
     SHADER_DIFFUSE_COLORED = 1
     SHADER_DIFFUSE_TEXTURED = 2
@@ -41,7 +44,8 @@ class Gearoenix:
     PATH_SHADERS_DIR = None
     PATH_SHADER_COMPILER = None
 
-    shaders = {1}
+    shaders_table_offset = 0
+    shaders = {1: 0}
 
     def __init__(self):
         pass
@@ -91,14 +95,22 @@ class Gearoenix:
         if len(tmp) > 0xFFFF:
             cls.show('Shader %s is bigger than expected to be!' % shader_name)
             return False
-        cls.out.write(cls.TYPE_SHDAER_SIZE(len(tmp)))
+        cls.out.write(cls.TYPE_SHADER_SIZE(len(tmp)))
         cls.out.write(tmp)
         return True
 
     @classmethod
+    def write_shaders_table(cls):
+        cls.out.write(cls.TYPE_SHADER_COUNT(len(cls.shaders)))
+        for shader_id, offset in cls.shaders.items():
+            cls.out.write(cls.TYPE_SHADER_TYPE_ID(shader_id))
+            cls.out.write(cls.TYPE_OFFSET(offset))
+
+    @classmethod
     def write_shaders(cls):
-        for shader in cls.shaders:
-            if cls.SHADER_DIFFUSE_COLORED == shader:
+        for shader_id in cls.shaders.keys():
+            if cls.SHADER_DIFFUSE_COLORED == shader_id:
+                cls.shaders[shader_id] = cls.out.tell()
                 shader_name = cls.PATH_SHADERS_DIR + 'diffuse-colored.%s'
                 if not cls.compile_shader('vert', shader_name % 'vert'):
                     return False
@@ -106,7 +118,7 @@ class Gearoenix:
                     return False
                 return True
             else:
-                cls.show('Unexpected shader type: %d!' % shader)
+                cls.show('Unexpected shader type: %d!' % shader_id)
                 return False
         return True
 
@@ -116,7 +128,12 @@ class Gearoenix:
             cls.out.write(ctypes.c_char(1))
         else:
             cls.out.write(ctypes.c_char(0))
-        return cls.write_shaders()
+        cls.shaders_table_offset = cls.out.tell()
+        cls.write_shaders_table()
+        cls.write_shaders()
+        cls.out.seek(cls.shaders_table_offset)
+        cls.write_shaders_table()
+        return
 
     class Exporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
         """This is a plug in for Gearoenix 3D file format"""
@@ -130,7 +147,11 @@ class Gearoenix:
         def execute(self, context):
             if not (Gearoenix.check_env()):
                 return {'CANCELLED'}
-            Gearoenix.out = open(self.filepath, mode='wb')
+            try:
+                Gearoenix.out = open(self.filepath, mode='wb')
+            except:
+                cls.show('file %s can not be opened!' % self.filepath)
+                return {'CANCELLED'}
             if Gearoenix.write_file():
                 Gearoenix.out.flush()
                 Gearoenix.out.close()
