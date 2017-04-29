@@ -16,7 +16,9 @@ import ctypes
 import io
 import math
 import os
+import subprocess
 import sys
+import tempfile
 
 import bpy
 import bpy_extras
@@ -26,9 +28,10 @@ import mathutils
 class Gearoenix:
     TYPE_BOOLEAN = ctypes.c_uint8
     TYPE_SHDAER_TYPE_ID = ctypes.c_uint16
+    TYPE_SHDAER_SIZE = ctypes.c_uint16
 
-    SHADER_DIFFUSE_COLORED = TYPE_SHDAER_TYPE_ID(1)
-    SHADER_DIFFUSE_TEXTURED = TYPE_SHDAER_TYPE_ID(2)
+    SHADER_DIFFUSE_COLORED = 1
+    SHADER_DIFFUSE_TEXTURED = 2
 
     STRING_ENGINE_SDK_VAR_NAME = 'NUFRAG_SDK'
     STRING_VULKAN_SDK_VAR_NAME = 'VULKAN_SDK'
@@ -38,7 +41,7 @@ class Gearoenix:
     PATH_SHADERS_DIR = None
     PATH_SHADER_COMPILER = None
 
-    shaders = set()
+    shaders = {1}
 
     def __init__(self):
         pass
@@ -65,27 +68,51 @@ class Gearoenix:
             cls.show('"' + cls.STRING_ENGINE_SDK_VAR_NAME +
                      '" variable is not set!')
             return False
-        cls.PATH_SHADERS_DIR = cls.PATH_ENGINE_SDK + os.pathsep + 'shaders' + os.pathsep
+        cls.PATH_SHADERS_DIR = cls.PATH_ENGINE_SDK + '/shaders/'
         cls.PATH_VULKAN_SDK = os.environ.get(cls.STRING_VULKAN_SDK_VAR_NAME)
         if cls.PATH_ENGINE_SDK is None:
             cls.show('"' + cls.STRING_VULKAN_SDK_VAR_NAME +
                      '" variable is not set!')
             return False
-        cls.PATH_SHADER_COMPILER = cls.PATH_VULKAN_SDK + os.pathsep + 'bin' + os.pathsep + 'glslangValidator'
+        cls.PATH_SHADER_COMPILER = cls.PATH_VULKAN_SDK + '/bin/glslangValidator'
+        return True
+
+    @classmethod
+    def compile_shader(cls, stage, shader_name):
+        tmp = tempfile.NamedTemporaryFile()
+        args = [
+            cls.PATH_SHADER_COMPILER, '-V -S ' + stage, shader_name, '-o',
+            tmp.name
+        ]
+        if subprocess.run(args).returncode != 0:
+            cls.show('Shader %s can not be compiled!' % shader_name)
+            return False
+        tmp = tmp.file.read()
+        if len(tmp) > 0xFFFF:
+            cls.show('Shader %s is bigger than expected to be!' % shader_name)
+            return False
+        cls.out.write(cls.TYPE_SHDAER_SIZE(len(tmp)))
+        cls.out.write(tmp)
         return True
 
     @classmethod
     def write_shaders(cls):
         for shader in cls.shaders:
             if cls.SHADER_DIFFUSE_COLORED == shader:
-                shader_name = cls.PATH_SHADERS_DIR + 'diffuse-colored'
-
+                shader_name = cls.PATH_SHADERS_DIR + 'diffuse-colored.%s'
+                if not cls.compile_shader('vert', shader_name % 'vert'):
+                    return False
+                if not cls.compile_shader('frag', shader_name % 'frag'):
+                    return False
+                return True
+            else:
+                cls.show('Unexpected shader type: %d!' % shader)
+                return False
         return True
 
     @classmethod
     def write_file(cls):
-
-        return True
+        return cls.write_shaders()
 
     class Exporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
         """This is a plug in for Gearoenix 3D file format"""
@@ -99,7 +126,11 @@ class Gearoenix:
         def execute(self, context):
             if not (Gearoenix.check_env()):
                 return {'CANCELLED'}
-            return Gearoenix.write_some_data(context, self.filepath)
+            Gearoenix.out = open(self.filepath, mode='wb')
+            if Gearoenix.write_file():
+                Gearoenix.out.flush()
+                return {'FINISHED'}
+            return {'CANCELLED'}
 
     def menu_func_export(self, context):
         self.layout.operator(
