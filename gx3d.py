@@ -112,6 +112,10 @@ class Gearoenix:
 
     @classmethod
     def write_file(cls):
+        if sys.byteorder == 'little':
+            cls.out.write(ctypes.c_char(1))
+        else:
+            cls.out.write(ctypes.c_char(0))
         return cls.write_shaders()
 
     class Exporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
@@ -129,6 +133,7 @@ class Gearoenix:
             Gearoenix.out = open(self.filepath, mode='wb')
             if Gearoenix.write_file():
                 Gearoenix.out.flush()
+                Gearoenix.out.close()
                 return {'FINISHED'}
             return {'CANCELLED'}
 
