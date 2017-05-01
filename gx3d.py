@@ -95,6 +95,7 @@ class Gearoenix:
         if len(tmp) > 0xFFFF:
             cls.show('Shader %s is bigger than expected to be!' % shader_name)
             return False
+        print("Shader is compiled has length of: ", len(tmp))
         cls.out.write(cls.TYPE_SHADER_SIZE(len(tmp)))
         cls.out.write(tmp)
         return True
@@ -125,15 +126,15 @@ class Gearoenix:
     @classmethod
     def write_file(cls):
         if sys.byteorder == 'little':
-            cls.out.write(ctypes.c_char(1))
+            cls.out.write(ctypes.c_uint8(1))
         else:
-            cls.out.write(ctypes.c_char(0))
+            cls.out.write(ctypes.c_uint8(0))
         cls.shaders_table_offset = cls.out.tell()
         cls.write_shaders_table()
         cls.write_shaders()
         cls.out.seek(cls.shaders_table_offset)
         cls.write_shaders_table()
-        return
+        return True
 
     class Exporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
         """This is a plug in for Gearoenix 3D file format"""
