@@ -36,7 +36,7 @@ class Gearoenix:
     SHADER_DIFFUSE_COLORED = 1
     SHADER_DIFFUSE_TEXTURED = 2
 
-    STRING_ENGINE_SDK_VAR_NAME = 'NUFRAG_SDK'
+    STRING_ENGINE_SDK_VAR_NAME = 'VULKUST_SDK'
     STRING_VULKAN_SDK_VAR_NAME = 'VULKAN_SDK'
 
     PATH_ENGINE_SDK = None
@@ -72,25 +72,55 @@ class Gearoenix:
             cls.show('"' + cls.STRING_ENGINE_SDK_VAR_NAME +
                      '" variable is not set!')
             return False
-        cls.PATH_SHADERS_DIR = cls.PATH_ENGINE_SDK + '/shaders/'
-        cls.PATH_VULKAN_SDK = os.environ.get(cls.STRING_VULKAN_SDK_VAR_NAME)
-        if cls.PATH_ENGINE_SDK is None:
-            cls.show('"' + cls.STRING_VULKAN_SDK_VAR_NAME +
-                     '" variable is not set!')
-            return False
-        cls.PATH_SHADER_COMPILER = cls.PATH_VULKAN_SDK + '/bin/glslangValidator'
+        cls.PATH_SHADERS_DIR = cls.PATH_ENGINE_SDK + '/vulkust/src/shaders/'
+        if sys.platform == 'darwin':
+            cls.PATH_SHADER_COMPILER = "xcrun"
+        else:
+            cls.PATH_VULKAN_SDK = os.environ.get(cls.STRING_VULKAN_SDK_VAR_NAME)
+            if cls.PATH_VULKAN_SDK is None:
+                cls.show('"' + cls.STRING_VULKAN_SDK_VAR_NAME +
+                         '" variable is not set!')
+                return False
+            cls.PATH_SHADER_COMPILER =
+                cls.PATH_VULKAN_SDK + '/bin/glslangValidator'
         return True
 
     @classmethod
     def compile_shader(cls, stage, shader_name):
         tmp = tempfile.NamedTemporaryFile()
-        args = [
-            cls.PATH_SHADER_COMPILER, '-V -S ' + stage, shader_name, '-o',
-            tmp.name
-        ]
+        args = None
+        if sys.platform == 'darwin':
+            args = [
+                cls.PATH_SHADER_COMPILER,
+                '-sdk macos metal',
+                shader_name,
+                '-o',
+                tmp.name
+            ]
+        else:
+            args = [
+                cls.PATH_SHADER_COMPILER,
+                '-V -S ' + stage,
+                shader_name,
+                '-o',
+                tmp.name
+            ]
         if subprocess.run(args).returncode != 0:
             cls.show('Shader %s can not be compiled!' % shader_name)
             return False
+        if sys.platform == "darwin":
+            tmp2 = tmp
+            tmp = tempfile.NamedTemporaryFile()
+            args = [
+                cls.PATH_SHADER_COMPILER,
+                '-sdk macos metallib',
+                tmp2.name,
+                '-o',
+                tmp.name
+            ]
+            if subprocess.run(args).returncode != 0:
+                cls.show('Shader %s can not be build!' % shader_name)
+                return False
         tmp = tmp.file.read()
         if len(tmp) > 0xFFFF:
             cls.show('Shader %s is bigger than expected to be!' % shader_name)
@@ -112,7 +142,11 @@ class Gearoenix:
         for shader_id in cls.shaders.keys():
             if cls.SHADER_DIFFUSE_COLORED == shader_id:
                 cls.shaders[shader_id] = cls.out.tell()
-                shader_name = cls.PATH_SHADERS_DIR + 'diffuse-colored.%s'
+                shader_name = cls.PATH_SHADERS_DIR + 'diffuse-colored'
+                if sys.platform == "darwin":
+                    shader_name += '-%s.metal'
+                else:
+                    shader_name += '.%s'
                 if not cls.compile_shader('vert', shader_name % 'vert'):
                     return False
                 if not cls.compile_shader('frag', shader_name % 'frag'):
