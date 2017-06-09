@@ -81,7 +81,7 @@ class Gearoenix:
                 cls.show('"' + cls.STRING_VULKAN_SDK_VAR_NAME +
                          '" variable is not set!')
                 return False
-            cls.PATH_SHADER_COMPILER =
+            cls.PATH_SHADER_COMPILER = \
                 cls.PATH_VULKAN_SDK + '/bin/glslangValidator'
         return True
 
@@ -92,7 +92,9 @@ class Gearoenix:
         if sys.platform == 'darwin':
             args = [
                 cls.PATH_SHADER_COMPILER,
-                '-sdk macos metal',
+                '-sdk',
+                'macosx',
+                'metal',
                 shader_name,
                 '-o',
                 tmp.name
@@ -113,7 +115,9 @@ class Gearoenix:
             tmp = tempfile.NamedTemporaryFile()
             args = [
                 cls.PATH_SHADER_COMPILER,
-                '-sdk macos metallib',
+                '-sdk',
+                'macosx',
+                'metallib',
                 tmp2.name,
                 '-o',
                 tmp.name
