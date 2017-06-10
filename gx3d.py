@@ -27,11 +27,10 @@ import mathutils
 
 class Gearoenix:
     TYPE_BOOLEAN = ctypes.c_uint8
-    TYPE_OFFSET = ctypes.c_uint32
-
-    TYPE_SHADER_TYPE_ID = ctypes.c_uint16
-    TYPE_SHADER_SIZE = ctypes.c_uint16
-    TYPE_SHADER_COUNT = ctypes.c_uint16
+    TYPE_OFFSET = ctypes.c_uint64
+    TYPE_TYPE_ID = ctypes.c_uint64
+    TYPE_SIZE = ctypes.c_uint64
+    TYPE_COUNT = ctypes.c_uint64
 
     SHADER_DIFFUSE_COLORED = 1
     SHADER_DIFFUSE_TEXTURED = 2
@@ -130,15 +129,15 @@ class Gearoenix:
             cls.show('Shader %s is bigger than expected to be!' % shader_name)
             return False
         print("Shader is compiled has length of: ", len(tmp))
-        cls.out.write(cls.TYPE_SHADER_SIZE(len(tmp)))
+        cls.out.write(cls.TYPE_SIZE(len(tmp)))
         cls.out.write(tmp)
         return True
 
     @classmethod
     def write_shaders_table(cls):
-        cls.out.write(cls.TYPE_SHADER_COUNT(len(cls.shaders)))
+        cls.out.write(cls.TYPE_COUNT(len(cls.shaders)))
         for shader_id, offset in cls.shaders.items():
-            cls.out.write(cls.TYPE_SHADER_TYPE_ID(shader_id))
+            cls.out.write(cls.TYPE_TYPE_ID(shader_id))
             cls.out.write(cls.TYPE_OFFSET(offset))
 
     @classmethod
