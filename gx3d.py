@@ -43,7 +43,7 @@ class Gearoenix:
     PATH_SHADERS_DIR = None
     PATH_SHADER_COMPILER = None
 
-    shaders_table_offset = 0
+    tables_offset = 0
     shaders = {1: 0}
 
     def __init__(self):
@@ -139,6 +139,7 @@ class Gearoenix:
         for shader_id, offset in cls.shaders.items():
             cls.out.write(cls.TYPE_TYPE_ID(shader_id))
             cls.out.write(cls.TYPE_OFFSET(offset))
+            print("Shader with id:", shader_id, "and offset:", offset)
 
     @classmethod
     def write_shaders(cls):
@@ -166,10 +167,11 @@ class Gearoenix:
             cls.out.write(ctypes.c_uint8(1))
         else:
             cls.out.write(ctypes.c_uint8(0))
-        cls.shaders_table_offset = cls.out.tell()
+        cls.tables_offset = cls.out.tell()
         cls.write_shaders_table()
         cls.write_shaders()
-        cls.out.seek(cls.shaders_table_offset)
+        cls.out.flush()
+        cls.out.seek(cls.tables_offset)
         cls.write_shaders_table()
         return True
 
