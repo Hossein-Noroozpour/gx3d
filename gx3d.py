@@ -45,6 +45,7 @@ class Gearoenix:
 
     tables_offset = 0
     shaders = {1: 0}
+    textures = dict()
 
     def __init__(self):
         pass
@@ -125,9 +126,6 @@ class Gearoenix:
                 cls.show('Shader %s can not be build!' % shader_name)
                 return False
         tmp = tmp.file.read()
-        if len(tmp) > 0xFFFF:
-            cls.show('Shader %s is bigger than expected to be!' % shader_name)
-            return False
         print("Shader is compiled has length of: ", len(tmp))
         cls.out.write(cls.TYPE_SIZE(len(tmp)))
         cls.out.write(tmp)
@@ -140,6 +138,14 @@ class Gearoenix:
             cls.out.write(cls.TYPE_TYPE_ID(shader_id))
             cls.out.write(cls.TYPE_OFFSET(offset))
             print("Shader with id:", shader_id, "and offset:", offset)
+
+    @classmethod
+    def write_texture_table(cls):
+        cls.out.write(cls.TYPE_COUNT(len(cls.textures)))
+        for offset, texture_id in cls.textures.values():
+            cls.out.write(cls.TYPE_TYPE_ID(texture_id))
+            cls.out.write(cls.TYPE_OFFSET(offset))
+            print("Texture with id:", texture_id, "and offset:", offset)
 
     @classmethod
     def write_shaders(cls):
@@ -160,19 +166,37 @@ class Gearoenix:
                 cls.show('Unexpected shader type: %d!' % shader_id)
                 return False
         return True
+    
+    @classmethod
+    def write_textures(cls):
+        for texture_file in cls.textures.keys():
+            cls.textures[texture_file][0] = cls.out.tell()
+            f = open(texture_file, "rb")
+            f = f.read()
+            cls.out.write(cls.TYPE_SIZE(len(f)))
+            cls.out.write(f)
+        return True
+    
+    @classmethod
+    def read_textures(cls):
+        cls.textures[bpy.data.textures[0].image.filepath] = [0, 1]
 
     @classmethod
     def write_file(cls):
+        cls.read_textures()
         if sys.byteorder == 'little':
             cls.out.write(ctypes.c_uint8(1))
         else:
             cls.out.write(ctypes.c_uint8(0))
         cls.tables_offset = cls.out.tell()
         cls.write_shaders_table()
+        cls.write_texture_table()
         cls.write_shaders()
+        cls.write_textures()
         cls.out.flush()
         cls.out.seek(cls.tables_offset)
         cls.write_shaders_table()
+        cls.write_texture_table()
         return True
 
     class Exporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
