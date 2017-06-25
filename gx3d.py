@@ -24,7 +24,6 @@ import bpy
 import bpy_extras
 import mathutils
 
-
 class Gearoenix:
     TYPE_BOOLEAN = ctypes.c_uint8
     TYPE_OFFSET = ctypes.c_uint64
@@ -87,45 +86,32 @@ class Gearoenix:
 
     @classmethod
     def compile_shader(cls, stage, shader_name):
-        tmp = tempfile.NamedTemporaryFile()
+        tmp = cls.TmpFile()
+        print("1111111111111111111111111111")
         args = None
         if sys.platform == 'darwin':
             args = [
-                cls.PATH_SHADER_COMPILER,
-                '-sdk',
-                'macosx',
-                'metal',
-                shader_name,
-                '-o',
-                tmp.name
-            ]
+                cls.PATH_SHADER_COMPILER, '-sdk', 'macosx', 'metal',
+                shader_name, '-o', tmp.filename]
         else:
             args = [
-                cls.PATH_SHADER_COMPILER,
-                '-V -S ' + stage,
-                shader_name,
-                '-o',
-                tmp.name
-            ]
+                cls.PATH_SHADER_COMPILER, '-V', '-S', stage, shader_name,
+                '-o', tmp.filename]
+
+        print("222222222222222222222222222")
         if subprocess.run(args).returncode != 0:
             cls.show('Shader %s can not be compiled!' % shader_name)
             return False
         if sys.platform == "darwin":
             tmp2 = tmp
-            tmp = tempfile.NamedTemporaryFile()
+            tmp = cls.TmpFile()
             args = [
-                cls.PATH_SHADER_COMPILER,
-                '-sdk',
-                'macosx',
-                'metallib',
-                tmp2.name,
-                '-o',
-                tmp.name
-            ]
+                cls.PATH_SHADER_COMPILER, '-sdk', 'macosx', 'metallib',
+                tmp2.filename, '-o', tmp.filename]
             if subprocess.run(args).returncode != 0:
                 cls.show('Shader %s can not be build!' % shader_name)
                 return False
-        tmp = tmp.file.read()
+        tmp = tmp.read()
         print("Shader is compiled has length of: ", len(tmp))
         cls.out.write(cls.TYPE_SIZE(len(tmp)))
         cls.out.write(tmp)
@@ -166,7 +152,7 @@ class Gearoenix:
                 cls.show('Unexpected shader type: %d!' % shader_id)
                 return False
         return True
-    
+
     @classmethod
     def write_textures(cls):
         for texture_file in cls.textures.keys():
@@ -176,10 +162,11 @@ class Gearoenix:
             cls.out.write(cls.TYPE_SIZE(len(f)))
             cls.out.write(f)
         return True
-    
+
     @classmethod
     def read_textures(cls):
-        cls.textures[bpy.data.textures[0].image.filepath] = [0, 1]
+        for t in bpy.data.textures:
+            cls.textures[t.image.filepath] = [0, 1]
 
     @classmethod
     def write_file(cls):
@@ -231,6 +218,21 @@ class Gearoenix:
         bpy.utils.register_class(cls.ErrorMsgBox)
         bpy.utils.register_class(cls.Exporter)
         bpy.types.INFO_MT_file_export.append(cls.menu_func_export)
+
+    class TmpFile:
+        def __init__(self):
+            tmpfile = tempfile.NamedTemporaryFile(delete = False)
+            self.filename = tmpfile.name
+            tmpfile.close()
+
+        def __del__(self):
+            os.remove(self.filename)
+
+        def read(self):
+            f = open(self.filename, 'rb')
+            d = f.read()
+            f.close()
+            return d
 
 
 #
