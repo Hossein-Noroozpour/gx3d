@@ -30,9 +30,13 @@ class Gearoenix:
     TYPE_TYPE_ID = ctypes.c_uint64
     TYPE_SIZE = ctypes.c_uint64
     TYPE_COUNT = ctypes.c_uint64
+    TYPE_FLOAT = ctypes.c_float
 
-    SHADER_DIFFUSE_COLORED = 1
-    SHADER_DIFFUSE_TEXTURED = 2
+    SHD_WHT = 1
+    SHD_DIFF_CLR = 10
+    SHD_DIFF_CLR_SPC = 11
+    SHD_DIFF_TXT = 12
+    SHD_DIFF_TXT_SPC = 13
 
     STRING_ENGINE_SDK_VAR_NAME = 'VULKUST_SDK'
     STRING_VULKAN_SDK_VAR_NAME = 'VULKAN_SDK'
@@ -43,8 +47,15 @@ class Gearoenix:
     PATH_SHADER_COMPILER = None
 
     tables_offset = 0
-    shaders = {1: 0}
+    shaders = dict()
     textures = dict()
+    last_texture_id = 0
+    scenes = dict()
+    last_scene_id = 0
+    meshes = dict()
+    last_meshe_id = 0
+    cameras = dict()
+    last_camera_id = 0
 
     def __init__(self):
         pass
@@ -87,7 +98,6 @@ class Gearoenix:
     @classmethod
     def compile_shader(cls, stage, shader_name):
         tmp = cls.TmpFile()
-        print("1111111111111111111111111111")
         args = None
         if sys.platform == 'darwin':
             args = [
@@ -97,8 +107,6 @@ class Gearoenix:
             args = [
                 cls.PATH_SHADER_COMPILER, '-V', '-S', stage, shader_name,
                 '-o', tmp.filename]
-
-        print("222222222222222222222222222")
         if subprocess.run(args).returncode != 0:
             cls.show('Shader %s can not be compiled!' % shader_name)
             return False
@@ -117,6 +125,10 @@ class Gearoenix:
         cls.out.write(tmp)
         return True
 
+    def const_string(s):
+        return s.replace("-", "_").upper()
+
+
     @classmethod
     def write_shaders_table(cls):
         cls.out.write(cls.TYPE_COUNT(len(cls.shaders)))
@@ -126,12 +138,56 @@ class Gearoenix:
             print("Shader with id:", shader_id, "and offset:", offset)
 
     @classmethod
-    def write_texture_table(cls):
+    def write_cameras_table(cls):
+        cls.out.write(cls.TYPE_COUNT(len(cls.cameras)))
+        offsets = [i for i in range(len(cls.cameras))]
+        for name, offset_id in cls.cameras.items():
+            offset, item_id = offset_id
+            print(
+                "const CAMERA_" + cls.const_string(name) + ": u64 = " +
+                str(item_id) + ";")
+            offsets[item_id] = cls.TYPE_OFFSET(offset)
+        for o in offsets:
+            cls.out.write(o)
+
+    @classmethod
+    def write_textures_table(cls):
         cls.out.write(cls.TYPE_COUNT(len(cls.textures)))
-        for offset, texture_id in cls.textures.values():
-            cls.out.write(cls.TYPE_TYPE_ID(texture_id))
-            cls.out.write(cls.TYPE_OFFSET(offset))
-            print("Texture with id:", texture_id, "and offset:", offset)
+        offsets = [i for i in range(len(cls.textures))]
+        for name, offset_id in cls.textures.items():
+            offset, item_id = offset_id
+            print(
+                "const TEXTURE_" + cls.const_string(name) + ": u64 = " +
+                str(item_id) + ";")
+            offsets[item_id] = cls.TYPE_OFFSET(offset)
+        for o in offsets:
+            cls.out.write(o)
+
+    @classmethod
+    def write_meshes_table(cls):
+        cls.out.write(cls.TYPE_COUNT(len(cls.meshes)))
+        offsets = [i for i in range(len(cls.meshes))]
+        for name, offset_id in cls.meshes.items():
+            offset, item_id = offset_id
+            print(
+                "const MESH_" + cls.const_string(name) + ": u64 = " +
+                str(item_id) + ";")
+            offsets[item_id] = cls.TYPE_OFFSET(offset)
+        for o in offsets:
+            cls.out.write(o)
+
+    @classmethod
+    def write_scenes_table(cls):
+        cls.out.write(cls.TYPE_COUNT(len(cls.scenes)))
+        offsets = [i for i in range(len(cls.scenes))]
+        for name, offset_id in cls.scenes.items():
+            offset, item_id = offset_id
+            print(
+                "const SCENE_" + cls.const_string(name) + ": u64 = " +
+                str(item_id) + ";")
+            offsets[item_id] = cls.TYPE_OFFSET(offset)
+        for o in offsets:
+            cls.out.write(o)
 
     @classmethod
     def write_shaders(cls):
@@ -154,6 +210,29 @@ class Gearoenix:
         return True
 
     @classmethod
+    def write_cameras(cls):
+        items = [i for i in range(cls.last_camera_id)]
+        for name, offset_id in cls.cameras.items():
+            offset, iid = offset_id
+            items[iid] = name
+        for name in items:
+            cam = bpy.data.cameras[name]
+            obj = bpy.data.objects[name]
+            cls.cameras[name][0] = cls.out.tell()
+            if cam.type != 'PERSP':
+                cls.show("Camera with type '" + cam.type + "' is not supported yet.")
+                raise
+            cls.out.write(cls.TYPE_FLOAT(cam.angle))
+            cls.out.write(cls.TYPE_FLOAT(cam.clip_start))
+            cls.out.write(cls.TYPE_FLOAT(cam.clip_end))
+            cls.out.write(cls.TYPE_FLOAT(obj.location[0]))
+            cls.out.write(cls.TYPE_FLOAT(obj.location[1]))
+            cls.out.write(cls.TYPE_FLOAT(obj.location[2]))
+            cls.out.write(cls.TYPE_FLOAT(obj.rotation_euler[0]))
+            cls.out.write(cls.TYPE_FLOAT(obj.rotation_euler[1]))
+            cls.out.write(cls.TYPE_FLOAT(obj.rotation_euler[2]))
+
+    @classmethod
     def write_textures(cls):
         for texture_file in cls.textures.keys():
             cls.textures[texture_file][0] = cls.out.tell()
@@ -164,26 +243,104 @@ class Gearoenix:
         return True
 
     @classmethod
+    def write_meshes(cls):
+        items = [i for i in range(cls.last_mesh_id)]
+        for name, offset_id in cls.meshes.items():
+            offset, iid = offset_id
+            items[iid] = name
+        for name in items:
+            msh = bpy.data.meshes[name]
+            obj = bpy.data.objects[name]
+            cls.out.write(cls.TYPE_FLOAT(obj.location[0]))
+            cls.out.write(cls.TYPE_FLOAT(obj.location[1]))
+            cls.out.write(cls.TYPE_FLOAT(obj.location[2]))
+            cls.out.write(cls.TYPE_FLOAT(obj.rotation_euler[0]))
+            cls.out.write(cls.TYPE_FLOAT(obj.rotation_euler[1]))
+            cls.out.write(cls.TYPE_FLOAT(obj.rotation_euler[2]))
+            cls.out.write(cls.TYPE_TYPE_ID(cls.mat2shd(msh.materials[0])))
+
+    @classmethod
+    def store_shader_data(cls, material):
+
+
+    @classmethod
+    def mat2shd(cls, material):
+        s = material.specular_intensity > 0.01
+        nt = len(material.texture_slots.keys())
+        if num_tex > 1
+            error =
+                "Currently I don't support shaders with more than 1 texture " +
+                "so, I can't create shader for material: " + material.name
+            cls.show(error)
+            raise Exception(error)
+        sh = material.use_shadeless
+        if (not sh) and nt == 1 and s:
+            return SHD_DIFF_TXT_SPC
+        error =
+            "Currently, I can't create shader for material: " + material.name
+        cls.show(error)
+        raise Exception(error)
+
+    @classmethod
+    def read_shaders(cls):
+        for m in bpy.data.materials:
+            cls.shaders[cls.mat2shd(m)] = 0
+
+    @classmethod
+    def read_cameras(cls):
+        for c in bpy.data.cameras:
+            cls.cameras[c.name] = [0, cls.last_camera_id]
+            cls.last_camera_id += 1
+
+    @classmethod
     def read_textures(cls):
         for t in bpy.data.textures:
-            cls.textures[t.image.filepath] = [0, 1]
+            cls.textures[t.image.filepath] = [0, cls.last_texture_id]
+            cls.last_texture_id += 1
+
+    @classmethod
+    def read_meshes(cls):
+        for m in bpy.data.objects:
+            if m.type != 'MESH':
+                continue
+            cls.meshes[m.name] = [0, cls.last_meshe_id]
+            cls.last_meshe_id += 1
+
+    @classmethod
+    def read_scenes(cls):
+        for s in bpy.data.scenes:
+            cls.scenes[s.name] = [0, cls.last_scene_id]
+            cls.last_scene_id += 1
 
     @classmethod
     def write_file(cls):
+        cls.read_shaders()
+        cls.read_cameras()
         cls.read_textures()
+        cls.read_meshes()
+        cls.read_scenes()
         if sys.byteorder == 'little':
             cls.out.write(ctypes.c_uint8(1))
         else:
             cls.out.write(ctypes.c_uint8(0))
         cls.tables_offset = cls.out.tell()
         cls.write_shaders_table()
-        cls.write_texture_table()
+        cls.write_cameras_table()
+        cls.write_textures_table()
+        cls.write_meshes_table()
+        cls.write_scenes_table()
         cls.write_shaders()
+        cls.write_cameras()
         cls.write_textures()
+        cls.write_meshes()
+        cls.write_scenes()
         cls.out.flush()
         cls.out.seek(cls.tables_offset)
         cls.write_shaders_table()
-        cls.write_texture_table()
+        cls.write_cameras_table()
+        cls.write_textures_table()
+        cls.write_meshes_table()
+        cls.write_scenes_table()
         return True
 
     class Exporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
