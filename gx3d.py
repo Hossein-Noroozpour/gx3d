@@ -52,7 +52,7 @@ class Gearoenix:
     last_texture_id = 0
     scenes = dict()
     last_scene_id = 0
-    meshes = dict()
+    objects = dict()
     last_meshe_id = 0
     cameras = dict()
     last_camera_id = 0
@@ -128,6 +128,11 @@ class Gearoenix:
     def const_string(s):
         return s.replace("-", "_").upper()
 
+    @classmethod
+    def write_matrix(cls, matrix):
+        for i in range(0, 4):
+            for j in range(0, 4):
+                cls.out.write(cls.TYPE_FLOAT(matrix[j][i]))
 
     @classmethod
     def write_shaders_table(cls):
@@ -164,10 +169,10 @@ class Gearoenix:
             cls.out.write(o)
 
     @classmethod
-    def write_meshes_table(cls):
-        cls.out.write(cls.TYPE_COUNT(len(cls.meshes)))
-        offsets = [i for i in range(len(cls.meshes))]
-        for name, offset_id in cls.meshes.items():
+    def write_objects_table(cls):
+        cls.out.write(cls.TYPE_COUNT(len(cls.objects)))
+        offsets = [i for i in range(len(cls.objects))]
+        for name, offset_id in cls.objects.items():
             offset, item_id = offset_id
             print(
                 "const MESH_" + cls.const_string(name) + ": u64 = " +
@@ -220,7 +225,8 @@ class Gearoenix:
             obj = bpy.data.objects[name]
             cls.cameras[name][0] = cls.out.tell()
             if cam.type != 'PERSP':
-                cls.show("Camera with type '" + cam.type + "' is not supported yet.")
+                cls.show("Camera with type '" + cam.type +
+                    "' is not supported yet.")
                 raise
             cls.out.write(cls.TYPE_FLOAT(cam.angle))
             cls.out.write(cls.TYPE_FLOAT(cam.clip_start))
@@ -243,21 +249,15 @@ class Gearoenix:
         return True
 
     @classmethod
-    def write_meshes(cls):
+    def write_objects(cls):
         items = [i for i in range(cls.last_mesh_id)]
-        for name, offset_id in cls.meshes.items():
+        for name, offset_id in cls.objects.items():
             offset, iid = offset_id
             items[iid] = name
         for name in items:
-            msh = bpy.data.meshes[name]
+            msh = bpy.data.objects[name]
             obj = bpy.data.objects[name]
-            cls.out.write(cls.TYPE_FLOAT(obj.location[0]))
-            cls.out.write(cls.TYPE_FLOAT(obj.location[1]))
-            cls.out.write(cls.TYPE_FLOAT(obj.location[2]))
-            cls.out.write(cls.TYPE_FLOAT(obj.rotation_euler[0]))
-            cls.out.write(cls.TYPE_FLOAT(obj.rotation_euler[1]))
-            cls.out.write(cls.TYPE_FLOAT(obj.rotation_euler[2]))
-            cls.out.write(cls.TYPE_TYPE_ID(cls.mat2shd(msh.materials[0])))
+            cls.write_matrix(obj.matrix_world)
 
     @classmethod
     def store_shader_data(cls, material):
@@ -299,11 +299,11 @@ class Gearoenix:
             cls.last_texture_id += 1
 
     @classmethod
-    def read_meshes(cls):
+    def read_objects(cls):
         for m in bpy.data.objects:
             if m.type != 'MESH':
                 continue
-            cls.meshes[m.name] = [0, cls.last_meshe_id]
+            cls.objects[m.name] = [0, cls.last_meshe_id]
             cls.last_meshe_id += 1
 
     @classmethod
@@ -317,7 +317,7 @@ class Gearoenix:
         cls.read_shaders()
         cls.read_cameras()
         cls.read_textures()
-        cls.read_meshes()
+        cls.read_objects()
         cls.read_scenes()
         if sys.byteorder == 'little':
             cls.out.write(ctypes.c_uint8(1))
@@ -327,19 +327,19 @@ class Gearoenix:
         cls.write_shaders_table()
         cls.write_cameras_table()
         cls.write_textures_table()
-        cls.write_meshes_table()
+        cls.write_objects_table()
         cls.write_scenes_table()
         cls.write_shaders()
         cls.write_cameras()
         cls.write_textures()
-        cls.write_meshes()
+        cls.write_objects()
         cls.write_scenes()
         cls.out.flush()
         cls.out.seek(cls.tables_offset)
         cls.write_shaders_table()
         cls.write_cameras_table()
         cls.write_textures_table()
-        cls.write_meshes_table()
+        cls.write_objects_table()
         cls.write_scenes_table()
         return True
 
