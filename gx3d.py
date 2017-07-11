@@ -38,6 +38,8 @@ class Gearoenix:
     SHD_DIFF_TXT = 12
     SHD_DIFF_TXT_SPC = 13
 
+    STRING_DYNAMIC_PART = 'dynamic-part'
+    STRING_DYNAMIC_PARTED = 'dynamic-parted'
     STRING_ENGINE_SDK_VAR_NAME = 'VULKUST_SDK'
     STRING_VULKAN_SDK_VAR_NAME = 'VULKAN_SDK'
 
@@ -53,7 +55,7 @@ class Gearoenix:
     scenes = dict()
     last_scene_id = 0
     objects = dict()
-    last_meshe_id = 0
+    last_object_id = 0
     cameras = dict()
     last_camera_id = 0
 
@@ -74,6 +76,7 @@ class Gearoenix:
     def show(cls, msg):
         cls.ErrorMsgBox.gearoenix_exporter_msg = msg
         bpy.ops.gearoenix_exporter.message_box()
+        raise Exception(error)
 
     @classmethod
     def check_env(cls):
@@ -227,7 +230,6 @@ class Gearoenix:
             if cam.type != 'PERSP':
                 cls.show("Camera with type '" + cam.type +
                     "' is not supported yet.")
-                raise
             cls.out.write(cls.TYPE_FLOAT(cam.angle))
             cls.out.write(cls.TYPE_FLOAT(cam.clip_start))
             cls.out.write(cls.TYPE_FLOAT(cam.clip_end))
@@ -272,14 +274,12 @@ class Gearoenix:
                 "Currently I don't support shaders with more than 1 texture " +
                 "so, I can't create shader for material: " + material.name
             cls.show(error)
-            raise Exception(error)
         sh = material.use_shadeless
         if (not sh) and nt == 1 and s:
             return SHD_DIFF_TXT_SPC
         error =
             "Currently, I can't create shader for material: " + material.name
         cls.show(error)
-        raise Exception(error)
 
     @classmethod
     def read_shaders(cls):
@@ -299,25 +299,89 @@ class Gearoenix:
             cls.last_texture_id += 1
 
     @classmethod
-    def read_objects(cls):
-        for m in bpy.data.objects:
-            if m.type != 'MESH':
-                continue
-            cls.objects[m.name] = [0, cls.last_meshe_id]
-            cls.last_meshe_id += 1
+    def model_has_dynamic_part(cls, m):
+        has_dynamic_child = False
+        if len(m.children) == 0:
+            return cls.STRING_DYNAMIC_PART in m and
+                m[cls.STRING_DYNAMIC_PART] == 1.0
+        for c in m.children:
+            has_dynamic_child =
+                has_dynamic_child and cls.model_has_dynamic_part(c)
+        return has_dynamic_child
+
+    @classmethod
+    def assert_model_dynamism(cls, m):
+        for c in m.children:
+            cls.assert_model_dynamism(c)
+        d = cls.model_has_dynamic_part(m)
+        if cls.STRING_DYNAMIC_PARTED in m and
+            m[cls.STRING_DYNAMIC_PARTED] == 1.0:
+            if d:
+                return
+            else:
+                error = "Model: " + m.name + " has " +
+                    cls.STRING_DYNAMIC_PARTED + " property but does not have " +
+                    " a correct " + cls.STRING_DYNAMIC_PART + " child."
+                cls.show(error)
+        else:
+            if d:
+                error = "Model: " + m.name + " does not have a correct " +
+                    cls.STRING_DYNAMIC_PARTED + " property but has a correct " +
+                    cls.STRING_DYNAMIC_PART + " child."
+                cls.show(error)
+            else:
+                return
+
+    @classmethod
+    def assert_model_materials(cls, m):
+        if m.type != 'MESH':
+            return
+        for c in m.children:
+            cls.assert_model_materials(c)
+        if len(m.material_slots.keys()) != 1 and
+            len(m.material_slots.keys()) != 7:
+            error = "Unexpected number of materials in model " + m. name
+            cls.show(error)
+        /////////////// TODO
+
+
+    @classmethod
+    def read_model(cls, m):
+        if m.parent is not None:
+            return
+        if m.name in cls.models:
+            return
+        cls.assert_model_dynamism(m)
+        cls.assert_model_materials(m)
+        cls.models[m.name] = [0, cls.last_model_id]
+        cls.last_model_id += 1
+
+
+    @classmethod
+    def read_lamp(cls, o):
+        pass
+
+    @classmethod
+    def read_object(cls, o):
+        if o.type == 'MESH':
+            return cls.read_model(o)
+        if o.type == 'CAMERA':
+            return cls.read_camera(o)
+        if o.type == 'LAMP':
+            return cls.read_light(o)
+        if o.type == 'SPEAKER':
+            return cls.read_speaker(o)
 
     @classmethod
     def read_scenes(cls):
         for s in bpy.data.scenes:
+            for o in s.objects:
+                cls.read_object(o)
             cls.scenes[s.name] = [0, cls.last_scene_id]
             cls.last_scene_id += 1
 
     @classmethod
     def write_file(cls):
-        cls.read_shaders()
-        cls.read_cameras()
-        cls.read_textures()
-        cls.read_objects()
         cls.read_scenes()
         if sys.byteorder == 'little':
             cls.out.write(ctypes.c_uint8(1))
@@ -326,20 +390,26 @@ class Gearoenix:
         cls.tables_offset = cls.out.tell()
         cls.write_shaders_table()
         cls.write_cameras_table()
+        cls.write_speakers_table()
+        cls.write_lights_table()
         cls.write_textures_table()
-        cls.write_objects_table()
+        cls.write_models_table()
         cls.write_scenes_table()
         cls.write_shaders()
         cls.write_cameras()
+        cls.write_speakers()
+        cls.write_lights()
         cls.write_textures()
-        cls.write_objects()
+        cls.write_models()
         cls.write_scenes()
         cls.out.flush()
         cls.out.seek(cls.tables_offset)
         cls.write_shaders_table()
         cls.write_cameras_table()
+        cls.write_speakers_table()
+        cls.write_lights_table()
         cls.write_textures_table()
-        cls.write_objects_table()
+        cls.write_models_table()
         cls.write_scenes_table()
         return True
 
