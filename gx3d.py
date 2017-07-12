@@ -32,11 +32,15 @@ class Gearoenix:
     TYPE_COUNT = ctypes.c_uint64
     TYPE_FLOAT = ctypes.c_float
 
-    SHD_WHT = 1
-    SHD_DIFF_CLR = 10
-    SHD_DIFF_CLR_SPC = 11
-    SHD_DIFF_TXT = 12
-    SHD_DIFF_TXT_SPC = 13
+    # Shader ID bytes
+    #     (light-mode) white: 0, solid: 1, directional: 2
+    #     (texturing) colored: 1, textured: 2
+    #     (speculation) speculated: 1, not-speculated: 2
+    #     (environment) no: 0, cube-texture: 1, realtime-cube: 2
+    #     (shadowing) shadeless: 0, full: 1, receiver: 2, caster: 3
+    #     (trancparency) opaque:0, transparent:2, cutoff: 3,
+    #     (reserved for now) 0
+    #     (reserved for now) 0
 
     STRING_DYNAMIC_PART = 'dynamic-part'
     STRING_DYNAMIC_PARTED = 'dynamic-parted'
@@ -49,12 +53,13 @@ class Gearoenix:
     PATH_SHADER_COMPILER = None
 
     tables_offset = 0
-    shaders = dict()
-    textures = dict()
+    shaders = dict() # id: offset
+    texture_2ds = dict() # filepath: [offest, id<con>]
+    texture_cubes = dict() # up-filepath: [offset, id<con>]
     last_texture_id = 0
-    scenes = dict()
+    scenes = dict() # name: [offset, id<con>]
     last_scene_id = 0
-    objects = dict()
+    models = dict() # name: [offset, id<con>]
     last_object_id = 0
     cameras = dict()
     last_camera_id = 0
@@ -266,22 +271,6 @@ class Gearoenix:
 
 
     @classmethod
-    def mat2shd(cls, material):
-        s = material.specular_intensity > 0.01
-        nt = len(material.texture_slots.keys())
-        if num_tex > 1
-            error =
-                "Currently I don't support shaders with more than 1 texture " +
-                "so, I can't create shader for material: " + material.name
-            cls.show(error)
-        sh = material.use_shadeless
-        if (not sh) and nt == 1 and s:
-            return SHD_DIFF_TXT_SPC
-        error =
-            "Currently, I can't create shader for material: " + material.name
-        cls.show(error)
-
-    @classmethod
     def read_shaders(cls):
         for m in bpy.data.materials:
             cls.shaders[cls.mat2shd(m)] = 0
@@ -333,16 +322,85 @@ class Gearoenix:
                 return
 
     @classmethod
+    def assert_texture_2d(cls, t):
+        if t.type != 'IMAGE':
+            cls.show(
+                "Only image textures is supported, please correct: ", t.name)
+        img = t.image
+        if img is None:
+            cls.show("Image is not set in texture: " + t.name)
+        filepath = img.filepath_raw.strip()
+        if filepath in None:
+            cls.show("Image is not specified yet in texture: " + t.name)
+        if not filepath.endswith(".png"):
+            cls.show("Use PNG image instead of " + filepath)
+        if filepath not in cls.texture_2ds:
+            cls.texture_2ds[filepath] = [0, cls.last_texture_id]
+            cls.last_texture_id += 1
+
+
+    @classmethod
+    def read_material(cls, m):
+        light_mode = 0
+        if m.use_shadeless:
+            light_mode = 1
+        else:
+            light_mode = 2
+        texture_count = len(m.texture_slots.keys())
+        texturing = 0
+        if texture_count == 0:
+            texturing = 1
+        elif texture_count == 1:
+            texturing = 2
+            cls.assert_texture_2d(m.texture_slots[0])
+        else:
+            cls.show("Unsupported number of thetures in material: " + m.name)
+        speculation = 0
+        if m.specular_intensity < 0.001
+            speculation = 1
+        else:
+            speculation = 2
+        environment = 0
+        shadowing = 0
+        if m.use_cast_shadow:
+            if m.use_shadows:
+                shadowing = 1
+            else:
+                shadowing = 3
+        else:
+            if m.use_shadows:
+                shadowing = 2
+            else:
+                shadowing = 0
+        transparency = 0
+        if "cutoff" in m:
+            transparency = 3
+        elif "transparent" in m:
+            transparency = 2
+        k = (
+            light_mode, texturing,
+            speculation, environment,
+            shadowing, transparency)
+        cls.shaders[t] = 0
+
+    @classmethod
+    def read_material_slot(cls, s):
+        //////////////////////////////////////////
+
+    @classmethod
     def assert_model_materials(cls, m):
         if m.type != 'MESH':
             return
         for c in m.children:
             cls.assert_model_materials(c)
-        if len(m.material_slots.keys()) != 1 and
-            len(m.material_slots.keys()) != 7:
-            error = "Unexpected number of materials in model " + m. name
-            cls.show(error)
-        /////////////// TODO
+        if len(m.material_slots.keys()) == 1:
+            cls.read_material(m.material_slots[0].material)
+        elif len(m.material_slots.keys()) == 7:
+
+        else:
+            cls.show("Unexpected number of materials in model " + m. name)
+
+
 
 
     @classmethod
