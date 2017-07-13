@@ -340,7 +340,7 @@ class Gearoenix:
 
 
     @classmethod
-    def read_material(cls, m):
+    def read_material(cls, m, environment=0):
         light_mode = 0
         if m.use_shadeless:
             light_mode = 1
@@ -360,7 +360,6 @@ class Gearoenix:
             speculation = 1
         else:
             speculation = 2
-        environment = 0
         shadowing = 0
         if m.use_cast_shadow:
             if m.use_shadows:
@@ -384,8 +383,39 @@ class Gearoenix:
         cls.shaders[t] = 0
 
     @classmethod
+    def assert_material_face(cls, face, m):
+
+
+    @classmethod
     def read_material_slot(cls, s):
-        //////////////////////////////////////////
+        cube_texture_faces = ["up", "down", "left", "right", "front", "back"]
+        environment = 1
+        for f in cube_texture_faces:
+            found = 0
+            face_mat = None
+            for m in s:
+                if m.name.endswith("-" + f):
+                    face_mat = m
+                    found += 1
+            if found > 1
+                cls.show("More than 1 material found with property " + f)
+            if found < 1
+                cls.show("No material found with name " + f)
+            cls.assert_material_face(face, face_mat)
+            if f == "up":
+                txt = face_mat.texture_slots[0].texture
+                if cls.assert_texture_cube(cls, txt):
+                    environment = 2
+        for m in s:
+            mat = m.material
+            found = True
+            for f in cube_texture_faces:
+                if mat.name.endswith("-" + f):
+                    found = False
+                    break
+            if found:
+                cls.read_material(mat, environment=environment)
+
 
     @classmethod
     def assert_model_materials(cls, m):
