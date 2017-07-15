@@ -383,13 +383,45 @@ class Gearoenix:
         cls.shaders[t] = 0
 
     @classmethod
+    def assert_texture_cube(cls, up_txt_file):
+        if up_txt_file not in cls.texture_cubes:
+            up_txt_file = [0, cls.last_texture_id]
+            cls.last_texture_id += 1
+
+    @classmethod
     def assert_material_face(cls, face, m):
+        if len(m.texture_slots.keys()) == 1:
+            error = "Texture in material " + m.name + " is not set correctly"
+            txt = m.texture_slots[0]
+            if txt is None:
+                cls.show(error)
+            txt = txt.texture
+            if txt is None:
+                cls.show(error)
+            img = txt.image
+            if img is None:
+                cls.show(error)
+            img = img.filepath_raw.split()
+            if img is None:
+                cls.show(error)
+            if not img.endswith(".png"):
+                cls.show("Only PNG file is supported right now! change " + img)
+            if not img.endswith(face + ".png"):
+                cls.show("File name must end with -" + face + ".png in " + img)
+            if face == "up":
+                cls.assert_texture_cube(img)
+            return 1
+        elif len(m.texture_slots.keys()) > 1:
+            cls.show("Material " + m.name + " has more than expected textures.")
+        elif not m.raytrace_mirror.use or m.raytrace_mirror.reflect_factor:
+            cls.show("Material " + m.name + " does not set reflective.")
+        return 2
 
 
     @classmethod
     def read_material_slot(cls, s):
         cube_texture_faces = ["up", "down", "left", "right", "front", "back"]
-        environment = 1
+        environment = None
         for f in cube_texture_faces:
             found = 0
             face_mat = None
@@ -401,11 +433,11 @@ class Gearoenix:
                 cls.show("More than 1 material found with property " + f)
             if found < 1
                 cls.show("No material found with name " + f)
-            cls.assert_material_face(face, face_mat)
-            if f == "up":
-                txt = face_mat.texture_slots[0].texture
-                if cls.assert_texture_cube(cls, txt):
-                    environment = 2
+            face_env = cls.assert_material_face(f, face_mat)
+            if environment is None:
+                environment = face_env
+            elif environment != face_env:
+                cls.show("Material " + face_mat + " is different than others.")
         for m in s:
             mat = m.material
             found = True
@@ -416,7 +448,6 @@ class Gearoenix:
             if found:
                 cls.read_material(mat, environment=environment)
 
-
     @classmethod
     def assert_model_materials(cls, m):
         if m.type != 'MESH':
@@ -426,7 +457,7 @@ class Gearoenix:
         if len(m.material_slots.keys()) == 1:
             cls.read_material(m.material_slots[0].material)
         elif len(m.material_slots.keys()) == 7:
-
+            cls.read_material_slot(m.material_slots)
         else:
             cls.show("Unexpected number of materials in model " + m. name)
 
