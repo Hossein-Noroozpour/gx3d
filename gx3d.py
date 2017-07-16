@@ -268,7 +268,7 @@ class Gearoenix:
 
     @classmethod
     def store_shader_data(cls, material):
-
+        pass
 
     @classmethod
     def read_shaders(cls):
@@ -337,7 +337,6 @@ class Gearoenix:
         if filepath not in cls.texture_2ds:
             cls.texture_2ds[filepath] = [0, cls.last_texture_id]
             cls.last_texture_id += 1
-
 
     @classmethod
     def read_material(cls, m, environment=0):
@@ -461,9 +460,6 @@ class Gearoenix:
         else:
             cls.show("Unexpected number of materials in model " + m. name)
 
-
-
-
     @classmethod
     def read_model(cls, m):
         if m.parent is not None:
@@ -474,7 +470,6 @@ class Gearoenix:
         cls.assert_model_materials(m)
         cls.models[m.name] = [0, cls.last_model_id]
         cls.last_model_id += 1
-
 
     @classmethod
     def read_lamp(cls, o):
@@ -496,8 +491,9 @@ class Gearoenix:
         for s in bpy.data.scenes:
             for o in s.objects:
                 cls.read_object(o)
-            cls.scenes[s.name] = [0, cls.last_scene_id]
-            cls.last_scene_id += 1
+            if s.name not in cls.scenes:
+                cls.scenes[s.name] = [0, cls.last_scene_id]
+                cls.last_scene_id += 1
 
     @classmethod
     def write_file(cls):
