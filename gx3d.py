@@ -30,6 +30,7 @@ class Gearoenix:
     TYPE_TYPE_ID = ctypes.c_uint64
     TYPE_SIZE = ctypes.c_uint64
     TYPE_COUNT = ctypes.c_uint64
+    TYPE_BYTE = ctypes.c_uint8
     TYPE_FLOAT = ctypes.c_float
 
     # Shader ID bytes
@@ -134,7 +135,8 @@ class Gearoenix:
     def write_shaders_table(cls):
         cls.out.write(cls.TYPE_COUNT(len(cls.shaders)))
         for shader_id, offset in cls.shaders.items():
-            cls.out.write(cls.TYPE_TYPE_ID(shader_id))
+            for i in shader_id:
+                cls.out.write(cls.TYPE_BYTE(i))
             cls.out.write(cls.TYPE_OFFSET(offset))
             print("Shader with id:", shader_id, "and offset:", offset)
 
@@ -144,7 +146,7 @@ class Gearoenix:
         offsets = [i for i in range(len(cls.cameras))]
         for name, offset_id in cls.cameras.items():
             offset, item_id = offset_id
-            print(
+            cls.rust_code.write(
                 "const CAMERA_" + cls.const_string(name) + ": u64 = " +
                 str(item_id) + ";")
             offsets[item_id] = cls.TYPE_OFFSET(offset)
@@ -543,6 +545,7 @@ class Gearoenix:
                 return {'CANCELLED'}
             try:
                 Gearoenix.out = open(self.filepath, mode='wb')
+                Gearoenix.rust_code = open(self.filepath + ".rs", mode='w')
             except:
                 cls.show('file %s can not be opened!' % self.filepath)
                 return {'CANCELLED'}
