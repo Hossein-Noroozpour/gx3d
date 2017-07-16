@@ -52,18 +52,6 @@ class Gearoenix:
     PATH_SHADERS_DIR = None
     PATH_SHADER_COMPILER = None
 
-    tables_offset = 0
-    shaders = dict() # id: offset
-    texture_2ds = dict() # filepath: [offest, id<con>]
-    texture_cubes = dict() # up-filepath: [offset, id<con>]
-    last_texture_id = 0
-    scenes = dict() # name: [offset, id<con>]
-    last_scene_id = 0
-    models = dict() # name: [offset, id<con>]
-    last_object_id = 0
-    cameras = dict()
-    last_camera_id = 0
-
     def __init__(self):
         pass
 
@@ -271,31 +259,12 @@ class Gearoenix:
         pass
 
     @classmethod
-    def read_shaders(cls):
-        for m in bpy.data.materials:
-            cls.shaders[cls.mat2shd(m)] = 0
-
-    @classmethod
-    def read_cameras(cls):
-        for c in bpy.data.cameras:
-            cls.cameras[c.name] = [0, cls.last_camera_id]
-            cls.last_camera_id += 1
-
-    @classmethod
-    def read_textures(cls):
-        for t in bpy.data.textures:
-            cls.textures[t.image.filepath] = [0, cls.last_texture_id]
-            cls.last_texture_id += 1
-
-    @classmethod
     def model_has_dynamic_part(cls, m):
-        has_dynamic_child = False
-        if len(m.children) == 0:
-            return cls.STRING_DYNAMIC_PART in m and
-                m[cls.STRING_DYNAMIC_PART] == 1.0
+        has_dynamic_child = cls.STRING_DYNAMIC_PART in m and
+            m[cls.STRING_DYNAMIC_PART] == 1.0
         for c in m.children:
             has_dynamic_child =
-                has_dynamic_child and cls.model_has_dynamic_part(c)
+                has_dynamic_child or cls.model_has_dynamic_part(c)
         return has_dynamic_child
 
     @classmethod
@@ -330,7 +299,7 @@ class Gearoenix:
         if img is None:
             cls.show("Image is not set in texture: " + t.name)
         filepath = img.filepath_raw.strip()
-        if filepath in None:
+        if filepath in None or len(filepath) == 0:
             cls.show("Image is not specified yet in texture: " + t.name)
         if not filepath.endswith(".png"):
             cls.show("Use PNG image instead of " + filepath)
@@ -351,11 +320,11 @@ class Gearoenix:
             texturing = 1
         elif texture_count == 1:
             texturing = 2
-            cls.assert_texture_2d(m.texture_slots[0])
+            cls.assert_texture_2d(m.texture_slots[0].texture)
         else:
             cls.show("Unsupported number of thetures in material: " + m.name)
         speculation = 0
-        if m.specular_intensity < 0.001
+        if m.specular_intensity > 0.001
             speculation = 1
         else:
             speculation = 2
@@ -401,7 +370,7 @@ class Gearoenix:
             if img is None:
                 cls.show(error)
             img = img.filepath_raw.split()
-            if img is None:
+            if img is None or len(img):
                 cls.show(error)
             if not img.endswith(".png"):
                 cls.show("Only PNG file is supported right now! change " + img)
@@ -412,10 +381,10 @@ class Gearoenix:
             return 1
         elif len(m.texture_slots.keys()) > 1:
             cls.show("Material " + m.name + " has more than expected textures.")
-        elif not m.raytrace_mirror.use or m.raytrace_mirror.reflect_factor:
+        elif not m.raytrace_mirror.use or
+                m.raytrace_mirror.reflect_factor < 0.001:
             cls.show("Material " + m.name + " does not set reflective.")
         return 2
-
 
     @classmethod
     def read_material_slot(cls, s):
@@ -425,8 +394,8 @@ class Gearoenix:
             found = 0
             face_mat = None
             for m in s:
-                if m.name.endswith("-" + f):
-                    face_mat = m
+                if m.material.name.endswith("-" + f):
+                    face_mat = m.material
                     found += 1
             if found > 1
                 cls.show("More than 1 material found with property " + f)
@@ -472,8 +441,24 @@ class Gearoenix:
         cls.last_model_id += 1
 
     @classmethod
-    def read_lamp(cls, o):
-        pass
+    def read_lamp(cls, l):
+        if l.type != 'SUN':
+            cls.show("Only sun lamp is supported, change " + l.name)
+        if l.name not in cls.lamps:
+            cls.lamps[l.name] = [0, cls.last_lamp_id]
+            cls.last_lamp_id += 1
+
+    @classmethod
+    def read_camera(cls, c):
+        if c.name not in cls.cameras:
+            cls.cameras[c.name] = [0, cls.last_camera_id]
+            cls.last_camera_id += 1
+
+    @classmethod
+    def read_speaker(cls, s):
+        if s.name not in cls.speakers:
+            cls.speakers[s.name] = [0, cls.last_speaker_id]
+            cls.last_speaker_id += 1
 
     @classmethod
     def read_object(cls, o):
@@ -489,14 +474,30 @@ class Gearoenix:
     @classmethod
     def read_scenes(cls):
         for s in bpy.data.scenes:
+            if s.name in cls.scenes:
+                continue
             for o in s.objects:
                 cls.read_object(o)
-            if s.name not in cls.scenes:
-                cls.scenes[s.name] = [0, cls.last_scene_id]
-                cls.last_scene_id += 1
+            cls.scenes[s.name] = [0, cls.last_scene_id]
+            cls.last_scene_id += 1
 
     @classmethod
     def write_file(cls):
+        cls.tables_offset = 0
+        cls.shaders = dict() # id: offset
+        cls.texture_2ds = dict() # filepath: [offest, id<con>]
+        cls.texture_cubes = dict() # up-filepath: [offset, id<con>]
+        cls.last_texture_id = 0
+        cls.scenes = dict() # name: [offset, id<con>]
+        cls.last_scene_id = 0
+        cls.models = dict() # name: [offset, id<con>]
+        cls.last_model_id = 0
+        cls.cameras = dict() # name: [offset, id<con>]
+        cls.last_camera_id = 0
+        cls.lamps = dict() # name: [offset, id<con>]
+        cls.last_lamp_id = 0
+        cls.speakers = dict() # name: [offset, id<con>]
+        cls.last_speaker_id = 0
         cls.read_scenes()
         if sys.byteorder == 'little':
             cls.out.write(ctypes.c_uint8(1))
