@@ -131,6 +131,7 @@ class Gearoenix:
         cls.out.write(tmp)
         return True
 
+    @staticmethod
     def const_string(s):
         return s.replace("-", "_").upper()
 
@@ -290,29 +291,53 @@ class Gearoenix:
         for name in items:
             f = open(name, "rb")
             f = f.read()
+            cls.speakers[name][0] = cls.out.tell()
             cls.out.write(cls.TYPE_COUNT(len(f)))
             cls.out.write(f)
 
     @classmethod
-    def write_textures(cls):
-        for texture_file in cls.textures.keys():
-            cls.textures[texture_file][0] = cls.out.tell()
-            f = open(texture_file, "rb")
-            f = f.read()
-            cls.out.write(cls.TYPE_SIZE(len(f)))
-            cls.out.write(f)
-        return True
-
-    @classmethod
-    def write_objects(cls):
-        items = [i for i in range(cls.last_mesh_id)]
-        for name, offset_id in cls.objects.items():
+    def write_lights(cls):
+        items = [i for i in range(len(cls.lights))]
+        for name, offset_id in cls.lights.items():
             offset, iid = offset_id
             items[iid] = name
         for name in items:
-            msh = bpy.data.objects[name]
-            obj = bpy.data.objects[name]
-            cls.write_matrix(obj.matrix_world)
+            sun = bpy.data.objects[name]
+            cls.lights[name][0] = cls.out.tell()
+            cls.out.write(cls.TYPE_FLOAT(sun.location[0]))
+            cls.out.write(cls.TYPE_FLOAT(sun.location[1]))
+            cls.out.write(cls.TYPE_FLOAT(sun.location[2]))
+            cls.out.write(cls.TYPE_FLOAT(sun.rotation[0]))
+            cls.out.write(cls.TYPE_FLOAT(sun.rotation[1]))
+            cls.out.write(cls.TYPE_FLOAT(sun.rotation[2]))
+
+    @classmethod
+    def write_file(cls, name):
+        f = open(name, "rb")
+        f = f.read()
+        cls.out.write(cls.TYPE_COUNT(len(f)))
+        cls.out.write(f)
+
+    @classmethod
+    def write_textures(cls):
+        items = [i for i in range(len(cls.textures))]
+        for name, offset_id_type in cls.textures.items():
+            offset, iid, ttype = offset_id_type
+            items[iid] = [name, ttype]
+        for name, ttype in items:
+            cls.textures[name][0] = cls.out.tell()
+            cls.out.write(cls.TYPE_TYPE_ID(ttype))
+            if ttype == cls.TEXTURE_TYPE_2D:
+                cls.write_file(name)
+            elif ttype == cls.TEXTURE_TYPE_CUBE:
+                name = name.split()
+                raw_name = name[:len(name) - len("-up.png")]
+                cls.write_file(raw_name + "-up.png")
+                cls.write_file(raw_name + "-down.png")
+                cls.write_file(raw_name + "-left.png")
+                cls.write_file(raw_name + "-right.png")
+                cls.write_file(raw_name + "-front.png")
+                cls.write_file(raw_name + "-back.png")
 
     @classmethod
     def store_shader_data(cls, material):
