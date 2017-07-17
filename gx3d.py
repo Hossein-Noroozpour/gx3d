@@ -39,6 +39,9 @@ class Gearoenix:
     TEXTURE_TYPE_2D = 10
     TEXTURE_TYPE_CUBE = 20
 
+    SPEAKER_TYPE_MUSIC = 10
+    SPEAKER_TYPE_OBJECT = 20
+
     # Shader ID bytes
     #     (light-mode) white: 0, solid: 1, directional: 2
     #     (texturing) colored: 1, textured: 2
@@ -257,7 +260,7 @@ class Gearoenix:
 
     @classmethod
     def write_cameras(cls):
-        items = [i for i in range(cls.last_camera_id)]
+        items = [i for i in range(len(cls.cameras))]
         for name, offset_id in cls.cameras.items():
             offset, iid = offset_id
             items[iid] = name
@@ -277,6 +280,18 @@ class Gearoenix:
             cls.out.write(cls.TYPE_FLOAT(obj.rotation_euler[0]))
             cls.out.write(cls.TYPE_FLOAT(obj.rotation_euler[1]))
             cls.out.write(cls.TYPE_FLOAT(obj.rotation_euler[2]))
+
+    @classmethod
+    def write_speakers(cls):
+        items = [i for i in range(len(cls.speakers))]
+        for name, offset_id in cls.speakers.items():
+            offset, iid = offset_id
+            items[iid] = name
+        for name in items:
+            f = open(name, "rb")
+            f = f.read()
+            cls.out.write(cls.TYPE_COUNT(len(f)))
+            cls.out.write(f)
 
     @classmethod
     def write_textures(cls):
@@ -515,8 +530,15 @@ class Gearoenix:
 
     @classmethod
     def read_speaker(cls, s):
-        if s.name not in cls.speakers:
-            cls.speakers[s.name] = [0, cls.last_speaker_id]
+        speaker_type = cls.SPEAKER_TYPE_OBJECT
+        if s.parent is None:
+            speaker_type = cls.SPEAKER_TYPE_MUSIC
+        name = bpy.path.abspath(s.data.sound.filepath)
+        if name in cls.speakers:
+            if cls.speakers[name][2] != speaker_type:
+                cls.show("Same file for two different speaker, file: " + name)
+        else:
+            cls.speakers[name] = [0, cls.last_speaker_id, speaker_type]
             cls.last_speaker_id += 1
 
     @classmethod
@@ -564,7 +586,7 @@ class Gearoenix:
         cls.last_camera_id = 0
         cls.lights = dict() # name: [offset, id<con>]
         cls.last_light_id = 0
-        cls.speakers = dict() # name: [offset, id<con>]
+        cls.speakers = dict() # name: [offset, id<con>, type]
         cls.last_speaker_id = 0
         cls.read_scenes()
         if sys.byteorder == 'little':
