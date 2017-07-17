@@ -12,6 +12,9 @@ bl_info = {
     "category": "Import-Export",
 }
 
+# The philosophy behind this plugin is to import everything that is engaged
+#    at least in one of the blender scene in a file.
+
 import ctypes
 import io
 import math
@@ -32,6 +35,9 @@ class Gearoenix:
     TYPE_COUNT = ctypes.c_uint64
     TYPE_BYTE = ctypes.c_uint8
     TYPE_FLOAT = ctypes.c_float
+
+    TEXTURE_TYPE_2D = 10
+    TEXTURE_TYPE_CUBE = 20
 
     # Shader ID bytes
     #     (light-mode) white: 0, solid: 1, directional: 2
@@ -132,6 +138,12 @@ class Gearoenix:
                 cls.out.write(cls.TYPE_FLOAT(matrix[j][i]))
 
     @classmethod
+    def write_offset_array(cls, arr):
+        cls.out.write(cls.TYPE_COUNT(len(arr)))
+        for o in arr:
+            cls.out.write(cls.TYPE_OFFSET(o))
+
+    @classmethod
     def write_shaders_table(cls):
         cls.out.write(cls.TYPE_COUNT(len(cls.shaders)))
         for shader_id, offset in cls.shaders.items():
@@ -141,76 +153,107 @@ class Gearoenix:
             print("Shader with id:", shader_id, "and offset:", offset)
 
     @classmethod
-    def write_cameras_table(cls):
-        cls.out.write(cls.TYPE_COUNT(len(cls.cameras)))
-        offsets = [i for i in range(len(cls.cameras))]
-        for name, offset_id in cls.cameras.items():
+    def items_offsets(cls, items, mod_name):
+        offsets = [i for i in range(len(items))]
+        cls.rust_code.write("pub mod " + mod_name + " {\n")
+        for name, offset_id in items.items():
             offset, item_id = offset_id
             cls.rust_code.write(
-                "const CAMERA_" + cls.const_string(name) + ": u64 = " +
-                str(item_id) + ";")
+                "\tpub const " + cls.const_string(name) + ": u64 = " +
+                str(item_id) + ";\n")
             offsets[item_id] = cls.TYPE_OFFSET(offset)
-        for o in offsets:
-            cls.out.write(o)
+        cls.rust_code.write("}\n")
+        return offsets
 
     @classmethod
-    def write_textures_table(cls):
-        cls.out.write(cls.TYPE_COUNT(len(cls.textures)))
-        offsets = [i for i in range(len(cls.textures))]
-        for name, offset_id in cls.textures.items():
-            offset, item_id = offset_id
-            print(
-                "const TEXTURE_" + cls.const_string(name) + ": u64 = " +
-                str(item_id) + ";")
-            offsets[item_id] = cls.TYPE_OFFSET(offset)
-        for o in offsets:
-            cls.out.write(o)
+    def gather_cameras_offsets(cls):
+        cls.cameras_offsets = cls.items_offsets(cls.cameras, "camera")
 
     @classmethod
-    def write_objects_table(cls):
-        cls.out.write(cls.TYPE_COUNT(len(cls.objects)))
-        offsets = [i for i in range(len(cls.objects))]
-        for name, offset_id in cls.objects.items():
-            offset, item_id = offset_id
-            print(
-                "const MESH_" + cls.const_string(name) + ": u64 = " +
-                str(item_id) + ";")
-            offsets[item_id] = cls.TYPE_OFFSET(offset)
-        for o in offsets:
-            cls.out.write(o)
+    def gather_speakers_offsets(cls):
+        cls.speakers_offsets = cls.items_offsets(cls.speakers, "speaker")
 
     @classmethod
-    def write_scenes_table(cls):
-        cls.out.write(cls.TYPE_COUNT(len(cls.scenes)))
-        offsets = [i for i in range(len(cls.scenes))]
-        for name, offset_id in cls.scenes.items():
-            offset, item_id = offset_id
-            print(
-                "const SCENE_" + cls.const_string(name) + ": u64 = " +
-                str(item_id) + ";")
-            offsets[item_id] = cls.TYPE_OFFSET(offset)
-        for o in offsets:
-            cls.out.write(o)
+    def gather_lights_offsets(cls):
+        cls.lights_offsets = cls.items_offsets(cls.lights, "light")
+
+    @classmethod
+    def gather_textures_offsets(cls):
+        cls.textures_offsets = cls.items_offsets(cls.textures, "texture")
+
+    @classmethod
+    def gather_models_offsets(cls):
+        cls.models_offsets = cls.items_offsets(cls.models, "model")
+
+    @classmethod
+    def gather_scenes_offsets(cls):
+        cls.scenes_offsets = cls.items_offsets(cls.scenes, "scene")
+
+    @classmethod
+    def shader_id_to_file(cls, shader_id):
+        (light, txt, spec, env, shw, trn) = shader_id
+        file_name = ""
+        error = "shader id error"
+        if light == 0:
+            return "white"
+        if light == 1:
+            file_name += "solid-"
+        elif light == 2:
+            file_name += "directional-"
+        else:
+            cls.show(error)
+        if txt == 1:
+            file_name += "colored-"
+        elif txt == 2:
+            file_name += "textured-"
+        else:
+            cls.show(error)
+        if spec == 1:
+            file_name += "speculated-"
+        elif spec == 2:
+            file_name += "not-speculated-"
+        else:
+            cls.show(error)
+        if env == 0:
+            file_name += "no-"
+        elif env == 1:
+            file_name += "cube-texture-"
+        elif env == 2:
+            file_name += "realtime-cube-"
+        else:
+            cls.show(error)
+        if shd == 0:
+            file_name += "shadeless-"
+        elif shd == 1:
+            file_name += "full-"
+        elif shd == 2:
+            file_name += "receiver-"
+        elif shd == 3:
+            file_name += "caster-"
+        else:
+            cls.show(error)
+        if trn == 0:
+            file_name += "opaque"
+        elif trn == 1:
+            file_name += "transparent"
+        elif trn == 2:
+            file_name += "cutoff"
+        else:
+            cls.show(error)
+        return file_name
 
     @classmethod
     def write_shaders(cls):
         for shader_id in cls.shaders.keys():
-            if cls.SHADER_DIFFUSE_COLORED == shader_id:
-                cls.shaders[shader_id] = cls.out.tell()
-                shader_name = cls.PATH_SHADERS_DIR + 'diffuse-colored'
-                if sys.platform == "darwin":
-                    shader_name += '-%s.metal'
-                else:
-                    shader_name += '.%s'
-                if not cls.compile_shader('vert', shader_name % 'vert'):
-                    return False
-                if not cls.compile_shader('frag', shader_name % 'frag'):
-                    return False
-                return True
+            file_name = cls.shader_id_to_file(cls, shader_id)
+            cls.shaders[shader_id] = cls.out.tell()
+            if sys.platform == "darwin":
+                file_name += 'metal/' + file_name + '-%s.metal'
             else:
-                cls.show('Unexpected shader type: %d!' % shader_id)
-                return False
-        return True
+                file_name += 'vulkan/' + file_name + '.%s'
+            file_name = cls.PATH_SHADERS_DIR + file_name
+            cls.compile_shader('vert', file_name % 'vert'):
+            cls.compile_shader('frag', file_name % 'frag'):
 
     @classmethod
     def write_cameras(cls):
@@ -305,8 +348,15 @@ class Gearoenix:
             cls.show("Image is not specified yet in texture: " + t.name)
         if not filepath.endswith(".png"):
             cls.show("Use PNG image instead of " + filepath)
-        if filepath not in cls.texture_2ds:
-            cls.texture_2ds[filepath] = [0, cls.last_texture_id]
+        if filepath in cls.textures:
+            if cls.texture[filepath][2] != cls.TEXTURE_TYPE_2D:
+                cls.show("You have used a same image in two defferent " +
+                    "texture type in " + t.name)
+            else:
+                return
+        else:
+            cls.textures[filepath] =
+                [0, cls.last_texture_id, cls.TEXTURE_TYPE_2D]
             cls.last_texture_id += 1
 
     @classmethod
@@ -354,8 +404,15 @@ class Gearoenix:
 
     @classmethod
     def assert_texture_cube(cls, up_txt_file):
-        if up_txt_file not in cls.texture_cubes:
-            up_txt_file = [0, cls.last_texture_id]
+        if up_txt_file in cls.textures:
+            if cls.textures[up_txt_file][2] != cls.TEXTURE_TYPE_CUBE:
+                cls.show("You have used a same image in two defferent " +
+                    "texture type in " + up_txt_file)
+            else:
+                return
+        else:
+            cls.textures[up_txt_file] =
+                [0, cls.last_texture_id, cls.TEXTURE_TYPE_CUBE]
             cls.last_texture_id += 1
 
     @classmethod
@@ -443,12 +500,12 @@ class Gearoenix:
         cls.last_model_id += 1
 
     @classmethod
-    def read_lamp(cls, l):
+    def read_light(cls, l):
         if l.type != 'SUN':
-            cls.show("Only sun lamp is supported, change " + l.name)
-        if l.name not in cls.lamps:
-            cls.lamps[l.name] = [0, cls.last_lamp_id]
-            cls.last_lamp_id += 1
+            cls.show("Only sun light is supported, change " + l.name)
+        if l.name not in cls.lights:
+            cls.lights[l.name] = [0, cls.last_light_id]
+            cls.last_light_id += 1
 
     @classmethod
     def read_camera(cls, c):
@@ -484,11 +541,20 @@ class Gearoenix:
             cls.last_scene_id += 1
 
     @classmethod
+    def write_tables(cls):
+        cls.write_shaders_table()
+        cls.write_offset_array(cls.cameras_offsets)
+        cls.write_offset_array(cls.speakers_offsets)
+        cls.write_offset_array(cls.lights_offsets)
+        cls.write_offset_array(cls.textures_offsets)
+        cls.write_offset_array(cls.models_offsets)
+        cls.write_offset_array(cls.scenes_offsets)
+
+    @classmethod
     def write_file(cls):
         cls.tables_offset = 0
         cls.shaders = dict() # id: offset
-        cls.texture_2ds = dict() # filepath: [offest, id<con>]
-        cls.texture_cubes = dict() # up-filepath: [offset, id<con>]
+        cls.texture = dict() # filepath: [offest, id<con>, type]
         cls.last_texture_id = 0
         cls.scenes = dict() # name: [offset, id<con>]
         cls.last_scene_id = 0
@@ -496,8 +562,8 @@ class Gearoenix:
         cls.last_model_id = 0
         cls.cameras = dict() # name: [offset, id<con>]
         cls.last_camera_id = 0
-        cls.lamps = dict() # name: [offset, id<con>]
-        cls.last_lamp_id = 0
+        cls.lights = dict() # name: [offset, id<con>]
+        cls.last_light_id = 0
         cls.speakers = dict() # name: [offset, id<con>]
         cls.last_speaker_id = 0
         cls.read_scenes()
@@ -505,14 +571,14 @@ class Gearoenix:
             cls.out.write(ctypes.c_uint8(1))
         else:
             cls.out.write(ctypes.c_uint8(0))
-        cls.tables_offset = cls.out.tell()
-        cls.write_shaders_table()
-        cls.write_cameras_table()
-        cls.write_speakers_table()
-        cls.write_lights_table()
-        cls.write_textures_table()
-        cls.write_models_table()
-        cls.write_scenes_table()
+        tables_offset = cls.out.tell()
+        cls.gather_cameras_offsets()
+        cls.gather_speakers_offsets()
+        cls.gather_lights_offsets()
+        cls.gather_textures_offsets()
+        cls.gather_models_offsets()
+        cls.gather_scenes_offsets()
+        cls.write_tables()
         cls.write_shaders()
         cls.write_cameras()
         cls.write_speakers()
@@ -521,14 +587,8 @@ class Gearoenix:
         cls.write_models()
         cls.write_scenes()
         cls.out.flush()
-        cls.out.seek(cls.tables_offset)
-        cls.write_shaders_table()
-        cls.write_cameras_table()
-        cls.write_speakers_table()
-        cls.write_lights_table()
-        cls.write_textures_table()
-        cls.write_models_table()
-        cls.write_scenes_table()
+        cls.out.seek(tables_offset)
+        cls.write_tables()
         return True
 
     class Exporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
