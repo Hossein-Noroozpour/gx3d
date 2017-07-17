@@ -340,6 +340,15 @@ class Gearoenix:
                 cls.write_file(raw_name + "-back.png")
 
     @classmethod
+    def write_models(cls):
+        items = [i for i in range(len(cls.models))]
+        for name, offset_id_type in cls.models.items():
+            offset, iid, ttype = offset_id_type
+            items[iid] = [name, ttype]
+        for name, ttype in items:
+            cls.models[name][0] = cls.out.tell()
+
+    @classmethod
     def store_shader_data(cls, material):
         pass
 
