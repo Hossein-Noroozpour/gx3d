@@ -15,6 +15,8 @@ bl_info = {
 # The philosophy behind this plugin is to import everything that is engaged
 #    at least in one of the blender scene in a file.
 
+# TODO place origin in front of scenes and then copied
+
 import ctypes
 import io
 import math
@@ -54,8 +56,12 @@ class Gearoenix:
 
     STRING_DYNAMIC_PART = 'dynamic-part'
     STRING_DYNAMIC_PARTED = 'dynamic-parted'
+    STRING_CUTOFF = "cutoff"
+    STRING_TRANSPARENT = "transparent"
     STRING_ENGINE_SDK_VAR_NAME = 'VULKUST_SDK'
     STRING_VULKAN_SDK_VAR_NAME = 'VULKAN_SDK'
+    STRING_COPY_POSTFIX_FORMAT = '.NNN'
+    STRING_CUBE_TEXTURE_FACES = ["up", "down", "left", "right", "front", "back"]
 
     PATH_ENGINE_SDK = None
     PATH_VULKAN_SDK = None
@@ -134,6 +140,18 @@ class Gearoenix:
     @staticmethod
     def const_string(s):
         return s.replace("-", "_").upper()
+
+    @staticmethod
+    def write_bool(cls, b):
+        data = 0
+        if b:
+            data = 1
+        cls.out.write(cls.TYPE_BOOLEAN(data))
+
+    @staticmethod
+    def write_vector(cls, v):
+        for i in range(element_count):
+            cls.out.write(cls.TYPE_FLOAT(v[i]))
 
     @classmethod
     def write_matrix(cls, matrix):
@@ -339,18 +357,144 @@ class Gearoenix:
                 cls.write_file(raw_name + "-front.png")
                 cls.write_file(raw_name + "-back.png")
 
+    @staticmethod
+    def check_uint(s):
+        try:
+            if int(s) >= 0
+                return True
+        except ValueError:
+            return False
+        return False
+
+    @classmethod
+    def check_copied_model_name(cls, name):
+        psf = cls.STRING_COPY_POSTFIX_FORMAT
+        lpsf = len(psf)
+        ln = len(name)
+        return ln > lpsf and name[ln-lpsf] == psf[0] and
+                cls.check_uint(name[ln-lpsf:])
+
+    @classmethod
+    def assert_model_name(cls, name):
+        # this is True for now but in future it may change
+        pass
+
+    @classmethod
+    def write_copied_model(cls, name):
+        # TODO
+
+    @staticmethod
+    def material_needs_normal(mat):
+        return mat[0] == 2
+
+    @staticmethod
+    def material_needs_uv(mat):
+        return mat[1] == 2
+
+    @classmethod
+    def write_material_texture_ids(cls, obj, shd):
+        if shd[1] != 2 and shd[3] != 1:
+            return
+        cube_texture = None
+        texture_2d = None
+        has_cube = len(obj.material_slots) > len(cls.STRING_CUBE_TEXTURE_FACES)
+        for mat in obj.material_slots:
+            m = mat.material
+            if has_cube and m.name.endswith("-" +
+                    cls.STRING_CUBE_TEXTURE_FACES[0]):
+                name = m.texture_slots[0].texture.image.filepath_raw
+                cube_texture = cls.textures[name][1]
+                continue
+            sm = m.name.split("-")
+            if ("-" not in m.name) or len(sm) < 2 or
+                    (sm[len(sm)-1] not in cls.STRING_CUBE_TEXTURE_FACES):
+                name = m.texture_slots[0].texture.image.filepath_raw
+                texture_2d = cls.textures[name][1]
+                continue
+        if cube_texture is not None:
+            cls.out.write(cls.TYPE_TYPE_ID(cube_texture))
+        if texture_2d is not None:
+            cls.out.write(cls.TYPE_TYPE_ID(texture_2d))
+
+    @classmethod
+    def get_info_material(cls, obj):
+        slots = obj.material_slots
+        if len(slots) == 1:
+            return slots[0].material
+        for mat in slots:
+            m = mat.material
+            sm = m.name.split("-")
+            if ("-" not in m.name) or len(sm) < 2 or
+                    (sm[len(sm)-1] not in cls.STRING_CUBE_TEXTURE_FACES):
+                return m
+
+    @classmethod
+    def get_up_face_material(cls, obj):
+        slots = obj.material_slots
+        if len(slots) < len(cls.STRING_CUBE_TEXTURE_FACES):
+            return None
+        for mat in obj.material_slots:
+            m = mat.material
+            if m.name.endswith("-" + cls.STRING_CUBE_TEXTURE_FACES[0]):
+                return m
+
+    @classmethod
+    def write_material_data(cls, obj, shd):
+        cls.write_material_texture_ids(obj, shd)
+        if shd[1] == 1:
+            cls.write_vector(cls.get_info_material(obj).diffuse_color)
+        if shd[2] == 1:
+            cls.write_vector(cls.get_info_material(obj).specular_color)
+        if shd[3] != 0:
+            cls.out.write(cls.TYPE_FLOAT(
+                cls.get_up_face_material(obj).raytrace_mirror.reflect_factor))
+        if shd[5] == 2:
+            info = cls.get_info_material(obj)
+            cls.out.write(cls.TYPE_FLOAT(info[cls.STRING_TRANSPARENT]))
+        elif shd[5] == 3:
+            info = cls.get_info_material(obj)
+            cls.out.write(cls.TYPE_FLOAT(info[cls.STRING_CUTOFF]))
+
+    @classmethod
+    def write_mesh(cls, obj, shd):
+        matrix = obj.world_matrix
+        cls.write_material_data(obj, shd)
+        # vertices elements
+        # indices elements
+
+    @classmethod
+    def write_origin_model(cls, name):
+        obj = bpy.data.objects[name]
+        if cls.STRING_DYNAMIC_PARTED in obj:
+            cls.write_bool(True)
+        else:
+            cls.write_bool(False)
+        if cls.STRING_DYNAMIC_PART in obj:
+            cls.write_bool(True)
+        else:
+            cls.write_bool(False)
+
+        # occlusion culling mesh
+        # matrix
+        # location
+        # static models and their mesh use matrix inversion
+        # dynamics models
+
     @classmethod
     def write_models(cls):
         items = [i for i in range(len(cls.models))]
-        for name, offset_id_type in cls.models.items():
-            offset, iid, ttype = offset_id_type
-            items[iid] = [name, ttype]
-        for name, ttype in items:
+        for name, offset_id in cls.models.items():
+            offset, iid = offset_id
+            items[iid] = name
+        for name in items:
+            cls.assert_model_name(name)
             cls.models[name][0] = cls.out.tell()
-
-    @classmethod
-    def store_shader_data(cls, material):
-        pass
+            if cls.check_copied_model_name(name):
+                cls.write_bool(True)
+                cls.write_copied_model(name)
+            else:
+                cls.write_bool(False)
+                cls.write_origin_model(name)
 
     @classmethod
     def model_has_dynamic_part(cls, m):
@@ -423,7 +567,7 @@ class Gearoenix:
             texturing = 2
             cls.assert_texture_2d(m.texture_slots[0].texture)
         else:
-            cls.show("Unsupported number of thetures in material: " + m.name)
+            cls.show("Unsupported number of textures in material: " + m.name)
         speculation = 0
         if m.specular_intensity > 0.001
             speculation = 1
@@ -449,7 +593,8 @@ class Gearoenix:
             light_mode, texturing,
             speculation, environment,
             shadowing, transparency)
-        cls.shaders[t] = 0
+        cls.shaders[k] = 0
+        return k
 
     @classmethod
     def assert_texture_cube(cls, up_txt_file):
@@ -482,7 +627,7 @@ class Gearoenix:
                 cls.show(error)
             if not img.endswith(".png"):
                 cls.show("Only PNG file is supported right now! change " + img)
-            if not img.endswith(face + ".png"):
+            if not img.endswith("-" + face + ".png"):
                 cls.show("File name must end with -" + face + ".png in " + img)
             if face == "up":
                 cls.assert_texture_cube(img)
@@ -496,7 +641,6 @@ class Gearoenix:
 
     @classmethod
     def read_material_slot(cls, s):
-        cube_texture_faces = ["up", "down", "left", "right", "front", "back"]
         environment = None
         for f in cube_texture_faces:
             found = 0
@@ -522,7 +666,7 @@ class Gearoenix:
                     found = False
                     break
             if found:
-                cls.read_material(mat, environment=environment)
+                return cls.read_material(mat, environment=environment)
 
     @classmethod
     def assert_model_materials(cls, m):
@@ -535,7 +679,16 @@ class Gearoenix:
         elif len(m.material_slots.keys()) == 7:
             cls.read_material_slot(m.material_slots)
         else:
-            cls.show("Unexpected number of materials in model " + m. name)
+            cls.show("Unexpected number of materials in model " + m.name)
+
+    @classmethod
+    def get_shader_id(cls, obj):
+        if len(m.material_slots.keys()) == 1:
+            return cls.read_material(m.material_slots[0].material)
+        elif len(m.material_slots.keys()) == 7:
+            return cls.read_material_slot(m.material_slots)
+        else:
+            cls.show("Unexpected number of materials in model " + m.name)
 
     @classmethod
     def read_model(cls, m):
