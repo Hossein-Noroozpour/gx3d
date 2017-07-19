@@ -456,24 +456,38 @@ class Gearoenix:
             cls.out.write(cls.TYPE_FLOAT(info[cls.STRING_CUTOFF]))
 
     @classmethod
-    def write_mesh(cls, obj, shd):
+    def write_mesh(cls, obj, shd, matrix):
         matrix = obj.world_matrix
         cls.write_material_data(obj, shd)
+
         # vertices elements
         # indices elements
 
-    @classmethod
-    def write_origin_model(cls, name):
-        obj = bpy.data.objects[name]
-        if cls.STRING_DYNAMIC_PARTED in obj:
-            cls.write_bool(True)
-        else:
-            cls.write_bool(False)
-        if cls.STRING_DYNAMIC_PART in obj:
-            cls.write_bool(True)
-        else:
-            cls.write_bool(False)
+    @staticmethod
+    def model_has_dynamic_parent(obj):
+        o = obj.parent
+        while o in not None:
+            if cls.STRING_DYNAMIC_PART in o:
+                return True
+            o = o.parent
+        return False
 
+    @classmethod
+    def write_origin_model(cls, name, inv_mat_par=mathutils.Matrix()):
+        obj = bpy.data.objects[name]
+        cls.write_bool(cls.STRING_DYNAMIC_PARTED in obj)
+        cls.write_bool(cls.STRING_DYNAMIC_PART in obj)
+        if cls.model_has_dynamic_parent(obj):
+            # its mesh is occlusion
+        else:
+            pass
+        # if it is static
+        #     if has parent
+        #         its mesh is not occlusion culling mesh must be multiply by wm
+        #     else # if does not have parent
+        #         its mesh is occlusion mesh mesh must be multiply by wm
+        #     write static meshes pass inv_mat_par=mathutils.Matrix()
+        #     write dynamic meshes pass inv
         # occlusion culling mesh
         # matrix
         # location
