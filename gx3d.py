@@ -367,12 +367,22 @@ class Gearoenix:
         return False
 
     @classmethod
-    def check_copied_model_name(cls, name):
+    def assert_copied_model(cls, name):
         psf = cls.STRING_COPY_POSTFIX_FORMAT
         lpsf = len(psf)
         ln = len(name)
-        return ln > lpsf and name[ln-lpsf] == psf[0] and
-                cls.check_uint(name[ln-lpsf:])
+        if ln > lpsf and name[ln-lpsf] == psf[0] and
+                cls.check_uint(name[ln-(lpsf-1):]):
+            origin = name[:ln-lpsf]
+            origin = bpy.data.objects[origin]
+            if origin.parent is not None:
+                cls.show("Object " + origin + " must be root because it is " +
+                        "copied in " + name)
+            if origin.world_matrix != mathutils.Matrix():
+                cls.show("Object " + origin + " must not have any " +
+                        "transformation because it is copied in " + name)
+            return True
+        return False
 
     @classmethod
     def assert_model_name(cls, name):
@@ -473,14 +483,16 @@ class Gearoenix:
         return False
 
     @classmethod
-    def write_origin_model(cls, name, inv_mat_par=mathutils.Matrix()):
+    def write_model(cls, name, inv_mat_par=mathutils.Matrix()):
         obj = bpy.data.objects[name]
+        dyn = cls.STRING_DYNAMIC_PART in obj
+        cpy = cls.check_copied_model_name(name)
         cls.write_bool(cls.STRING_DYNAMIC_PARTED in obj)
-        cls.write_bool(cls.STRING_DYNAMIC_PART in obj)
-        if cls.model_has_dynamic_parent(obj):
+        cls.write_bool(dyn)
+        if obj.parent is None:
             # its mesh is occlusion
-        else:
-            pass
+        elif dyn:
+            cls.write_matrix(obj.world_matrix)
         # if it is static
         #     if has parent
         #         its mesh is not occlusion culling mesh must be multiply by wm
