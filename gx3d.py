@@ -37,6 +37,7 @@ class Gearoenix:
     TYPE_COUNT = ctypes.c_uint64
     TYPE_BYTE = ctypes.c_uint8
     TYPE_FLOAT = ctypes.c_float
+    TYPE_U32 = ctypes.c_uint32
 
     TEXTURE_TYPE_2D = 10
     TEXTURE_TYPE_CUBE = 20
@@ -381,8 +382,8 @@ class Gearoenix:
             if origin.world_matrix != mathutils.Matrix():
                 cls.show("Object " + origin + " must not have any " +
                         "transformation because it is copied in " + name)
-            return True
-        return False
+            return origin
+        return None
 
     @classmethod
     def assert_model_name(cls, name):
@@ -394,12 +395,12 @@ class Gearoenix:
         # TODO
 
     @staticmethod
-    def material_needs_normal(mat):
-        return mat[0] == 2
+    def material_needs_normal(shd):
+        return shd[0] == 2
 
     @staticmethod
-    def material_needs_uv(mat):
-        return mat[1] == 2
+    def material_needs_uv(shd):
+        return shd[1] == 2
 
     @classmethod
     def write_material_texture_ids(cls, obj, shd):
@@ -467,11 +468,55 @@ class Gearoenix:
 
     @classmethod
     def write_mesh(cls, obj, shd, matrix):
-        matrix = obj.world_matrix
         cls.write_material_data(obj, shd)
-
-        # vertices elements
-        # indices elements
+        msh = obj.data
+        nrm = cls.material_needs_normal(shd)
+        uv = cls.material_needs_uv(shd)
+        vertices = dict()
+        last_index = 0
+        for p in msh.polygons:
+            if len(p.vetices) > 3:
+                cls.show("Object " + obj.name " is not triangled!")
+            for i in p.vertices:
+                vertex = []
+                v = matrix * msh.vertices[i].co
+                vertex.append(v[0])
+                vertex.append(v[1])
+                vertex.append(v[2])
+                if nrm:
+                    normal = msh.vertices[i].normal
+                    normal = mathutils.Vector((
+                            normal[0], normal[1], normal[2], 0.0))
+                    normal = matrix * normal
+                    vertex.append(normal[0])
+                    vertex.append(normal[1])
+                    vertex.append(normal[2])
+                if uv:
+                    uv_lyrs = msh.uv_layers
+                    if len(uv_lyrs) > 1 or len(uv_lyrs) < 1:
+                        cls.show("Unexpected number of uv layers in " +
+                                obj.name)
+                    texco = uv_lyrs[0].data[0].uv
+                    vertex.append(texco[0])
+                    vertex.append(texco[1])
+                vertex = tuple(vertex)
+                if vertex in vertices:
+                    vertices[vertex].append(last_index)
+                else:
+                    vertices[vertex] = [last_index]
+                last_index += 1
+        indices = [ 0 for _ in range(last_index) ]
+        last_index = 0
+        cls.out.write(cls.TYPE_COUNT(len(vertices)))
+        for vertex, index_list  in vertices.items()
+            for e in vertex:
+                cls.out.write(cls.TYPE_FLOAT(e))
+            for i in index_list:
+                indices[i] = last_index
+            last_index += 1
+        cls.out.write(cls.TYPE_COUNT(len(indices)))
+        for i in indices:
+            cls.out.write(cls.TYPE_U32(i))
 
     @staticmethod
     def model_has_dynamic_parent(obj):
@@ -486,25 +531,31 @@ class Gearoenix:
     def write_model(cls, name, inv_mat_par=mathutils.Matrix()):
         obj = bpy.data.objects[name]
         dyn = cls.STRING_DYNAMIC_PART in obj
-        cpy = cls.check_copied_model_name(name)
+        origin = cls.assert_copied_model(name)
         cls.write_bool(cls.STRING_DYNAMIC_PARTED in obj)
         cls.write_bool(dyn)
+        cls.write_bool(origin is not None)
+        if origin is not None:
+            cls.write_matrix(obj.matrix_world)
+            cls.out.write(cls.TYPE_TYPE_ID(cls.models[origin.name]))
+            return
+        mesh_matrix = mathutils.Matrix()
+        child_inv = inv_mat_par
+        if dyn:
+            cls.write_matrix(obj.matrix_world)
+            child_inv = obj.matrix_world.inverted()
+        else:
+            mesh_matrix = inv_mat_par * obj.world_matrix
+        shd = cls.get_shader_id(obj)
         if obj.parent is None:
-            # its mesh is occlusion
-        elif dyn:
-            cls.write_matrix(obj.world_matrix)
-        # if it is static
-        #     if has parent
-        #         its mesh is not occlusion culling mesh must be multiply by wm
-        #     else # if does not have parent
-        #         its mesh is occlusion mesh mesh must be multiply by wm
-        #     write static meshes pass inv_mat_par=mathutils.Matrix()
-        #     write dynamic meshes pass inv
-        # occlusion culling mesh
-        # matrix
-        # location
-        # static models and their mesh use matrix inversion
-        # dynamics models
+            if len(obj.children) == 0:
+                cls.show("Object " + obj.name + " should not have zero " +
+                        "children count")
+            shd = tuple([0 for _ in range(len(shd))])
+        cls.write_mesh(obj, shd, child_inv)
+        cls.out.write(cls.TYPE_COUNT(obj.children))
+        for c in obj.children:
+            cls.write_model(cls, c.name, child_inv)
 
     @classmethod
     def write_models(cls):
@@ -515,12 +566,7 @@ class Gearoenix:
         for name in items:
             cls.assert_model_name(name)
             cls.models[name][0] = cls.out.tell()
-            if cls.check_copied_model_name(name):
-                cls.write_bool(True)
-                cls.write_copied_model(name)
-            else:
-                cls.write_bool(False)
-                cls.write_origin_model(name)
+            cls.write_model(name)
 
     @classmethod
     def model_has_dynamic_part(cls, m):
