@@ -44,14 +44,12 @@ class Gearoenix:
     SPEAKER_TYPE_OBJECT = 20
 
     # Shader ID bytes
-    #     (light-mode) white: 0, solid: 1, directional: 2
-    #     (texturing) colored: 1, textured: 2
-    #     (speculation) speculated: 1, not-speculated: 2
-    #     (environment) no: 0, cube-texture: 1, realtime-cube: 2
-    #     (shadowing) shadeless: 0, full: 1, receiver: 2, caster: 3
-    #     (trancparency) opaque:0, transparent:2, cutoff: 3,
-    #     (reserved for now) 0
-    #     (reserved for now) 0
+    #     0-(light-mode) white: 0, solid: 1, directional: 2
+    #     1-(texturing) colored: 1, textured: 2
+    #     2-(speculation) speculated: 1, not-speculated: 2
+    #     3-(environment) no: 0, cube-texture: 1, realtime-cube: 2
+    #     4-(shadowing) shadeless: 0, full: 1, receiver: 2, caster: 3
+    #     5-(trancparency) opaque:0, transparent:2, cutoff: 3,
 
     STRING_DYNAMIC_PART = 'dynamic-part'
     STRING_DYNAMIC_PARTED = 'dynamic-parted'
@@ -168,6 +166,9 @@ class Gearoenix:
     def write_shaders_table(cls):
         cls.out.write(cls.TYPE_COUNT(len(cls.shaders)))
         for shader_id, offset in cls.shaders.items():
+            if len(shader_id) != 6:
+                cls.show("Unwxpected number of shader id elements in " +
+                        str(shader_id))
             for i in shader_id:
                 cls.out.write(cls.TYPE_BYTE(i))
             cls.out.write(cls.TYPE_OFFSET(offset))
@@ -178,7 +179,7 @@ class Gearoenix:
         offsets = [i for i in range(len(items))]
         cls.rust_code.write("pub mod " + mod_name + " {\n")
         for name, offset_id in items.items():
-            offset, item_id = offset_id
+            offset, item_id = offset_id[0:2]
             cls.rust_code.write(
                 "\tpub const " + cls.const_string(name) + ": u64 = " +
                 str(item_id) + ";\n")
@@ -243,13 +244,13 @@ class Gearoenix:
             file_name += "realtime-cube-"
         else:
             cls.show(error)
-        if shd == 0:
+        if shw == 0:
             file_name += "shadeless-"
-        elif shd == 1:
+        elif shw == 1:
             file_name += "full-"
-        elif shd == 2:
+        elif shw == 2:
             file_name += "receiver-"
-        elif shd == 3:
+        elif shw == 3:
             file_name += "caster-"
         else:
             cls.show(error)
@@ -266,12 +267,12 @@ class Gearoenix:
     @classmethod
     def write_shaders(cls):
         for shader_id in cls.shaders.keys():
-            file_name = cls.shader_id_to_file(cls, shader_id)
+            file_name = cls.shader_id_to_file(shader_id)
             cls.shaders[shader_id] = cls.out.tell()
             if sys.platform == "darwin":
-                file_name += 'metal/' + file_name + '-%s.metal'
+                file_name = 'metal/' + file_name + '-%s.metal'
             else:
-                file_name += 'vulkan/' + file_name + '.%s'
+                file_name = 'vulkan/' + file_name + '.%s'
             file_name = cls.PATH_SHADERS_DIR + file_name
             cls.compile_shader('vert', file_name % 'vert'):
             cls.compile_shader('frag', file_name % 'frag'):
@@ -283,8 +284,8 @@ class Gearoenix:
             offset, iid = offset_id
             items[iid] = name
         for name in items:
-            cam = bpy.data.cameras[name]
             obj = bpy.data.objects[name]
+            cam = obj.data
             cls.cameras[name][0] = cls.out.tell()
             if cam.type != 'PERSP':
                 cls.show("Camera with type '" + cam.type +
@@ -306,11 +307,8 @@ class Gearoenix:
             offset, iid = offset_id
             items[iid] = name
         for name in items:
-            f = open(name, "rb")
-            f = f.read()
             cls.speakers[name][0] = cls.out.tell()
-            cls.out.write(cls.TYPE_COUNT(len(f)))
-            cls.out.write(f)
+            cls.write_file(name)
 
     @classmethod
     def write_lights(cls):
@@ -377,7 +375,7 @@ class Gearoenix:
             if origin.parent is not None:
                 cls.show("Object " + origin + " must be root because it is " +
                         "copied in " + name)
-            if origin.world_matrix != mathutils.Matrix():
+            if origin.matrix_world != mathutils.Matrix():
                 cls.show("Object " + origin + " must not have any " +
                         "transformation because it is copied in " + name)
             return origin
@@ -394,7 +392,7 @@ class Gearoenix:
 
     @staticmethod
     def material_needs_normal(shd):
-        return shd[0] == 2
+        return shd[0] == 2 or shd[2] == 1 or shd[3] != 0
 
     @staticmethod
     def material_needs_uv(shd):
@@ -407,19 +405,24 @@ class Gearoenix:
         cube_texture = None
         texture_2d = None
         has_cube = len(obj.material_slots) > len(cls.STRING_CUBE_TEXTURE_FACES)
-        for mat in obj.material_slots:
-            m = mat.material
-            if has_cube and m.name.endswith("-" +
-                    cls.STRING_CUBE_TEXTURE_FACES[0]):
-                name = m.texture_slots[0].texture.image.filepath_raw
-                cube_texture = cls.textures[name][1]
-                continue
-            sm = m.name.split("-")
-            if ("-" not in m.name) or len(sm) < 2 or
-                    (sm[len(sm)-1] not in cls.STRING_CUBE_TEXTURE_FACES):
-                name = m.texture_slots[0].texture.image.filepath_raw
-                texture_2d = cls.textures[name][1]
-                continue
+        if has_cube:
+            for mat in obj.material_slots:
+                m = mat.material
+                if has_cube and m.name.endswith("-" +
+                        cls.STRING_CUBE_TEXTURE_FACES[0]):
+                    name = m.texture_slots[0].texture.image.filepath_raw
+                    cube_texture = cls.textures[name][1]
+                    continue
+                sm = m.name.split("-")
+                if ("-" not in m.name) or len(sm) < 2 or
+                        (sm[len(sm)-1] not in cls.STRING_CUBE_TEXTURE_FACES):
+                    name = m.texture_slots[0].texture.image.filepath_raw
+                    texture_2d = cls.textures[name][1]
+                    continue
+        else:
+            m = obj.material_slots[0].material
+            n = m.texture_slots[0].texture.image.filepath_raw
+            texture_2d = cls.textures[n][1]
         if cube_texture is not None:
             cls.out.write(cls.TYPE_TYPE_ID(cube_texture))
         if texture_2d is not None:
@@ -449,6 +452,8 @@ class Gearoenix:
 
     @classmethod
     def write_material_data(cls, obj, shd):
+        for i in shd:
+            cls.out.write(cls.TYPE_BYTE(i))
         cls.write_material_texture_ids(obj, shd)
         if shd[1] == 1:
             cls.write_vector(cls.get_info_material(obj).diffuse_color)
@@ -475,7 +480,7 @@ class Gearoenix:
         for p in msh.polygons:
             if len(p.vetices) > 3:
                 cls.show("Object " + obj.name " is not triangled!")
-            for i in p.vertices:
+            for i, li in zip(p.vertices, p.loop_indices):
                 vertex = []
                 v = matrix * msh.vertices[i].co
                 vertex.append(v[0])
@@ -486,6 +491,7 @@ class Gearoenix:
                     normal = mathutils.Vector((
                             normal[0], normal[1], normal[2], 0.0))
                     normal = matrix * normal
+                    normal = normal.normalized()
                     vertex.append(normal[0])
                     vertex.append(normal[1])
                     vertex.append(normal[2])
@@ -494,7 +500,7 @@ class Gearoenix:
                     if len(uv_lyrs) > 1 or len(uv_lyrs) < 1:
                         cls.show("Unexpected number of uv layers in " +
                                 obj.name)
-                    texco = uv_lyrs[0].data[0].uv
+                    texco = uv_lyrs[0].data[li].uv
                     vertex.append(texco[0])
                     vertex.append(texco[1])
                 vertex = tuple(vertex)
@@ -503,7 +509,7 @@ class Gearoenix:
                 else:
                     vertices[vertex] = [last_index]
                 last_index += 1
-        indices = [ 0 for _ in range(last_index) ]
+        indices = [0 for _ in range(last_index)]
         last_index = 0
         cls.out.write(cls.TYPE_COUNT(len(vertices)))
         for vertex, index_list  in vertices.items()
@@ -535,7 +541,7 @@ class Gearoenix:
         cls.write_bool(origin is not None)
         if origin is not None:
             cls.write_matrix(obj.matrix_world)
-            cls.out.write(cls.TYPE_TYPE_ID(cls.models[origin.name]))
+            cls.out.write(cls.TYPE_TYPE_ID(cls.models[origin.name][1]))
             return
         mesh_matrix = mathutils.Matrix()
         child_inv = inv_mat_par
@@ -558,8 +564,7 @@ class Gearoenix:
     @classmethod
     def write_models(cls):
         items = [i for i in range(len(cls.models))]
-        for name, offset_id in cls.models.items():
-            offset, iid = offset_id
+        for name, (offset, iid) in cls.models.items():
             items[iid] = name
         for name in items:
             cls.assert_model_name(name)
@@ -624,16 +629,14 @@ class Gearoenix:
             if d:
                 return
             else:
-                error = "Model: " + m.name + " has " +
+                cls.show("Model: " + m.name + " has " +
                     cls.STRING_DYNAMIC_PARTED + " property but does not have " +
-                    " a correct " + cls.STRING_DYNAMIC_PART + " child."
-                cls.show(error)
+                    " a correct " + cls.STRING_DYNAMIC_PART + " child.")
         else:
             if d:
-                error = "Model: " + m.name + " does not have a correct " +
+                cls.show("Model: " + m.name + " does not have a correct " +
                     cls.STRING_DYNAMIC_PARTED + " property but has a correct " +
-                    cls.STRING_DYNAMIC_PART + " child."
-                cls.show(error)
+                    cls.STRING_DYNAMIC_PART + " child.")
             else:
                 return
 
@@ -699,9 +702,8 @@ class Gearoenix:
         elif "transparent" in m:
             transparency = 2
         k = (
-            light_mode, texturing,
-            speculation, environment,
-            shadowing, transparency)
+            light_mode, texturing, speculation,
+            environment, shadowing, transparency)
         cls.shaders[k] = 0
         return k
 
@@ -751,16 +753,16 @@ class Gearoenix:
     @classmethod
     def read_material_slot(cls, s):
         environment = None
-        for f in cube_texture_faces:
+        for f in cls.STRING_CUBE_TEXTURE_FACES:
             found = 0
             face_mat = None
             for m in s:
                 if m.material.name.endswith("-" + f):
                     face_mat = m.material
                     found += 1
-            if found > 1
+            if found > 1:
                 cls.show("More than 1 material found with property " + f)
-            if found < 1
+            if found < 1:
                 cls.show("No material found with name " + f)
             face_env = cls.assert_material_face(f, face_mat)
             if environment is None:
@@ -770,7 +772,7 @@ class Gearoenix:
         for m in s:
             mat = m.material
             found = True
-            for f in cube_texture_faces:
+            for f in cls.STRING_CUBE_TEXTURE_FACES:
                 if mat.name.endswith("-" + f):
                     found = False
                     break
@@ -876,8 +878,10 @@ class Gearoenix:
 
     @classmethod
     def write_file(cls):
-        cls.tables_offset = 0
-        cls.shaders = dict() # id: offset
+        cls.shaders = { # id: offset
+            # special shaders will be added manually in here
+            (0, 0, 0, 0, 0, 0): 0, # white shader for occlussion culling
+        }
         cls.texture = dict() # filepath: [offest, id<con>, type]
         cls.last_texture_id = 0
         cls.scenes = dict() # name: [offset, id<con>]
@@ -891,10 +895,7 @@ class Gearoenix:
         cls.speakers = dict() # name: [offset, id<con>, type]
         cls.last_speaker_id = 0
         cls.read_scenes()
-        if sys.byteorder == 'little':
-            cls.out.write(ctypes.c_uint8(1))
-        else:
-            cls.out.write(ctypes.c_uint8(0))
+        cls.write_bool(sys.byteorder == 'little')
         tables_offset = cls.out.tell()
         cls.write_tables()
         cls.write_shaders()
@@ -907,7 +908,8 @@ class Gearoenix:
         cls.out.flush()
         cls.out.seek(tables_offset)
         cls.write_tables()
-        return True
+        cls.out.flush()
+        cls.out.close()
 
     class Exporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
         """This is a plug in for Gearoenix 3D file format"""
@@ -927,11 +929,8 @@ class Gearoenix:
             except:
                 cls.show('file %s can not be opened!' % self.filepath)
                 return {'CANCELLED'}
-            if Gearoenix.write_file():
-                Gearoenix.out.flush()
-                Gearoenix.out.close()
-                return {'FINISHED'}
-            return {'CANCELLED'}
+            Gearoenix.write_file()
+            return {'FINISHED'}
 
     def menu_func_export(self, context):
         self.layout.operator(
