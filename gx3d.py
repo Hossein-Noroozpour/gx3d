@@ -118,7 +118,6 @@ class Gearoenix:
                 '-o', tmp.filename]
         if subprocess.run(args).returncode != 0:
             cls.show('Shader %s can not be compiled!' % shader_name)
-            return False
         if sys.platform == "darwin":
             tmp2 = tmp
             tmp = cls.TmpFile()
@@ -127,12 +126,10 @@ class Gearoenix:
                 tmp2.filename, '-o', tmp.filename]
             if subprocess.run(args).returncode != 0:
                 cls.show('Shader %s can not be build!' % shader_name)
-                return False
         tmp = tmp.read()
         print("Shader is compiled has length of: ", len(tmp))
         cls.out.write(cls.TYPE_SIZE(len(tmp)))
         cls.out.write(tmp)
-        return True
 
     @staticmethod
     def const_string(s):
@@ -274,8 +271,8 @@ class Gearoenix:
             else:
                 file_name = 'vulkan/' + file_name + '.%s'
             file_name = cls.PATH_SHADERS_DIR + file_name
-            cls.compile_shader('vert', file_name % 'vert'):
-            cls.compile_shader('frag', file_name % 'frag'):
+            cls.compile_shader('vert', file_name % 'vert')
+            cls.compile_shader('frag', file_name % 'frag')
 
     @classmethod
     def write_cameras(cls):
@@ -357,7 +354,7 @@ class Gearoenix:
     @staticmethod
     def check_uint(s):
         try:
-            if int(s) >= 0
+            if int(s) >= 0:
                 return True
         except ValueError:
             return False
@@ -368,7 +365,7 @@ class Gearoenix:
         psf = cls.STRING_COPY_POSTFIX_FORMAT
         lpsf = len(psf)
         ln = len(name)
-        if ln > lpsf and name[ln-lpsf] == psf[0] and
+        if ln > lpsf and name[ln-lpsf] == psf[0] and \
                 cls.check_uint(name[ln-(lpsf-1):]):
             origin = name[:ln-lpsf]
             origin = bpy.data.objects[origin]
@@ -385,10 +382,6 @@ class Gearoenix:
     def assert_model_name(cls, name):
         # this is True for now but in future it may change
         pass
-
-    @classmethod
-    def write_copied_model(cls, name):
-        # TODO
 
     @staticmethod
     def material_needs_normal(shd):
@@ -414,7 +407,7 @@ class Gearoenix:
                     cube_texture = cls.textures[name][1]
                     continue
                 sm = m.name.split("-")
-                if ("-" not in m.name) or len(sm) < 2 or
+                if ("-" not in m.name) or len(sm) < 2 or \
                         (sm[len(sm)-1] not in cls.STRING_CUBE_TEXTURE_FACES):
                     name = m.texture_slots[0].texture.image.filepath_raw
                     texture_2d = cls.textures[name][1]
@@ -436,7 +429,7 @@ class Gearoenix:
         for mat in slots:
             m = mat.material
             sm = m.name.split("-")
-            if ("-" not in m.name) or len(sm) < 2 or
+            if ("-" not in m.name) or len(sm) < 2 or \
                     (sm[len(sm)-1] not in cls.STRING_CUBE_TEXTURE_FACES):
                 return m
 
@@ -460,7 +453,7 @@ class Gearoenix:
         if shd[2] == 1:
             cls.write_vector(cls.get_info_material(obj).specular_color)
         if shd[3] != 0:
-            cls.out.write(cls.TYPE_FLOAT(
+            cls.out.write(cls.TYPE_FLOAT( \
                 cls.get_up_face_material(obj).raytrace_mirror.reflect_factor))
         if shd[5] == 2:
             info = cls.get_info_material(obj)
@@ -479,7 +472,7 @@ class Gearoenix:
         last_index = 0
         for p in msh.polygons:
             if len(p.vetices) > 3:
-                cls.show("Object " + obj.name " is not triangled!")
+                cls.show("Object " + obj.name + " is not triangled!")
             for i, li in zip(p.vertices, p.loop_indices):
                 vertex = []
                 v = matrix * msh.vertices[i].co
@@ -512,7 +505,7 @@ class Gearoenix:
         indices = [0 for _ in range(last_index)]
         last_index = 0
         cls.out.write(cls.TYPE_COUNT(len(vertices)))
-        for vertex, index_list  in vertices.items()
+        for vertex, index_list  in vertices.items():
             for e in vertex:
                 cls.out.write(cls.TYPE_FLOAT(e))
             for i in index_list:
@@ -525,7 +518,7 @@ class Gearoenix:
     @staticmethod
     def model_has_dynamic_parent(obj):
         o = obj.parent
-        while o in not None:
+        while o is not None:
             if cls.STRING_DYNAMIC_PART in o:
                 return True
             o = o.parent
@@ -572,7 +565,7 @@ class Gearoenix:
             cls.write_model(name)
 
     @classmethod
-    def write_scenes:
+    def write_scenes(cls):
         items = [i for i in range(len(cls.scenes))]
         for name, offset_id in cls.scenes.items():
             offset, iid = offset_id
@@ -612,10 +605,10 @@ class Gearoenix:
 
     @classmethod
     def model_has_dynamic_part(cls, m):
-        has_dynamic_child = cls.STRING_DYNAMIC_PART in m and
+        has_dynamic_child = cls.STRING_DYNAMIC_PART in m and \
             m[cls.STRING_DYNAMIC_PART] == 1.0
         for c in m.children:
-            has_dynamic_child =
+            has_dynamic_child = \
                 has_dynamic_child or cls.model_has_dynamic_part(c)
         return has_dynamic_child
 
@@ -624,8 +617,8 @@ class Gearoenix:
         for c in m.children:
             cls.assert_model_dynamism(c)
         d = cls.model_has_dynamic_part(m)
-        if cls.STRING_DYNAMIC_PARTED in m and
-            m[cls.STRING_DYNAMIC_PARTED] == 1.0:
+        if cls.STRING_DYNAMIC_PARTED in m and \
+                m[cls.STRING_DYNAMIC_PARTED] == 1.0:
             if d:
                 return
             else:
@@ -660,7 +653,7 @@ class Gearoenix:
             else:
                 return
         else:
-            cls.textures[filepath] =
+            cls.textures[filepath] = \
                 [0, cls.last_texture_id, cls.TEXTURE_TYPE_2D]
             cls.last_texture_id += 1
 
@@ -681,7 +674,7 @@ class Gearoenix:
         else:
             cls.show("Unsupported number of textures in material: " + m.name)
         speculation = 0
-        if m.specular_intensity > 0.001
+        if m.specular_intensity > 0.001:
             speculation = 1
         else:
             speculation = 2
@@ -716,7 +709,7 @@ class Gearoenix:
             else:
                 return
         else:
-            cls.textures[up_txt_file] =
+            cls.textures[up_txt_file] = \
                 [0, cls.last_texture_id, cls.TEXTURE_TYPE_CUBE]
             cls.last_texture_id += 1
 
@@ -745,7 +738,7 @@ class Gearoenix:
             return 1
         elif len(m.texture_slots.keys()) > 1:
             cls.show("Material " + m.name + " has more than expected textures.")
-        elif not m.raytrace_mirror.use or
+        elif not m.raytrace_mirror.use or \
                 m.raytrace_mirror.reflect_factor < 0.001:
             cls.show("Material " + m.name + " does not set reflective.")
         return 2
