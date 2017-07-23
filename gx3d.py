@@ -135,7 +135,7 @@ class Gearoenix:
     def const_string(s):
         return s.replace("-", "_").upper()
 
-    @staticmethod
+    @classmethod
     def write_bool(cls, b):
         data = 0
         if b:
@@ -180,7 +180,7 @@ class Gearoenix:
             cls.rust_code.write(
                 "\tpub const " + cls.const_string(name) + ": u64 = " +
                 str(item_id) + ";\n")
-            offsets[item_id] = cls.TYPE_OFFSET(offset)
+            offsets[item_id] = offset
         cls.rust_code.write("}\n")
         return offsets
 
@@ -637,12 +637,12 @@ class Gearoenix:
     def assert_texture_2d(cls, t):
         if t.type != 'IMAGE':
             cls.show(
-                "Only image textures is supported, please correct: ", t.name)
+                "Only image textures is supported, please correct: " + t.name)
         img = t.image
         if img is None:
             cls.show("Image is not set in texture: " + t.name)
         filepath = img.filepath_raw.strip()
-        if filepath in None or len(filepath) == 0:
+        if filepath is None or len(filepath) == 0:
             cls.show("Image is not specified yet in texture: " + t.name)
         if not filepath.endswith(".png"):
             cls.show("Use PNG image instead of " + filepath)
@@ -679,7 +679,7 @@ class Gearoenix:
         else:
             speculation = 2
         shadowing = 0
-        if m.use_cast_shadow:
+        if m.use_cast_shadows:
             if m.use_shadows:
                 shadowing = 1
             else:
@@ -806,7 +806,8 @@ class Gearoenix:
         cls.last_model_id += 1
 
     @classmethod
-    def read_light(cls, l):
+    def read_light(cls, o):
+        l = o.data
         if l.type != 'SUN':
             cls.show("Only sun light is supported, change " + l.name)
         if l.name not in cls.lights:
@@ -875,7 +876,7 @@ class Gearoenix:
             # special shaders will be added manually in here
             (0, 0, 0, 0, 0, 0): 0, # white shader for occlussion culling
         }
-        cls.texture = dict() # filepath: [offest, id<con>, type]
+        cls.textures = dict() # filepath: [offest, id<con>, type]
         cls.last_texture_id = 0
         cls.scenes = dict() # name: [offset, id<con>]
         cls.last_scene_id = 0
