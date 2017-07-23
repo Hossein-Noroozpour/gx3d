@@ -142,8 +142,8 @@ class Gearoenix:
             data = 1
         cls.out.write(cls.TYPE_BOOLEAN(data))
 
-    @staticmethod
-    def write_vector(cls, v):
+    @classmethod
+    def write_vector(cls, v, element_count=3):
         for i in range(element_count):
             cls.out.write(cls.TYPE_FLOAT(v[i]))
 
@@ -305,7 +305,7 @@ class Gearoenix:
             items[iid] = name
         for name in items:
             cls.speakers[name][0] = cls.out.tell()
-            cls.write_file(name)
+            cls.write_binary_file(name)
 
     @classmethod
     def write_lights(cls):
@@ -319,12 +319,12 @@ class Gearoenix:
             cls.out.write(cls.TYPE_FLOAT(sun.location[0]))
             cls.out.write(cls.TYPE_FLOAT(sun.location[1]))
             cls.out.write(cls.TYPE_FLOAT(sun.location[2]))
-            cls.out.write(cls.TYPE_FLOAT(sun.rotation[0]))
-            cls.out.write(cls.TYPE_FLOAT(sun.rotation[1]))
-            cls.out.write(cls.TYPE_FLOAT(sun.rotation[2]))
+            cls.out.write(cls.TYPE_FLOAT(sun.rotation_euler[0]))
+            cls.out.write(cls.TYPE_FLOAT(sun.rotation_euler[1]))
+            cls.out.write(cls.TYPE_FLOAT(sun.rotation_euler[2]))
 
     @classmethod
-    def write_file(cls, name):
+    def write_binary_file(cls, name):
         f = open(name, "rb")
         f = f.read()
         cls.out.write(cls.TYPE_COUNT(len(f)))
@@ -340,16 +340,16 @@ class Gearoenix:
             cls.textures[name][0] = cls.out.tell()
             cls.out.write(cls.TYPE_TYPE_ID(ttype))
             if ttype == cls.TEXTURE_TYPE_2D:
-                cls.write_file(name)
+                cls.write_binary_file(name)
             elif ttype == cls.TEXTURE_TYPE_CUBE:
                 name = name.split()
                 raw_name = name[:len(name) - len("-up.png")]
-                cls.write_file(raw_name + "-up.png")
-                cls.write_file(raw_name + "-down.png")
-                cls.write_file(raw_name + "-left.png")
-                cls.write_file(raw_name + "-right.png")
-                cls.write_file(raw_name + "-front.png")
-                cls.write_file(raw_name + "-back.png")
+                cls.write_binary_file(raw_name + "-up.png")
+                cls.write_binary_file(raw_name + "-down.png")
+                cls.write_binary_file(raw_name + "-left.png")
+                cls.write_binary_file(raw_name + "-right.png")
+                cls.write_binary_file(raw_name + "-front.png")
+                cls.write_binary_file(raw_name + "-back.png")
 
     @staticmethod
     def check_uint(s):
@@ -403,18 +403,20 @@ class Gearoenix:
                 m = mat.material
                 if has_cube and m.name.endswith("-" +
                         cls.STRING_CUBE_TEXTURE_FACES[0]):
-                    name = m.texture_slots[0].texture.image.filepath_raw
+                    name = bpy.path.abspath(\
+                        m.texture_slots[0].texture.image.filepath_raw)
                     cube_texture = cls.textures[name][1]
                     continue
                 sm = m.name.split("-")
                 if ("-" not in m.name) or len(sm) < 2 or \
                         (sm[len(sm)-1] not in cls.STRING_CUBE_TEXTURE_FACES):
-                    name = m.texture_slots[0].texture.image.filepath_raw
+                    name = bpy.path.abspath(\
+                        m.texture_slots[0].texture.image.filepath_raw)
                     texture_2d = cls.textures[name][1]
                     continue
         else:
             m = obj.material_slots[0].material
-            n = m.texture_slots[0].texture.image.filepath_raw
+            n = bpy.path.abspath(m.texture_slots[0].texture.image.filepath_raw)
             texture_2d = cls.textures[n][1]
         if cube_texture is not None:
             cls.out.write(cls.TYPE_TYPE_ID(cube_texture))
@@ -471,7 +473,7 @@ class Gearoenix:
         vertices = dict()
         last_index = 0
         for p in msh.polygons:
-            if len(p.vetices) > 3:
+            if len(p.vertices) > 3:
                 cls.show("Object " + obj.name + " is not triangled!")
             for i, li in zip(p.vertices, p.loop_indices):
                 vertex = []
@@ -542,7 +544,7 @@ class Gearoenix:
             cls.write_matrix(obj.matrix_world)
             child_inv = obj.matrix_world.inverted()
         else:
-            mesh_matrix = inv_mat_par * obj.world_matrix
+            mesh_matrix = inv_mat_par * obj.matrix_world
         shd = cls.get_shader_id(obj)
         if obj.parent is None:
             if len(obj.children) == 0:
@@ -550,9 +552,9 @@ class Gearoenix:
                         "children count")
             shd = tuple([0 for _ in range(len(shd))])
         cls.write_mesh(obj, shd, child_inv)
-        cls.out.write(cls.TYPE_COUNT(obj.children))
+        cls.out.write(cls.TYPE_COUNT(len(obj.children)))
         for c in obj.children:
-            cls.write_model(cls, c.name, child_inv)
+            cls.write_model(c.name, child_inv)
 
     @classmethod
     def write_models(cls):
@@ -641,13 +643,13 @@ class Gearoenix:
         img = t.image
         if img is None:
             cls.show("Image is not set in texture: " + t.name)
-        filepath = img.filepath_raw.strip()
+        filepath = bpy.path.abspath(img.filepath_raw).strip()
         if filepath is None or len(filepath) == 0:
             cls.show("Image is not specified yet in texture: " + t.name)
         if not filepath.endswith(".png"):
             cls.show("Use PNG image instead of " + filepath)
         if filepath in cls.textures:
-            if cls.texture[filepath][2] != cls.TEXTURE_TYPE_2D:
+            if cls.textures[filepath][2] != cls.TEXTURE_TYPE_2D:
                 cls.show("You have used a same image in two defferent " +
                     "texture type in " + t.name)
             else:
@@ -726,7 +728,7 @@ class Gearoenix:
             img = txt.image
             if img is None:
                 cls.show(error)
-            img = img.filepath_raw.split()
+            img = bpy.path.abspath(img.filepath_raw).split()
             if img is None or len(img):
                 cls.show(error)
             if not img.endswith(".png"):
@@ -787,12 +789,12 @@ class Gearoenix:
 
     @classmethod
     def get_shader_id(cls, obj):
-        if len(m.material_slots.keys()) == 1:
-            return cls.read_material(m.material_slots[0].material)
-        elif len(m.material_slots.keys()) == 7:
-            return cls.read_material_slot(m.material_slots)
+        if len(obj.material_slots.keys()) == 1:
+            return cls.read_material(obj.material_slots[0].material)
+        elif len(obj.material_slots.keys()) == 7:
+            return cls.read_material_slot(obj.material_slots)
         else:
-            cls.show("Unexpected number of materials in model " + m.name)
+            cls.show("Unexpected number of materials in model " + obj.name)
 
     @classmethod
     def read_model(cls, m):
@@ -904,6 +906,8 @@ class Gearoenix:
         cls.write_tables()
         cls.out.flush()
         cls.out.close()
+        cls.rust_code.flush()
+        cls.rust_code.close()
 
     class Exporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
         """This is a plug in for Gearoenix 3D file format"""
@@ -922,7 +926,6 @@ class Gearoenix:
                 Gearoenix.rust_code = open(self.filepath + ".rs", mode='w')
             except:
                 cls.show('file %s can not be opened!' % self.filepath)
-                return {'CANCELLED'}
             Gearoenix.write_file()
             return {'FINISHED'}
 
