@@ -592,9 +592,10 @@ class Gearoenix:
                     lights.append(cls.lights[o.name][1])
             if len(lights) > 1:
                 cls.show("Currently only one light is supported in game engine")
-            cls.out.write(cls.TYPE_COUNT(len(models)))
-            for m in models:
-                cls.out.write(cls.TYPE_TYPE_ID(m))
+            if len(cameras) < 1:
+                cls.show("At least one camera must exist.")
+            cls.out.write(cls.TYPE_COUNT(scene['vertices size']))   
+            cls.out.write(cls.TYPE_COUNT(scene['indices size']))
             cls.out.write(cls.TYPE_COUNT(len(cameras)))
             for c in cameras:
                 cls.out.write(cls.TYPE_TYPE_ID(c))
@@ -604,6 +605,9 @@ class Gearoenix:
             cls.out.write(cls.TYPE_COUNT(len(lights)))
             for l in lights:
                 cls.out.write(cls.TYPE_TYPE_ID(l))
+            cls.out.write(cls.TYPE_COUNT(len(models)))
+            for m in models:
+                cls.out.write(cls.TYPE_TYPE_ID(m))
 
     @classmethod
     def model_has_dynamic_part(cls, m):
