@@ -301,10 +301,11 @@ class Gearoenix:
     def write_speakers(cls):
         items = [i for i in range(len(cls.speakers))]
         for name, offset_id in cls.speakers.items():
-            offset, iid = offset_id
-            items[iid] = name
-        for name in items:
+            offset, iid, ttype = offset_id_type
+            items[iid] = (name, ttype)
+        for name, ttype in items:
             cls.speakers[name][0] = cls.out.tell()
+            cls.out.write(cls.TYPE_TYPE_ID(ttype))
             cls.write_binary_file(name)
 
     @classmethod
@@ -316,6 +317,9 @@ class Gearoenix:
         for name in items:
             sun = bpy.data.objects[name]
             cls.lights[name][0] = cls.out.tell()
+            cls.out.write(cls.TYPE_FLOAT(sun['near']))
+            cls.out.write(cls.TYPE_FLOAT(sun['far']))
+            cls.out.write(cls.TYPE_COUNT(sun['size']))
             cls.out.write(cls.TYPE_FLOAT(sun.location[0]))
             cls.out.write(cls.TYPE_FLOAT(sun.location[1]))
             cls.out.write(cls.TYPE_FLOAT(sun.location[2]))
