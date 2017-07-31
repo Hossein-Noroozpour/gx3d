@@ -535,7 +535,6 @@ class Gearoenix:
         obj = bpy.data.objects[name]
         dyn = cls.STRING_DYNAMIC_PART in obj
         origin = cls.assert_copied_model(name)
-        cls.write_bool(cls.STRING_DYNAMIC_PARTED in obj)
         cls.write_bool(dyn)
         cls.write_bool(origin is not None)
         if origin is not None:
@@ -550,7 +549,7 @@ class Gearoenix:
         else:
             mesh_matrix = inv_mat_par * obj.matrix_world
         shd = cls.get_shader_id(obj)
-        if obj.parent is None:
+        if obj.parent is None or dyn:
             if len(obj.children) == 0:
                 cls.show("Object " + obj.name + " should not have zero " +
                         "children count")
