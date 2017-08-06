@@ -47,8 +47,8 @@ class Gearoenix:
     #     0-(light-mode) white: 0, solid: 1, directional: 2
     #     1-(texturing) colored: 1, textured: 2
     #     2-(speculation) speculated: 1, not-speculated: 2
-    #     3-(environment) no: 0, cube-texture: 1, realtime-cube: 2
-    #     4-(shadowing) shadeless: 0, full: 1, receiver: 2, caster: 3
+    #     3-(environment) nocube: 0, cubetexture: 1, realtimecube: 2
+    #     4-(shadowing) shadowless: 0, full: 1, receiver: 2, caster: 3
     #     5-(trancparency) opaque:0, transparent:2, cutoff: 3,
 
     STRING_DYNAMIC_PART = 'dynamic-part'
@@ -103,6 +103,14 @@ class Gearoenix:
             cls.PATH_SHADER_COMPILER = \
                 cls.PATH_VULKAN_SDK + '/bin/glslangValidator'
         return True
+
+    @staticmethod
+    def shader_id_to_int(shd):
+        i = 0
+        for sh in shd:
+            i <<= 8;
+            i |= sh
+        print("shader id in int is:", i)
 
     @classmethod
     def compile_shader(cls, stage, shader_name):
