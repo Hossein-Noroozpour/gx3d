@@ -319,7 +319,7 @@ class Gearoenix:
             cls.lights[name][0] = cls.out.tell()
             cls.out.write(cls.TYPE_FLOAT(sun['near']))
             cls.out.write(cls.TYPE_FLOAT(sun['far']))
-            cls.out.write(cls.TYPE_COUNT(sun['size']))
+            cls.out.write(cls.TYPE_FLOAT(sun['size']))
             cls.out.write(cls.TYPE_FLOAT(sun.location[0]))
             cls.out.write(cls.TYPE_FLOAT(sun.location[1]))
             cls.out.write(cls.TYPE_FLOAT(sun.location[2]))
@@ -597,8 +597,8 @@ class Gearoenix:
                 cls.show("Currently only one light is supported in game engine")
             if len(cameras) < 1:
                 cls.show("At least one camera must exist.")
-            cls.out.write(cls.TYPE_COUNT(scene['vertices size']))   
-            cls.out.write(cls.TYPE_COUNT(scene['indices size']))
+            cls.out.write(cls.TYPE_COUNT(int(scene['vertices size'])))   
+            cls.out.write(cls.TYPE_COUNT(int(scene['indices size'])))
             cls.out.write(cls.TYPE_COUNT(len(cameras)))
             for c in cameras:
                 cls.out.write(cls.TYPE_TYPE_ID(c))
