@@ -466,6 +466,7 @@ class Gearoenix:
             cls.write_vector(cls.get_info_material(obj).diffuse_color)
         if shd[2] == 1:
             cls.write_vector(cls.get_info_material(obj).specular_color)
+            cls.out.write(cls.TYPE_FLOAT(cls.get_info_material(obj).specular_intensity))
         if shd[3] != 0:
             cls.out.write(cls.TYPE_FLOAT( \
                 cls.get_up_face_material(obj).raytrace_mirror.reflect_factor))
