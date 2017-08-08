@@ -16,16 +16,18 @@ bl_info = {
 #    at least in one of the blender scene in a file. Plan is not to take
 #    everything from blender and support every features of Blender.
 
-import bpy
-import bpy_extras
 import ctypes
 import io
 import math
-import mathutils
 import os
 import subprocess
 import sys
 import tempfile
+
+import bpy
+import bpy_extras
+import mathutils
+
 
 class Gearoenix:
     TYPE_BOOLEAN = ctypes.c_uint8
@@ -58,7 +60,9 @@ class Gearoenix:
     STRING_ENGINE_SDK_VAR_NAME = 'VULKUST_SDK'
     STRING_VULKAN_SDK_VAR_NAME = 'VULKAN_SDK'
     STRING_COPY_POSTFIX_FORMAT = '.NNN'
-    STRING_CUBE_TEXTURE_FACES = ["up", "down", "left", "right", "front", "back"]
+    STRING_CUBE_TEXTURE_FACES = [
+        "up", "down", "left", "right", "front", "back"
+    ]
 
     PATH_ENGINE_SDK = None
     PATH_VULKAN_SDK = None
@@ -95,7 +99,8 @@ class Gearoenix:
         if sys.platform == 'darwin':
             cls.PATH_SHADER_COMPILER = "xcrun"
         else:
-            cls.PATH_VULKAN_SDK = os.environ.get(cls.STRING_VULKAN_SDK_VAR_NAME)
+            cls.PATH_VULKAN_SDK = os.environ.get(
+                cls.STRING_VULKAN_SDK_VAR_NAME)
             if cls.PATH_VULKAN_SDK is None:
                 cls.show('"' + cls.STRING_VULKAN_SDK_VAR_NAME +
                          '" variable is not set!')
@@ -108,7 +113,7 @@ class Gearoenix:
     def shader_id_to_int(shd):
         i = 0
         for sh in shd:
-            i <<= 8;
+            i <<= 8
             i |= sh
         print("shader id in int is:", i)
 
@@ -119,11 +124,13 @@ class Gearoenix:
         if sys.platform == 'darwin':
             args = [
                 cls.PATH_SHADER_COMPILER, '-sdk', 'macosx', 'metal',
-                shader_name, '-o', tmp.filename]
+                shader_name, '-o', tmp.filename
+            ]
         else:
             args = [
-                cls.PATH_SHADER_COMPILER, '-V', '-S', stage, shader_name,
-                '-o', tmp.filename]
+                cls.PATH_SHADER_COMPILER, '-V', '-S', stage, shader_name, '-o',
+                tmp.filename
+            ]
         if subprocess.run(args).returncode != 0:
             cls.show('Shader %s can not be compiled!' % shader_name)
         if sys.platform == "darwin":
@@ -131,7 +138,8 @@ class Gearoenix:
             tmp = cls.TmpFile()
             args = [
                 cls.PATH_SHADER_COMPILER, '-sdk', 'macosx', 'metallib',
-                tmp2.filename, '-o', tmp.filename]
+                tmp2.filename, '-o', tmp.filename
+            ]
             if subprocess.run(args).returncode != 0:
                 cls.show('Shader %s can not be build!' % shader_name)
         tmp = tmp.read()
@@ -172,8 +180,8 @@ class Gearoenix:
         cls.out.write(cls.TYPE_COUNT(len(cls.shaders)))
         for shader_id, offset in cls.shaders.items():
             if len(shader_id) != 6:
-                cls.show("Unwxpected number of shader id elements in " +
-                        str(shader_id))
+                cls.show("Unwxpected number of shader id elements in " + str(
+                    shader_id))
             for i in shader_id:
                 cls.out.write(cls.TYPE_BYTE(i))
             cls.out.write(cls.TYPE_OFFSET(offset))
@@ -185,9 +193,8 @@ class Gearoenix:
         cls.rust_code.write("pub mod " + mod_name + " {\n")
         for name, offset_id in items.items():
             offset, item_id = offset_id[0:2]
-            cls.rust_code.write(
-                "\tpub const " + cls.const_string(name) + ": u64 = " +
-                str(item_id) + ";\n")
+            cls.rust_code.write("\tpub const " + cls.const_string(name) +
+                                ": u64 = " + str(item_id) + ";\n")
             offsets[item_id] = offset
         cls.rust_code.write("}\n")
         return offsets
@@ -294,7 +301,7 @@ class Gearoenix:
             cls.cameras[name][0] = cls.out.tell()
             if cam.type != 'PERSP':
                 cls.show("Camera with type '" + cam.type +
-                    "' is not supported yet.")
+                         "' is not supported yet.")
             cls.out.write(cls.TYPE_FLOAT(cam.angle))
             cls.out.write(cls.TYPE_FLOAT(cam.clip_start))
             cls.out.write(cls.TYPE_FLOAT(cam.clip_end))
@@ -379,14 +386,14 @@ class Gearoenix:
         ln = len(name)
         if ln > lpsf and name[ln-lpsf] == psf[0] and \
                 cls.check_uint(name[ln-(lpsf-1):]):
-            origin = name[:ln-lpsf]
+            origin = name[:ln - lpsf]
             origin = bpy.data.objects[origin]
             if origin.parent is not None:
                 cls.show("Object " + origin + " must be root because it is " +
-                        "copied in " + name)
+                         "copied in " + name)
             if origin.matrix_world != mathutils.Matrix():
                 cls.show("Object " + origin + " must not have any " +
-                        "transformation because it is copied in " + name)
+                         "transformation because it is copied in " + name)
             return origin
         return None
 
@@ -413,8 +420,8 @@ class Gearoenix:
         if has_cube:
             for mat in obj.material_slots:
                 m = mat.material
-                if has_cube and m.name.endswith("-" +
-                        cls.STRING_CUBE_TEXTURE_FACES[0]):
+                if has_cube and m.name.endswith(
+                        "-" + cls.STRING_CUBE_TEXTURE_FACES[0]):
                     name = bpy.path.abspath(\
                         m.texture_slots[0].texture.image.filepath_raw)
                     cube_texture = cls.textures[name][1]
@@ -466,7 +473,8 @@ class Gearoenix:
             cls.write_vector(cls.get_info_material(obj).diffuse_color)
         if shd[2] == 1:
             cls.write_vector(cls.get_info_material(obj).specular_color)
-            cls.out.write(cls.TYPE_FLOAT(cls.get_info_material(obj).specular_intensity))
+            cls.out.write(
+                cls.TYPE_FLOAT(cls.get_info_material(obj).specular_intensity))
         if shd[3] != 0:
             cls.out.write(cls.TYPE_FLOAT( \
                 cls.get_up_face_material(obj).raytrace_mirror.reflect_factor))
@@ -496,8 +504,8 @@ class Gearoenix:
                 vertex.append(v[2])
                 if nrm:
                     normal = msh.vertices[i].normal
-                    normal = mathutils.Vector((
-                            normal[0], normal[1], normal[2], 0.0))
+                    normal = mathutils.Vector((normal[0], normal[1], normal[2],
+                                               0.0))
                     normal = matrix * normal
                     normal = normal.normalized()
                     vertex.append(normal[0])
@@ -507,7 +515,7 @@ class Gearoenix:
                     uv_lyrs = msh.uv_layers
                     if len(uv_lyrs) > 1 or len(uv_lyrs) < 1:
                         cls.show("Unexpected number of uv layers in " +
-                                obj.name)
+                                 obj.name)
                     texco = uv_lyrs[0].data[li].uv
                     vertex.append(texco[0])
                     vertex.append(texco[1])
@@ -520,7 +528,7 @@ class Gearoenix:
         indices = [0 for _ in range(last_index)]
         last_index = 0
         cls.out.write(cls.TYPE_COUNT(len(vertices)))
-        for vertex, index_list  in vertices.items():
+        for vertex, index_list in vertices.items():
             for e in vertex:
                 cls.out.write(cls.TYPE_FLOAT(e))
             for i in index_list:
@@ -544,12 +552,13 @@ class Gearoenix:
         obj = bpy.data.objects[name]
         dyn = cls.STRING_DYNAMIC_PART in obj
         origin = cls.assert_copied_model(name)
-        cls.write_bool(dyn)
-        cls.write_bool(origin is not None)
-        if origin is not None:
+        is_copy = origin is not None
+        cls.write_bool(is_copy)
+        if is_copy:
             cls.write_matrix(obj.matrix_world)
             cls.out.write(cls.TYPE_TYPE_ID(cls.models[origin.name][1]))
             return
+        cls.write_bool(dyn)
         mesh_matrix = mathutils.Matrix()
         child_inv = inv_mat_par
         if dyn:
@@ -561,7 +570,7 @@ class Gearoenix:
         if obj.parent is None or dyn:
             if len(obj.children) == 0:
                 cls.show("Object " + obj.name + " should not have zero " +
-                        "children count")
+                         "children count")
             shd = tuple([0 for _ in range(len(shd))])
         cls.write_mesh(obj, shd, child_inv)
         cls.out.write(cls.TYPE_COUNT(len(obj.children)))
@@ -603,10 +612,11 @@ class Gearoenix:
                 elif o.type == "LAMP":
                     lights.append(cls.lights[o.name][1])
             if len(lights) > 1:
-                cls.show("Currently only one light is supported in game engine")
+                cls.show(
+                    "Currently only one light is supported in game engine")
             if len(cameras) < 1:
                 cls.show("At least one camera must exist.")
-            cls.out.write(cls.TYPE_COUNT(int(scene['vertices size'])))   
+            cls.out.write(cls.TYPE_COUNT(int(scene['vertices size'])))
             cls.out.write(cls.TYPE_COUNT(int(scene['indices size'])))
             cls.out.write(cls.TYPE_COUNT(len(cameras)))
             for c in cameras:
@@ -640,22 +650,23 @@ class Gearoenix:
             if d:
                 return
             else:
-                cls.show("Model: " + m.name + " has " +
-                    cls.STRING_DYNAMIC_PARTED + " property but does not have " +
-                    " a correct " + cls.STRING_DYNAMIC_PART + " child.")
+                cls.show("Model: " + m.name + " has " + cls.
+                         STRING_DYNAMIC_PARTED + " property but does not have "
+                         + " a correct " + cls.STRING_DYNAMIC_PART + " child.")
         else:
             if d:
                 cls.show("Model: " + m.name + " does not have a correct " +
-                    cls.STRING_DYNAMIC_PARTED + " property but has a correct " +
-                    cls.STRING_DYNAMIC_PART + " child.")
+                         cls.STRING_DYNAMIC_PARTED +
+                         " property but has a correct " +
+                         cls.STRING_DYNAMIC_PART + " child.")
             else:
                 return
 
     @classmethod
     def assert_texture_2d(cls, t):
         if t.type != 'IMAGE':
-            cls.show(
-                "Only image textures is supported, please correct: " + t.name)
+            cls.show("Only image textures is supported, please correct: " +
+                     t.name)
         img = t.image
         if img is None:
             cls.show("Image is not set in texture: " + t.name)
@@ -667,7 +678,7 @@ class Gearoenix:
         if filepath in cls.textures:
             if cls.textures[filepath][2] != cls.TEXTURE_TYPE_2D:
                 cls.show("You have used a same image in two defferent " +
-                    "texture type in " + t.name)
+                         "texture type in " + t.name)
             else:
                 return
         else:
@@ -712,9 +723,8 @@ class Gearoenix:
             transparency = 3
         elif "transparent" in m:
             transparency = 2
-        k = (
-            light_mode, texturing, speculation,
-            environment, shadowing, transparency)
+        k = (light_mode, texturing, speculation, environment, shadowing,
+             transparency)
         cls.shaders[k] = 0
         return k
 
@@ -723,7 +733,7 @@ class Gearoenix:
         if up_txt_file in cls.textures:
             if cls.textures[up_txt_file][2] != cls.TEXTURE_TYPE_CUBE:
                 cls.show("You have used a same image in two defferent " +
-                    "texture type in " + up_txt_file)
+                         "texture type in " + up_txt_file)
             else:
                 return
         else:
@@ -755,7 +765,8 @@ class Gearoenix:
                 cls.assert_texture_cube(img)
             return 1
         elif len(m.texture_slots.keys()) > 1:
-            cls.show("Material " + m.name + " has more than expected textures.")
+            cls.show("Material " + m.name +
+                     " has more than expected textures.")
         elif not m.raytrace_mirror.use or \
                 m.raytrace_mirror.reflect_factor < 0.001:
             cls.show("Material " + m.name + " does not set reflective.")
@@ -894,17 +905,17 @@ class Gearoenix:
             # special shaders will be added manually in here
             (0, 0, 0, 0, 0, 0): 0, # white shader for occlussion culling
         }
-        cls.textures = dict() # filepath: [offest, id<con>, type]
+        cls.textures = dict()  # filepath: [offest, id<con>, type]
         cls.last_texture_id = 0
-        cls.scenes = dict() # name: [offset, id<con>]
+        cls.scenes = dict()  # name: [offset, id<con>]
         cls.last_scene_id = 0
-        cls.models = dict() # name: [offset, id<con>]
+        cls.models = dict()  # name: [offset, id<con>]
         cls.last_model_id = 0
-        cls.cameras = dict() # name: [offset, id<con>]
+        cls.cameras = dict()  # name: [offset, id<con>]
         cls.last_camera_id = 0
-        cls.lights = dict() # name: [offset, id<con>]
+        cls.lights = dict()  # name: [offset, id<con>]
         cls.last_light_id = 0
-        cls.speakers = dict() # name: [offset, id<con>, type]
+        cls.speakers = dict()  # name: [offset, id<con>, type]
         cls.last_speaker_id = 0
         cls.read_scenes()
         cls.write_bool(sys.byteorder == 'little')
@@ -957,7 +968,7 @@ class Gearoenix:
 
     class TmpFile:
         def __init__(self):
-            tmpfile = tempfile.NamedTemporaryFile(delete = False)
+            tmpfile = tempfile.NamedTemporaryFile(delete=False)
             self.filename = tmpfile.name
             tmpfile.close()
 
@@ -969,6 +980,7 @@ class Gearoenix:
             d = f.read()
             f.close()
             return d
+
 
 if __name__ == "__main__":
     Gearoenix.register()
