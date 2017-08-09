@@ -384,8 +384,8 @@ class Gearoenix:
         psf = cls.STRING_COPY_POSTFIX_FORMAT
         lpsf = len(psf)
         ln = len(name)
-        if ln > lpsf and name[ln-lpsf] == psf[0] and \
-                cls.check_uint(name[ln-(lpsf-1):]):
+        if ln > lpsf and name[ln - lpsf] == psf[0] and \
+                cls.check_uint(name[ln - (lpsf - 1):]):
             origin = name[:ln - lpsf]
             origin = bpy.data.objects[origin]
             if origin.parent is not None:
@@ -422,14 +422,14 @@ class Gearoenix:
                 m = mat.material
                 if has_cube and m.name.endswith(
                         "-" + cls.STRING_CUBE_TEXTURE_FACES[0]):
-                    name = bpy.path.abspath(\
+                    name = bpy.path.abspath(
                         m.texture_slots[0].texture.image.filepath_raw)
                     cube_texture = cls.textures[name][1]
                     continue
                 sm = m.name.split("-")
                 if ("-" not in m.name) or len(sm) < 2 or \
-                        (sm[len(sm)-1] not in cls.STRING_CUBE_TEXTURE_FACES):
-                    name = bpy.path.abspath(\
+                        (sm[len(sm) - 1] not in cls.STRING_CUBE_TEXTURE_FACES):
+                    name = bpy.path.abspath(
                         m.texture_slots[0].texture.image.filepath_raw)
                     texture_2d = cls.textures[name][1]
                     continue
@@ -451,7 +451,7 @@ class Gearoenix:
             m = mat.material
             sm = m.name.split("-")
             if ("-" not in m.name) or len(sm) < 2 or \
-                    (sm[len(sm)-1] not in cls.STRING_CUBE_TEXTURE_FACES):
+                    (sm[len(sm) - 1] not in cls.STRING_CUBE_TEXTURE_FACES):
                 return m
 
     @classmethod
@@ -476,7 +476,7 @@ class Gearoenix:
             cls.out.write(
                 cls.TYPE_FLOAT(cls.get_info_material(obj).specular_intensity))
         if shd[3] != 0:
-            cls.out.write(cls.TYPE_FLOAT( \
+            cls.out.write(cls.TYPE_FLOAT(
                 cls.get_up_face_material(obj).raytrace_mirror.reflect_factor))
         if shd[5] == 2:
             info = cls.get_info_material(obj)
@@ -901,9 +901,9 @@ class Gearoenix:
 
     @classmethod
     def write_file(cls):
-        cls.shaders = { # id: offset
+        cls.shaders = {  # id: offset
             # special shaders will be added manually in here
-            (0, 0, 0, 0, 0, 0): 0, # white shader for occlussion culling
+            (0, 0, 0, 0, 0, 0): 0,  # white shader for occlussion culling
         }
         cls.textures = dict()  # filepath: [offest, id<con>, type]
         cls.last_texture_id = 0
