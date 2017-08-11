@@ -52,6 +52,7 @@ class Gearoenix:
     #     3-(environment) nocube: 0, cubetexture: 1, realtimecube: 2
     #     4-(shadowing) shadowless: 0, full: 1, receiver: 2, caster: 3
     #     5-(trancparency) opaque:0, transparent:2, cutoff: 3,
+    SHADER_PARTS_COUNT = 6
 
     STRING_DYNAMIC_PART = 'dynamic-part'
     STRING_DYNAMIC_PARTED = 'dynamic-parted'
@@ -69,6 +70,8 @@ class Gearoenix:
     PATH_SHADERS_DIR = None
     PATH_SHADER_COMPILER = None
 
+    MODE_DEBUG = True
+
     def __init__(self):
         pass
 
@@ -81,6 +84,11 @@ class Gearoenix:
             self.report({'ERROR'},
                         Gearoenix.ErrorMsgBox.gearoenix_exporter_msg)
             return {'CANCELLED'}
+
+    @classmethod
+    def log(cls, *args):
+        if cls.MODE_DEBUG:
+            print(*args)
 
     @classmethod
     def show(cls, msg):
@@ -143,7 +151,8 @@ class Gearoenix:
             if subprocess.run(args).returncode != 0:
                 cls.show('Shader %s can not be build!' % shader_name)
         tmp = tmp.read()
-        print("Shader is compiled has length of: ", len(tmp))
+        cls.log("Shader '", shader_name,
+                "'is compiled has length of: ", len(tmp))
         cls.out.write(cls.TYPE_SIZE(len(tmp)))
         cls.out.write(tmp)
 
@@ -185,7 +194,7 @@ class Gearoenix:
             for i in shader_id:
                 cls.out.write(cls.TYPE_BYTE(i))
             cls.out.write(cls.TYPE_OFFSET(offset))
-            print("Shader with id:", shader_id, "and offset:", offset)
+            cls.log("Shader with id:", shader_id, "and offset:", offset)
 
     @classmethod
     def items_offsets(cls, items, mod_name):
@@ -476,8 +485,10 @@ class Gearoenix:
             cls.out.write(
                 cls.TYPE_FLOAT(cls.get_info_material(obj).specular_intensity))
         if shd[3] != 0:
-            cls.out.write(cls.TYPE_FLOAT(
-                cls.get_up_face_material(obj).raytrace_mirror.reflect_factor))
+            cls.out.write(
+                cls.TYPE_FLOAT(
+                    cls.get_up_face_material(obj)
+                    .raytrace_mirror.reflect_factor))
         if shd[5] == 2:
             info = cls.get_info_material(obj)
             cls.out.write(cls.TYPE_FLOAT(info[cls.STRING_TRANSPARENT]))
@@ -571,7 +582,6 @@ class Gearoenix:
             if len(obj.children) == 0:
                 cls.show("Object " + obj.name + " should not have zero " +
                          "children count")
-            shd = tuple([0 for _ in range(len(shd))])
         cls.write_mesh(obj, shd, child_inv)
         cls.out.write(cls.TYPE_COUNT(len(obj.children)))
         for c in obj.children:
@@ -585,6 +595,8 @@ class Gearoenix:
         for name in items:
             cls.assert_model_name(name)
             cls.models[name][0] = cls.out.tell()
+            cls.log("model with name:", name,
+                    " and offset:", cls.models[name][0])
             cls.write_model(name)
 
     @classmethod
@@ -595,6 +607,8 @@ class Gearoenix:
             items[iid] = name
         for name in items:
             cls.scenes[name][0] = cls.out.tell()
+            cls.log("offset of scene with name",
+                    name, ":", cls.scenes[name][0])
             scene = bpy.data.scenes[name]
             models = []
             cameras = []
@@ -725,7 +739,8 @@ class Gearoenix:
             transparency = 2
         k = (light_mode, texturing, speculation, environment, shadowing,
              transparency)
-        cls.shaders[k] = 0
+        if k not in cls.shaders:
+            cls.shaders[k] = 0
         return k
 
     @classmethod
@@ -807,6 +822,15 @@ class Gearoenix:
             return
         for c in m.children:
             cls.assert_model_materials(c)
+        if cls.STRING_DYNAMIC_PART in m:
+            material_count = len(m.material_slots.keys())
+            if material_count != 0:
+                cls.show("Dynamic model must have occlusion mesh at its " +
+                         "root that does not have any material, your '" +
+                         m.name + "' model has to not have any material " +
+                         "but it has " + str(material_count) + " material(s).")
+            else:
+                return
         if len(m.material_slots.keys()) == 1:
             cls.read_material(m.material_slots[0].material)
         elif len(m.material_slots.keys()) == 7:
@@ -816,9 +840,12 @@ class Gearoenix:
 
     @classmethod
     def get_shader_id(cls, obj):
-        if len(obj.material_slots.keys()) == 1:
+        material_count = len(obj.material_slots.keys())
+        if material_count == 0:
+            return tuple([0 for _ in range(cls.SHADER_PARTS_COUNT)])
+        elif material_count == 1:
             return cls.read_material(obj.material_slots[0].material)
-        elif len(obj.material_slots.keys()) == 7:
+        elif material_count == 7:
             return cls.read_material_slot(obj.material_slots)
         else:
             cls.show("Unexpected number of materials in model " + obj.name)
