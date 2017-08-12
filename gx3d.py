@@ -15,6 +15,7 @@ bl_info = {
 # The philosophy behind this plugin is to import everything that is engaged
 #    at least in one of the blender scene in a file. Plan is not to take
 #    everything from blender and support every features of Blender.
+#    Always best practises are the correct way of presenting data.
 
 import ctypes
 import io
@@ -425,10 +426,11 @@ class Gearoenix:
             return
         cube_texture = None
         texture_2d = None
-        has_cube = len(obj.material_slots) > len(cls.STRING_CUBE_TEXTURE_FACES)
+        materials_count = len(obj.material_slots.keys())
+        has_cube = materials_count > len(cls.STRING_CUBE_TEXTURE_FACES)
         if has_cube:
-            for mat in obj.material_slots:
-                m = mat.material
+            for mat in obj.material_slots.keys():
+                m = obj.material_slots[mat].material
                 if has_cube and m.name.endswith(
                         "-" + cls.STRING_CUBE_TEXTURE_FACES[0]):
                     name = bpy.path.abspath(
@@ -454,10 +456,11 @@ class Gearoenix:
     @classmethod
     def get_info_material(cls, obj):
         slots = obj.material_slots
-        if len(slots) == 1:
+        materials_count = len(slots.keys())
+        if materials_count == 1:
             return slots[0].material
-        for mat in slots:
-            m = mat.material
+        for mat in slots.keys():
+            m = slots[mat].material
             sm = m.name.split("-")
             if ("-" not in m.name) or len(sm) < 2 or \
                     (sm[len(sm) - 1] not in cls.STRING_CUBE_TEXTURE_FACES):
@@ -466,10 +469,11 @@ class Gearoenix:
     @classmethod
     def get_up_face_material(cls, obj):
         slots = obj.material_slots
-        if len(slots) < len(cls.STRING_CUBE_TEXTURE_FACES):
+        materials_count = len(slots.keys())
+        if materials_count < len(cls.STRING_CUBE_TEXTURE_FACES):
             return None
-        for mat in obj.material_slots:
-            m = mat.material
+        for mat in slots.keys():
+            m = slots[mat].material
             if m.name.endswith("-" + cls.STRING_CUBE_TEXTURE_FACES[0]):
                 return m
 
@@ -498,7 +502,9 @@ class Gearoenix:
 
     @classmethod
     def write_mesh(cls, obj, shd, matrix):
+        cls.log("before material: ", cls.out.tell())
         cls.write_material_data(obj, shd)
+        cls.log("after material: ", cls.out.tell())
         msh = obj.data
         nrm = cls.material_needs_normal(shd)
         uv = cls.material_needs_uv(shd)
@@ -793,9 +799,10 @@ class Gearoenix:
         for f in cls.STRING_CUBE_TEXTURE_FACES:
             found = 0
             face_mat = None
-            for m in s:
-                if m.material.name.endswith("-" + f):
-                    face_mat = m.material
+            for m in s.keys():
+                mat = s[m].material
+                if mat.name.endswith("-" + f):
+                    face_mat = mat
                     found += 1
             if found > 1:
                 cls.show("More than 1 material found with property " + f)
@@ -806,8 +813,8 @@ class Gearoenix:
                 environment = face_env
             elif environment != face_env:
                 cls.show("Material " + face_mat + " is different than others.")
-        for m in s:
-            mat = m.material
+        for m in s.keys():
+            mat = s[m].material
             found = True
             for f in cls.STRING_CUBE_TEXTURE_FACES:
                 if mat.name.endswith("-" + f):
