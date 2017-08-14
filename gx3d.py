@@ -59,6 +59,9 @@ class Gearoenix:
     STRING_DYNAMIC_PARTED = 'dynamic-parted'
     STRING_CUTOFF = "cutoff"
     STRING_TRANSPARENT = "transparent"
+    STRING_VERTICES_BUFFER_SIZE = "vertices-size"
+    STRING_INDICES_BUFFER_SIZE = "indices-size"
+    STRING_UNIFORM_BUFFER_SIZE = "uniform-size"
     STRING_ENGINE_SDK_VAR_NAME = 'VULKUST_SDK'
     STRING_VULKAN_SDK_VAR_NAME = 'VULKAN_SDK'
     STRING_COPY_POSTFIX_FORMAT = '.NNN'
@@ -636,8 +639,12 @@ class Gearoenix:
                     "Currently only one light is supported in game engine")
             if len(cameras) < 1:
                 cls.show("At least one camera must exist.")
-            cls.out.write(cls.TYPE_COUNT(int(scene['vertices size'])))
-            cls.out.write(cls.TYPE_COUNT(int(scene['indices size'])))
+            cls.out.write(cls.TYPE_COUNT(int(
+                scene[cls.STRING_VERTICES_BUFFER_SIZE])))
+            cls.out.write(cls.TYPE_COUNT(int(
+                scene[cls.STRING_INDICES_BUFFER_SIZE])))
+            cls.out.write(cls.TYPE_COUNT(int(
+                scene[cls.STRING_UNIFORM_BUFFER_SIZE])))
             cls.out.write(cls.TYPE_COUNT(len(cameras)))
             for c in cameras:
                 cls.out.write(cls.TYPE_TYPE_ID(c))
