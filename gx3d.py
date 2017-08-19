@@ -406,6 +406,9 @@ class Gearoenix:
             if origin.matrix_world != mathutils.Matrix():
                 cls.show("Object " + origin + " must not have any " +
                          "transformation because it is copied in " + name)
+            if cls.STRING_DYNAMIC_PARTED in origin:
+                cls.show("Object " + origin.name +
+                         "must not have any dynamic part.")
             return origin
         return None
 
