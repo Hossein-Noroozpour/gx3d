@@ -198,6 +198,7 @@ class Gearoenix:
                 cls.out.write(cls.TYPE_BYTE(i))
             cls.out.write(cls.TYPE_OFFSET(offset))
             cls.log("Shader with id:", shader_id, "and offset:", offset)
+            cls.shader_id_to_int(shader_id)
 
     @classmethod
     def items_offsets(cls, items, mod_name):
