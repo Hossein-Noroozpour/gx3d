@@ -126,6 +126,7 @@ class Gearoenix:
         for sh in shd:
             i <<= 8
             i |= sh
+        i <<= 16
         print("shader id in int is:", i)
 
     @classmethod
@@ -194,8 +195,7 @@ class Gearoenix:
             if len(shader_id) != 6:
                 cls.show("Unwxpected number of shader id elements in " + str(
                     shader_id))
-            for i in shader_id:
-                cls.out.write(cls.TYPE_BYTE(i))
+            cls.out.write(cls.TYPE_TYPE_ID(cls.shader_id_to_int(shader_id)))
             cls.out.write(cls.TYPE_OFFSET(offset))
             cls.log("Shader with id:", shader_id, "and offset:", offset)
 
@@ -298,6 +298,7 @@ class Gearoenix:
             else:
                 file_name = 'vulkan/' + file_name + '.%s'
             file_name = cls.PATH_SHADERS_DIR + file_name
+            cls.out.write(cls.TYPE_TYPE_ID(1))
             cls.compile_shader('vert', file_name % 'vert')
             cls.compile_shader('frag', file_name % 'frag')
 
