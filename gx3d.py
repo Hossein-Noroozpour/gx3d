@@ -128,6 +128,7 @@ class Gearoenix:
             i |= sh
         i <<= 16
         print("shader id in int is:", i)
+        return i
 
     @classmethod
     def compile_shader(cls, stage, shader_name):
