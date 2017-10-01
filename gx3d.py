@@ -314,18 +314,20 @@ class Gearoenix:
             obj = bpy.data.objects[name]
             cam = obj.data
             cls.cameras[name][0] = cls.out.tell()
-            if cam.type != 'PERSP':
+            if cam.type == 'PERSP':
+                cls.out.write(cls.TYPE_TYPE_ID(1))
+            else:
                 cls.show("Camera with type '" + cam.type +
                          "' is not supported yet.")
-            cls.out.write(cls.TYPE_FLOAT(cam.angle))
-            cls.out.write(cls.TYPE_FLOAT(cam.clip_start))
-            cls.out.write(cls.TYPE_FLOAT(cam.clip_end))
             cls.out.write(cls.TYPE_FLOAT(obj.location[0]))
             cls.out.write(cls.TYPE_FLOAT(obj.location[1]))
             cls.out.write(cls.TYPE_FLOAT(obj.location[2]))
             cls.out.write(cls.TYPE_FLOAT(obj.rotation_euler[0]))
             cls.out.write(cls.TYPE_FLOAT(obj.rotation_euler[1]))
             cls.out.write(cls.TYPE_FLOAT(obj.rotation_euler[2]))
+            cls.out.write(cls.TYPE_FLOAT(cam.clip_start))
+            cls.out.write(cls.TYPE_FLOAT(cam.clip_end))
+            cls.out.write(cls.TYPE_FLOAT(cam.angle))
 
     @classmethod
     def write_speakers(cls):
