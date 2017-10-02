@@ -349,15 +349,17 @@ class Gearoenix:
         for name in items:
             sun = bpy.data.objects[name]
             cls.lights[name][0] = cls.out.tell()
-            cls.out.write(cls.TYPE_FLOAT(sun['near']))
-            cls.out.write(cls.TYPE_FLOAT(sun['far']))
-            cls.out.write(cls.TYPE_FLOAT(sun['size']))
+            # This is temporary, only for keeping the design
+            cls.out.write(cls.TYPE_TYPE_ID(10))
             cls.out.write(cls.TYPE_FLOAT(sun.location[0]))
             cls.out.write(cls.TYPE_FLOAT(sun.location[1]))
             cls.out.write(cls.TYPE_FLOAT(sun.location[2]))
             cls.out.write(cls.TYPE_FLOAT(sun.rotation_euler[0]))
             cls.out.write(cls.TYPE_FLOAT(sun.rotation_euler[1]))
             cls.out.write(cls.TYPE_FLOAT(sun.rotation_euler[2]))
+            cls.out.write(cls.TYPE_FLOAT(sun['near']))
+            cls.out.write(cls.TYPE_FLOAT(sun['far']))
+            cls.out.write(cls.TYPE_FLOAT(sun['size']))
 
     @classmethod
     def write_binary_file(cls, name):
