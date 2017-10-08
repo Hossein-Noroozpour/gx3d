@@ -386,6 +386,8 @@ class Gearoenix:
                 cls.write_binary_file(raw_name + "-right.png")
                 cls.write_binary_file(raw_name + "-front.png")
                 cls.write_binary_file(raw_name + "-back.png")
+            else:
+                cls.show("Unexpected texture type:", ttype)
 
     @staticmethod
     def check_uint(s):
@@ -491,6 +493,7 @@ class Gearoenix:
     def write_material_data(cls, obj, shd):
         cls.out.write(cls.TYPE_TYPE_ID(cls.shader_id_to_int(shd)))
         cls.write_material_texture_ids(obj, shd)
+        cls.log("------------------------------------------", cls.out.tell())
         if shd[1] == 1:
             cls.write_vector(cls.get_info_material(obj).diffuse_color)
         if shd[2] == 1:
