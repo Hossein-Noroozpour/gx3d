@@ -489,8 +489,7 @@ class Gearoenix:
 
     @classmethod
     def write_material_data(cls, obj, shd):
-        for i in shd:
-            cls.out.write(cls.TYPE_BYTE(i))
+        cls.out.write(cls.TYPE_TYPE_ID(cls.shader_id_to_int(shd)))
         cls.write_material_texture_ids(obj, shd)
         if shd[1] == 1:
             cls.write_vector(cls.get_info_material(obj).diffuse_color)
@@ -543,7 +542,7 @@ class Gearoenix:
                     if len(uv_lyrs) > 1 or len(uv_lyrs) < 1:
                         cls.show("Unexpected number of uv layers in " +
                                  obj.name)
-                    texco = uv_lyrs[0].data[li].uv
+                    texco = uv_lyrs.active.data[li].uv
                     vertex.append(texco[0])
                     vertex.append(texco[1])
                 vertex = tuple(vertex)
