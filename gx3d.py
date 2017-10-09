@@ -376,6 +376,7 @@ class Gearoenix:
             cls.textures[name][0] = cls.out.tell()
             cls.out.write(cls.TYPE_TYPE_ID(ttype))
             if ttype == cls.TEXTURE_TYPE_2D:
+                cls.log("txt2-----------------------", cls.out.tell())
                 cls.write_binary_file(name)
             elif ttype == cls.TEXTURE_TYPE_CUBE:
                 name = name.split()
