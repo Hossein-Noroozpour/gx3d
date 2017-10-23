@@ -298,7 +298,6 @@ class Gearoenix:
             else:
                 file_name = 'vulkan/' + file_name + '.%s'
             file_name = cls.PATH_SHADERS_DIR + file_name
-            cls.out.write(cls.TYPE_TYPE_ID(1))
             cls.compile_shader('vert', file_name % 'vert')
             cls.compile_shader('frag', file_name % 'frag')
 
