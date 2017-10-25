@@ -324,7 +324,7 @@ class Gearoenix:
             cls.out.write(cls.TYPE_FLOAT(obj.rotation_euler[2]))
             cls.out.write(cls.TYPE_FLOAT(cam.clip_start))
             cls.out.write(cls.TYPE_FLOAT(cam.clip_end))
-            cls.out.write(cls.TYPE_FLOAT(cam.angle))
+            cls.out.write(cls.TYPE_FLOAT(cam.angle_x / 2.0))
 
     @classmethod
     def write_speakers(cls):
