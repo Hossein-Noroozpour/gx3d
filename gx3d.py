@@ -357,6 +357,7 @@ class Gearoenix:
             cls.out.write(cls.TYPE_FLOAT(sun['near']))
             cls.out.write(cls.TYPE_FLOAT(sun['far']))
             cls.out.write(cls.TYPE_FLOAT(sun['size']))
+            cls.write_vector(sun.data.color)
 
     @classmethod
     def write_binary_file(cls, name):
@@ -660,6 +661,7 @@ class Gearoenix:
             cls.out.write(cls.TYPE_COUNT(len(models)))
             for m in models:
                 cls.out.write(cls.TYPE_TYPE_ID(m))
+            cls.write_vector(scene.world.ambient_color, 3)
 
     @classmethod
     def model_has_dynamic_part(cls, m):
