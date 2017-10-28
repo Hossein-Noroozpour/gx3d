@@ -48,11 +48,31 @@ class Gearoenix:
 
     # Shader ID bytes
     #     0-(light-mode) white: 0, solid: 1, directional: 2
-    #     1-(texturing) colored: 1, textured: 2
-    #     2-(speculation) speculated: 1, not-speculated: 2
+    #     1-(texturing) colored: 0, textured: 1
+    #     2-(speculation) speculated: 0, not-speculated: 1
     #     3-(environment) nocube: 0, cubetexture: 1, realtimecube: 2
     #     4-(shadowing) shadowless: 0, full: 1, receiver: 2, caster: 3
-    #     5-(trancparency) opaque:0, transparent:2, cutoff: 3,
+    #     5-(trancparency) opaque:0, transparent:1, cutoff: 2,
+
+    # It will be filled when ever it is needed.
+    SHADER_ID_INT = {
+        (0, 0, 0, 0, 0, 0): [
+            "WHITE_POSITION", 0
+        ],
+        (0, 0, 0, 0, 0, 1): [
+            "WHITE_POSITION_NORMAL", 1
+        ],
+        (0, 0, 0, 0, 0, 2): [
+            "WHITE_POSITION_UV", 2
+        ],
+        (0, 0, 0, 0, 0, 3): [
+            "WHITE_POSITION_NORMAL_UV", 3
+        ],
+        (2, 0, 1, 0, 0, 0): [
+            "SOLID_COLORED_NOTSPECULATED_NOCUBE_SHADELESS_OPAQUE", 201000
+        ],
+    }
+
     SHADER_PARTS_COUNT = 6
 
     STRING_DYNAMIC_PART = 'dynamic-part'
@@ -118,16 +138,6 @@ class Gearoenix:
                 cls.PATH_VULKAN_SDK + '/bin/glslangValidator'
         return True
 
-    @staticmethod
-    def shader_id_to_int(shd):
-        i = 0
-        for sh in shd:
-            i <<= 8
-            i |= sh
-        i <<= 16
-        print("shader id in int is:", i)
-        return i
-
     @classmethod
     def compile_shader(cls, stage, shader_name):
         tmp = cls.TmpFile()
@@ -191,13 +201,12 @@ class Gearoenix:
     def write_shaders_table(cls):
         cls.out.write(cls.TYPE_COUNT(len(cls.shaders)))
         for shader_id, offset in cls.shaders.items():
-            if len(shader_id) != 6:
+            if len(shader_id) != cls.SHADER_PARTS_COUNT:
                 cls.show("Unwxpected number of shader id elements in " + str(
                     shader_id))
-            cls.out.write(cls.TYPE_TYPE_ID(cls.shader_id_to_int(shader_id)))
+            cls.out.write(cls.TYPE_TYPE_ID(cls.SHADER_ID_INT[shader_id][1]))
             cls.out.write(cls.TYPE_OFFSET(offset))
             cls.log("Shader with id:", shader_id, "and offset:", offset)
-            cls.shader_id_to_int(shader_id)
 
     @classmethod
     def items_offsets(cls, items, mod_name):
@@ -291,15 +300,20 @@ class Gearoenix:
     @classmethod
     def write_shaders(cls):
         for shader_id in cls.shaders.keys():
-            file_name = cls.shader_id_to_file(shader_id)
+            file_name = cls.SHADER_ID_INT[shader_id][0].lower()
             cls.shaders[shader_id] = cls.out.tell()
-            if sys.platform == "darwin":
+            if cls.export_metal:
+                cls.show("TODO")
                 file_name = 'metal/' + file_name + '-%s.metal'
-            else:
+                file_name = cls.PATH_SHADERS_DIR + file_name
+                cls.compile_shader('vert', file_name % 'vert')
+                cls.compile_shader('frag', file_name % 'frag')
+            elif cls.export_vulkan:
+                cls.show("TODO")
                 file_name = 'vulkan/' + file_name + '.%s'
-            file_name = cls.PATH_SHADERS_DIR + file_name
-            cls.compile_shader('vert', file_name % 'vert')
-            cls.compile_shader('frag', file_name % 'frag')
+                file_name = cls.PATH_SHADERS_DIR + file_name
+                cls.compile_shader('vert', file_name % 'vert')
+                cls.compile_shader('frag', file_name % 'frag')
 
     @classmethod
     def write_cameras(cls):
@@ -492,7 +506,7 @@ class Gearoenix:
 
     @classmethod
     def write_material_data(cls, obj, shd):
-        cls.out.write(cls.TYPE_TYPE_ID(cls.shader_id_to_int(shd)))
+        cls.out.write(cls.TYPE_TYPE_ID(cls.SHADER_ID_INT[shd][1]))
         cls.write_material_texture_ids(obj, shd)
         cls.log("------------------------------------------", cls.out.tell())
         if shd[1] == 1:
@@ -728,17 +742,15 @@ class Gearoenix:
         texture_count = len(m.texture_slots.keys())
         texturing = 0
         if texture_count == 0:
-            texturing = 1
+            texturing = 0
         elif texture_count == 1:
-            texturing = 2
+            texturing = 1
             cls.assert_texture_2d(m.texture_slots[0].texture)
         else:
             cls.show("Unsupported number of textures in material: " + m.name)
-        speculation = 0
+        speculation = 1
         if m.specular_intensity > 0.001:
-            speculation = 1
-        else:
-            speculation = 2
+            speculation = 0
         shadowing = 0
         if m.use_cast_shadows:
             if m.use_shadows:
@@ -841,11 +853,11 @@ class Gearoenix:
             return
         for c in m.children:
             cls.assert_model_materials(c)
-        if cls.STRING_DYNAMIC_PART in m:
+        if cls.STRING_DYNAMIC_PART in m or m.parent is None:
             material_count = len(m.material_slots.keys())
             if material_count != 0:
-                cls.show("Dynamic model must have occlusion mesh at its " +
-                         "root that does not have any material, your '" +
+                cls.show("Dynamic/RootStatic model must have occlusion mesh " +
+                         "at its root that does not have any material, your '" +
                          m.name + "' model has to not have any material " +
                          "but it has " + str(material_count) + " material(s).")
             else:
@@ -949,7 +961,10 @@ class Gearoenix:
     def write_file(cls):
         cls.shaders = {  # id: offset
             # special shaders will be added manually in here
-            (0, 0, 0, 0, 0, 0): 0,  # white shader for occlussion culling
+            (0, 0, 0, 0, 0, 0): 0,
+            (0, 0, 0, 0, 0, 1): 1,
+            (0, 0, 0, 0, 0, 2): 2,
+            (0, 0, 0, 0, 0, 3): 3,
         }
         cls.textures = dict()  # filepath: [offest, id<con>, type]
         cls.last_texture_id = 0
@@ -990,11 +1005,21 @@ class Gearoenix:
         filter_glob = bpy.props.StringProperty(
             default="*.gx3d",
             options={'HIDDEN'}, )
+        export_vulkan = bpy.props.BoolProperty(
+            name="Enable Vulkan",
+            description="This item enables data exporting for Vulkan engine.",
+            default=False, options={'ANIMATABLE'}, subtype='NONE', update=None)
+        export_metal = bpy.props.BoolProperty(
+            name="Enable Metal",
+            description="This item enables data exporting for Metal engine.",
+            default=False, options={'ANIMATABLE'}, subtype='NONE', update=None)
 
         def execute(self, context):
             if not (Gearoenix.check_env()):
                 return {'CANCELLED'}
             try:
+                Gearoenix.export_vulkan = bool(self.export_vulkan)
+                Gearoenix.export_metal = bool(self.export_metal)
                 Gearoenix.out = open(self.filepath, mode='wb')
                 Gearoenix.rust_code = open(self.filepath + ".rs", mode='w')
             except:
