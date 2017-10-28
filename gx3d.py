@@ -24,6 +24,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import enum
 
 import bpy
 import bpy_extras
@@ -46,34 +47,117 @@ class Gearoenix:
     SPEAKER_TYPE_MUSIC = 10
     SPEAKER_TYPE_OBJECT = 20
 
-    # Shader ID bytes
-    #     0-(light-mode) white: 0, solid: 1, directional: 2
-    #     1-(texturing) colored: 0, textured: 1
-    #     2-(speculation) speculated: 0, not-speculated: 1
-    #     3-(environment) nocube: 0, cubetexture: 1, realtimecube: 2
-    #     4-(shadowing) shadowless: 0, full: 1, receiver: 2, caster: 3
-    #     5-(trancparency) opaque:0, transparent:1, cutoff: 2,
+    class Shading:
+        class Reserved(enum.Enum):
+            WHITE_POS = enum.auto()
+            WHITE_POS_NRM = enum.auto()
+            WHITE_POS_UV = enum.auto()
+            WHITE_POS_NRM_UV = enum.auto()
+            MAX = enum.auto()
 
-    # It will be filled when ever it is needed.
-    SHADER_ID_INT = {
-        (0, 0, 0, 0, 0, 0): [
-            "WHITE_POSITION", 0
-        ],
-        (0, 0, 0, 0, 0, 1): [
-            "WHITE_POSITION_NORMAL", 1
-        ],
-        (0, 0, 0, 0, 0, 2): [
-            "WHITE_POSITION_UV", 2
-        ],
-        (0, 0, 0, 0, 0, 3): [
-            "WHITE_POSITION_NORMAL_UV", 3
-        ],
-        (2, 0, 1, 0, 0, 0): [
-            "SOLID_COLORED_NOTSPECULATED_NOCUBE_SHADELESS_OPAQUE", 201000
-        ],
-    }
+        class Lighting(enum.Enum):
+            RESERVED = enum.auto()
+            SHADELESS = enum.auto()
+            DIRECTIONAL = enum.auto()
+            MAX = enum.auto()
 
-    SHADER_PARTS_COUNT = 6
+        class Texturing(enum.Enum):
+            COLORED = enum.auto()
+            TEXTURED = enum.auto()
+            MAX = enum.auto()
+
+        class Speculating(enum.Enum):
+            MATTE = enum.auto()
+            SPECULATED = enum.auto()
+            MAX = enum.auto()
+
+        class EnvironmentMapping(enum.Enum):
+            NONREFLECTIVE = enum.auto()
+            BAKED = enum.auto()
+            REALTIME = enum.auto()
+            MAX = enum.auto()
+
+        class Shadowing(enum.Enum):
+            SHADOWLESS = enum.auto()
+            CASTER = enum.auto()
+            FULL = enum.auto()
+            MAX = enum.auto()
+
+        class Transparency(enum.Enum):
+            OPAQUE = enum.auto()
+            TRANSPARENT = enum.auto()
+            CUTOFF = enum.auto()
+            MAX = enum.auto()
+
+        def __init__(self, parent):
+            self.parent = parent
+            self.shading_data = [
+                self.Lighting.SHADELESS,
+                self.Texturing.COLORED,
+                self.Speculating.MATTE,
+                self.EnvironmentMapping.NONREFLECTIVE,
+                self.Shadowing.SHADOWLESS,
+                self.Transparency.OPAQUE,
+            ]
+            self.reserved = self.Reserved.WHITE_POS
+
+        def set_lighting(self, e):
+            if not isinstance(e, self.Lighting) or e.MAX == e:
+                self.parent.show("Unexpected ", e)
+            self.shading_data[0] = e
+
+        def set_texturing(self, e):
+            if not isinstance(e, self.Texturing) or e.MAX == e:
+                self.parent.show("Unexpected ", e)
+            self.shading_data[1] = e
+
+        def set_speculating(self, e):
+            if not isinstance(e, self.Speculating) or e.MAX == e:
+                self.parent.show("Unexpected ", e)
+            self.shading_data[2] = e
+
+        def set_environment_mapping(self, e):
+            if not isinstance(e, self.EnvironmentMapping) or e.MAX == e:
+                self.parent.show("Unexpected ", e)
+            self.shading_data[3] = e
+
+        def set_shadowing(self, e):
+            if not isinstance(e, self.Shadowing) or e.MAX == e:
+                self.parent.show("Unexpected ", e)
+            self.shading_data[4] = e
+
+        def set_transparency(self, e):
+            if not isinstance(e, self.Transparency) or e.MAX == e:
+                self.parent.show("Unexpected ", e)
+            self.shading_data[5] = e
+
+        def set_reserved(self, e):
+            if not isinstance(e, self.Reserved) or e.MAX == e:
+                self.parent.show("Unexpected ", e)
+            self.shading_data[0] = self.Lighting.RESERVED
+            self.reserved = e
+
+        def to_int(self):
+            if self.shading_data[0] == self.Lighting.RESERVED:
+                return int(self.reserved.value)
+            result = int(self.Reserved.MAX)
+            coef = int(1)
+            for e in self.shading_data:
+                result += (int(e.value) - 1) * coef
+                coef *= int(e.MAX.value) - 1
+            return result
+
+        def get_file_name(self):
+            result = ""
+            if self.shading_data[0] == self.Lighting.RESERVED:
+                result = self.reserved.name + '_'
+            for e in self.shading_data:
+                result += e.name + '_'
+            result = result[0:len(result)-1]
+            self.parent.log(result, ' = ', self.to_int())
+            result = result.lower().replace('_', '-')
+            self.parent.log(result, ' = ', self.to_int())
+            return result
 
     STRING_DYNAMIC_PART = 'dynamic-part'
     STRING_DYNAMIC_PARTED = 'dynamic-parted'
@@ -200,11 +284,9 @@ class Gearoenix:
     @classmethod
     def write_shaders_table(cls):
         cls.out.write(cls.TYPE_COUNT(len(cls.shaders)))
-        for shader_id, offset in cls.shaders.items():
-            if len(shader_id) != cls.SHADER_PARTS_COUNT:
-                cls.show("Unwxpected number of shader id elements in " + str(
-                    shader_id))
-            cls.out.write(cls.TYPE_TYPE_ID(cls.SHADER_ID_INT[shader_id][1]))
+        for shader_id, offset_obj in cls.shaders.items():
+            offset, obj = offset_obj
+            cls.out.write(cls.TYPE_TYPE_ID(shader_id))
             cls.out.write(cls.TYPE_OFFSET(offset))
             cls.log("Shader with id:", shader_id, "and offset:", offset)
 
@@ -300,16 +382,16 @@ class Gearoenix:
     @classmethod
     def write_shaders(cls):
         for shader_id in cls.shaders.keys():
-            file_name = cls.SHADER_ID_INT[shader_id][0].lower()
-            cls.shaders[shader_id] = cls.out.tell()
+            file_name = cls.shaders[shader_id][1].get_file_name()
+            cls.shaders[shader_id][0] = cls.out.tell()
             if cls.export_metal:
-                cls.show("TODO")
+                cls.show("TODO implementation changed")
                 file_name = 'metal/' + file_name + '-%s.metal'
                 file_name = cls.PATH_SHADERS_DIR + file_name
                 cls.compile_shader('vert', file_name % 'vert')
                 cls.compile_shader('frag', file_name % 'frag')
             elif cls.export_vulkan:
-                cls.show("TODO")
+                cls.show("TODO implementation changed")
                 file_name = 'vulkan/' + file_name + '.%s'
                 file_name = cls.PATH_SHADERS_DIR + file_name
                 cls.compile_shader('vert', file_name % 'vert')
@@ -733,44 +815,41 @@ class Gearoenix:
             cls.last_texture_id += 1
 
     @classmethod
-    def read_material(cls, m, environment=0):
-        light_mode = 0
+    def read_material(cls, m, environment=Gearoenix.Shading.InvironmentMapping.NONREFLECTIVE):
+        s = cls.Shading
         if m.use_shadeless:
-            light_mode = 1
+            s.set_lighting(cls.Shading.Lighting.SHADELESS)
         else:
-            light_mode = 2
+            s.set_lighting(cls.Shading.Lighting.DIRECTIONAL)
         texture_count = len(m.texture_slots.keys())
-        texturing = 0
         if texture_count == 0:
-            texturing = 0
+            s.set_texturing(cls.Shading.Texturing.COLORED)
         elif texture_count == 1:
-            texturing = 1
+            s.set_texturing(cls.Shading.Texturing.TEXTURED)
             cls.assert_texture_2d(m.texture_slots[0].texture)
         else:
             cls.show("Unsupported number of textures in material: " + m.name)
-        speculation = 1
         if m.specular_intensity > 0.001:
-            speculation = 0
-        shadowing = 0
+            s.set_speculating(cls.Shading.Speculating.SPECULATED)
+        else:
+            s.set_speculating(cls.Shading.Speculating.MATTE)
         if m.use_cast_shadows:
             if m.use_shadows:
-                shadowing = 1
+                s.set_shadowing(cls.Shading.Shadowing.FULL)
             else:
-                shadowing = 3
+                s.set_shadowing(cls.Shading.Shadowing.CASTER)
         else:
             if m.use_shadows:
-                shadowing = 2
+                cls.show("This is impossible that a shader make no shadow but use shadow-map")
             else:
-                shadowing = 0
-        transparency = 0
-        if "cutoff" in m:
-            transparency = 3
-        elif "transparent" in m:
-            transparency = 2
-        k = (light_mode, texturing, speculation, environment, shadowing,
-             transparency)
+                s.set_shadowing(cls.Shading.Shadowing.SHADOWLESS)
+        if cls.STRING_CUTOFF in m:
+            s.set_transparency(cls.Shading.Transparency.CUTOFF)
+        elif cls.STRING_TRANSPARENT in m:
+            s.set_transparency(cls.Shading.Transparency.TRANSPARENT)
+        k = s.to_int()
         if k not in cls.shaders:
-            cls.shaders[k] = 0
+            cls.shaders[k] = [0, s]
         return k
 
     @classmethod
@@ -808,14 +887,14 @@ class Gearoenix:
                 cls.show("File name must end with -" + face + ".png in " + img)
             if face == "up":
                 cls.assert_texture_cube(img)
-            return 1
+            return cls.Shading.EnvironmentMapping.BAKED
         elif len(m.texture_slots.keys()) > 1:
             cls.show("Material " + m.name +
                      " has more than expected textures.")
         elif not m.raytrace_mirror.use or \
                 m.raytrace_mirror.reflect_factor < 0.001:
             cls.show("Material " + m.name + " does not set reflective.")
-        return 2
+        return cls.Shading.EnvironmentMapping.REALTIME
 
     @classmethod
     def read_material_slot(cls, s):
@@ -958,14 +1037,24 @@ class Gearoenix:
         cls.write_offset_array(cls.scenes_offsets)
 
     @classmethod
+    def initialize_shaders(cls):
+        cls.shaders = dict() # Id<discret>: [offset, obj]
+        s = cls.Shading
+        s.set_reserved(cls.Shading.Reserved.WHITE_POS)
+        cls.shaders[s.to_int()] = [0, s]
+        s = cls.Shading
+        s.set_reserved(cls.Shading.Reserved.WHITE_POS_NRM)
+        cls.shaders[s.to_int()] = [0, s]
+        s = cls.Shading
+        s.set_reserved(cls.Shading.Reserved.WHITE_POS_UV)
+        cls.shaders[s.to_int()] = [0, s]
+        s = cls.Shading
+        s.set_reserved(cls.Shading.Reserved.WHITE_POS_NRM_UV)
+        cls.shaders[s.to_int()] = [0, s]
+
+    @classmethod
     def write_file(cls):
-        cls.shaders = {  # id: offset
-            # special shaders will be added manually in here
-            (0, 0, 0, 0, 0, 0): 0,
-            (0, 0, 0, 0, 0, 1): 1,
-            (0, 0, 0, 0, 0, 2): 2,
-            (0, 0, 0, 0, 0, 3): 3,
-        }
+        cls.initialize_shaders()
         cls.textures = dict()  # filepath: [offest, id<con>, type]
         cls.last_texture_id = 0
         cls.scenes = dict()  # name: [offset, id<con>]
