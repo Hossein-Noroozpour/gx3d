@@ -18,13 +18,13 @@ bl_info = {
 #    Always best practises are the correct way of presenting data.
 
 import ctypes
+import enum
 import io
 import math
 import os
 import subprocess
 import sys
 import tempfile
-import enum
 
 import bpy
 import bpy_extras
@@ -106,30 +106,60 @@ class Gearoenix:
                 self.parent.show("Unexpected ", e)
             self.shading_data[0] = e
 
+        def get_lighting(self):
+            if self.is_reserved():
+                return self.Lighting.MAX
+            return self.shading_data[0]
+
         def set_texturing(self, e):
             if not isinstance(e, self.Texturing) or e.MAX == e:
                 self.parent.show("Unexpected ", e)
             self.shading_data[1] = e
+
+        def get_texturing(self):
+            if self.is_reserved():
+                return self.Texturing.MAX
+            return self.shading_data[1]
 
         def set_speculating(self, e):
             if not isinstance(e, self.Speculating) or e.MAX == e:
                 self.parent.show("Unexpected ", e)
             self.shading_data[2] = e
 
+        def get_speculating(self):
+            if self.is_reserved():
+                return self.Speculating.MAX
+            return self.shading_data[2]
+
         def set_environment_mapping(self, e):
             if not isinstance(e, self.EnvironmentMapping) or e.MAX == e:
                 self.parent.show("Unexpected ", e)
             self.shading_data[3] = e
+
+        def get_environment_mapping(self):
+            if self.is_reserved():
+                return self.EnvironmentMapping.MAX
+            return self.shading_data[3]
 
         def set_shadowing(self, e):
             if not isinstance(e, self.Shadowing) or e.MAX == e:
                 self.parent.show("Unexpected ", e)
             self.shading_data[4] = e
 
+        def get_shadowing(self):
+            if self.is_reserved():
+                return self.Shadowing.MAX
+            return self.shading_data[4]
+
         def set_transparency(self, e):
             if not isinstance(e, self.Transparency) or e.MAX == e:
                 self.parent.show("Unexpected ", e)
             self.shading_data[5] = e
+
+        def get_transparency(self):
+            if self.is_reserved():
+                return self.Transparency.MAX
+            return self.shading_data[5]
 
         def set_reserved(self, e):
             if not isinstance(e, self.Reserved) or e.MAX == e:
@@ -137,24 +167,60 @@ class Gearoenix:
             self.shading_data[0] = self.Lighting.RESERVED
             self.reserved = e
 
+        def is_reserved(self):
+            return self.shading_data[0] == self.Lighting.RESERVED
+
         def to_int(self):
-            if self.shading_data[0] == self.Lighting.RESERVED:
+            if self.is_reserved():
                 return int(self.reserved.value)
-            result = int(self.Reserved.MAX)
+            result = int(self.Reserved.MAX.value)
             coef = int(1)
             for e in self.shading_data:
-                result += (int(e.value) - 1) * coef
-                coef *= int(e.MAX.value) - 1
+                result += int(e.value) * coef
+                coef *= int(e.MAX.value)
+            return result
+
+        def print_all_enums(self):
+            all_enums = dict()
+
+            def sub_print(es, pre, shd):
+                if len(es) == 0:
+                    shd.shading_data = pre
+                    # print(pre)
+                    all_enums[shd.get_enum_name()] = shd.to_int()
+                else:
+                    for e in es[0]:
+                        sub_print(es[1:], pre + [e], shd)
+            sub_print([
+                self.Lighting,
+                self.Texturing,
+                self.Speculating,
+                self.EnvironmentMapping,
+                self.Shadowing,
+                self.Transparency], [], self)
+            self.shading_data[0] = self.Lighting.RESERVED
+            for e in self.Reserved:
+                self.reserved = e
+                all_enums[self.get_enum_name()] = self.to_int()
+            self.parent.log("ALL ENUMS")
+            for k in sorted(all_enums):
+                if 'MAX' not in k:
+                    self.parent.log(k, "=", all_enums[k], ",")
+            self.parent.log("END OF ALL ENUMS")
+
+        def get_enum_name(self):
+            result = ""
+            if self.is_reserved():
+                result = self.reserved.name + '_'
+            else:
+                for e in self.shading_data:
+                    result += e.name + '_'
+            result = result[0:len(result) - 1]
+            self.parent.log(result, ' = ', self.to_int())
             return result
 
         def get_file_name(self):
-            result = ""
-            if self.shading_data[0] == self.Lighting.RESERVED:
-                result = self.reserved.name + '_'
-            for e in self.shading_data:
-                result += e.name + '_'
-            result = result[0:len(result)-1]
-            self.parent.log(result, ' = ', self.to_int())
+            result = self.get_enum_name()
             result = result.lower().replace('_', '-')
             self.parent.log(result, ' = ', self.to_int())
             return result
@@ -521,17 +587,29 @@ class Gearoenix:
         # this is True for now but in future it may change
         pass
 
-    @staticmethod
-    def material_needs_normal(shd):
-        return shd[0] == 2 or shd[2] == 1 or shd[3] != 0
+    @classmethod
+    def material_needs_normal(cls, shd):
+        cls.log("It can change in future because log is dependent on Reserved.")
+        shading = cls.shaders[shd][1]
+        return (not shading.is_reserved()) and \
+            (shading.get_lighting() == cls.Shading.Lighting.DIRECTIONAL or
+             shading.get_speculating() == cls.Shading.Speculating.SPECULATED or
+             shading.get_environment_mapping() !=
+             cls.Shading.EnvironmentMapping.NONREFLECTIVE or
+             shading.get_shadowing() == cls.Shading.Shadowing.FULL)
 
-    @staticmethod
-    def material_needs_uv(shd):
-        return shd[1] == 2
+    @classmethod
+    def material_needs_uv(cls, shd):
+        cls.log("It can change in future because log is dependent on Reserved.")
+        shading = cls.shaders[shd][1]
+        return shading.get_texturing() == cls.Shading.Texturing.TEXTURED
 
     @classmethod
     def write_material_texture_ids(cls, obj, shd):
-        if shd[1] != 2 and shd[3] != 1:
+        shading = cls.shaders[shd][1]
+        if shading.get_texturing() != cls.Shading.Texturing.TEXTURED and \
+            shading.get_environment_mapping() != \
+                cls.Shading.EnvironmentMapping.BAKED:
             return
         cube_texture = None
         texture_2d = None
@@ -588,24 +666,28 @@ class Gearoenix:
 
     @classmethod
     def write_material_data(cls, obj, shd):
-        cls.out.write(cls.TYPE_TYPE_ID(cls.SHADER_ID_INT[shd][1]))
+        cls.out.write(cls.TYPE_TYPE_ID(shd))
         cls.write_material_texture_ids(obj, shd)
-        cls.log("------------------------------------------", cls.out.tell())
-        if shd[1] == 1:
+        shading = cls.shaders[shd][1]
+        if shading.is_reserved():
+            return
+        if shading.get_texturing() == cls.Shading.Texturing.COLORED:
             cls.write_vector(cls.get_info_material(obj).diffuse_color)
-        if shd[2] == 1:
+        if shading.get_speculating() == cls.Shading.Speculating.SPECULATED:
             cls.write_vector(cls.get_info_material(obj).specular_color)
             cls.out.write(
                 cls.TYPE_FLOAT(cls.get_info_material(obj).specular_intensity))
-        if shd[3] != 0:
+        if shading.get_environment_mapping() != \
+                cls.Shading.EnvironmentMapping.NONREFLECTIVE:
             cls.out.write(
                 cls.TYPE_FLOAT(
                     cls.get_up_face_material(obj)
                     .raytrace_mirror.reflect_factor))
-        if shd[5] == 2:
+        transparency = shading.get_transparency()
+        if transparency == cls.Shading.Transparency.TRANSPARENT:
             info = cls.get_info_material(obj)
             cls.out.write(cls.TYPE_FLOAT(info[cls.STRING_TRANSPARENT]))
-        elif shd[5] == 3:
+        elif transparency == cls.Shading.Transparency.CUTOFF:
             info = cls.get_info_material(obj)
             cls.out.write(cls.TYPE_FLOAT(info[cls.STRING_CUTOFF]))
 
@@ -630,8 +712,8 @@ class Gearoenix:
                 vertex.append(v[2])
                 if nrm:
                     normal = msh.vertices[i].normal
-                    normal = mathutils.Vector((normal[0], normal[1], normal[2],
-                                               0.0))
+                    normal = mathutils.Vector(
+                        (normal[0], normal[1], normal[2], 0.0))
                     normal = matrix * normal
                     normal = normal.normalized()
                     vertex.append(normal[0])
@@ -815,8 +897,9 @@ class Gearoenix:
             cls.last_texture_id += 1
 
     @classmethod
-    def read_material(cls, m, environment=Gearoenix.Shading.InvironmentMapping.NONREFLECTIVE):
-        s = cls.Shading
+    def read_material(cls, m, environment=Shading.EnvironmentMapping.NONREFLECTIVE):
+        s = cls.Shading(cls)
+        s.set_environment_mapping(environment)
         if m.use_shadeless:
             s.set_lighting(cls.Shading.Lighting.SHADELESS)
         else:
@@ -840,7 +923,8 @@ class Gearoenix:
                 s.set_shadowing(cls.Shading.Shadowing.CASTER)
         else:
             if m.use_shadows:
-                cls.show("This is impossible that a shader make no shadow but use shadow-map")
+                cls.show(
+                    "This is impossible that a shader make no shadow but use shadow-map")
             else:
                 s.set_shadowing(cls.Shading.Shadowing.SHADOWLESS)
         if cls.STRING_CUTOFF in m:
@@ -925,6 +1009,7 @@ class Gearoenix:
                     break
             if found:
                 return cls.read_material(mat, environment=environment)
+        cls.show("Unexpected")
 
     @classmethod
     def assert_model_materials(cls, m):
@@ -949,10 +1034,12 @@ class Gearoenix:
             cls.show("Unexpected number of materials in model " + m.name)
 
     @classmethod
-    def get_shader_id(cls, obj):
+    def get_shader_id(cls, obj) -> int:
         material_count = len(obj.material_slots.keys())
         if material_count == 0:
-            return tuple([0 for _ in range(cls.SHADER_PARTS_COUNT)])
+            s = cls.Shading(cls)
+            s.set_reserved(cls.Shading.Reserved.WHITE_POS)
+            return s.to_int()
         elif material_count == 1:
             return cls.read_material(obj.material_slots[0].material)
         elif material_count == 7:
@@ -1038,17 +1125,19 @@ class Gearoenix:
 
     @classmethod
     def initialize_shaders(cls):
-        cls.shaders = dict() # Id<discret>: [offset, obj]
-        s = cls.Shading
+        s = cls.Shading(cls)
+        s.print_all_enums()
+        cls.shaders = dict()  # Id<discret>: [offset, obj]
+        s = cls.Shading(cls)
         s.set_reserved(cls.Shading.Reserved.WHITE_POS)
         cls.shaders[s.to_int()] = [0, s]
-        s = cls.Shading
+        s = cls.Shading(cls)
         s.set_reserved(cls.Shading.Reserved.WHITE_POS_NRM)
         cls.shaders[s.to_int()] = [0, s]
-        s = cls.Shading
+        s = cls.Shading(cls)
         s.set_reserved(cls.Shading.Reserved.WHITE_POS_UV)
         cls.shaders[s.to_int()] = [0, s]
-        s = cls.Shading
+        s = cls.Shading(cls)
         s.set_reserved(cls.Shading.Reserved.WHITE_POS_NRM_UV)
         cls.shaders[s.to_int()] = [0, s]
 
