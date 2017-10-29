@@ -49,45 +49,45 @@ class Gearoenix:
 
     class Shading:
         class Reserved(enum.Enum):
-            WHITE_POS = enum.auto()
-            WHITE_POS_NRM = enum.auto()
-            WHITE_POS_UV = enum.auto()
-            WHITE_POS_NRM_UV = enum.auto()
-            MAX = enum.auto()
+            WHITE_POS = 1
+            WHITE_POS_NRM = 2
+            WHITE_POS_UV = 3
+            WHITE_POS_NRM_UV = 4
+            MAX = 5
 
         class Lighting(enum.Enum):
-            RESERVED = enum.auto()
-            SHADELESS = enum.auto()
-            DIRECTIONAL = enum.auto()
-            MAX = enum.auto()
+            RESERVED = 1
+            SHADELESS = 2
+            DIRECTIONAL = 3
+            MAX = 4
 
         class Texturing(enum.Enum):
-            COLORED = enum.auto()
-            TEXTURED = enum.auto()
-            MAX = enum.auto()
+            COLORED = 1
+            TEXTURED = 2
+            MAX = 3
 
         class Speculating(enum.Enum):
-            MATTE = enum.auto()
-            SPECULATED = enum.auto()
-            MAX = enum.auto()
+            MATTE = 1
+            SPECULATED = 2
+            MAX = 3
 
         class EnvironmentMapping(enum.Enum):
-            NONREFLECTIVE = enum.auto()
-            BAKED = enum.auto()
-            REALTIME = enum.auto()
-            MAX = enum.auto()
+            NONREFLECTIVE = 1
+            BAKED = 2
+            REALTIME = 3
+            MAX = 4
 
         class Shadowing(enum.Enum):
-            SHADOWLESS = enum.auto()
-            CASTER = enum.auto()
-            FULL = enum.auto()
-            MAX = enum.auto()
+            SHADOWLESS = 1
+            CASTER = 2
+            FULL = 3
+            MAX = 4
 
         class Transparency(enum.Enum):
-            OPAQUE = enum.auto()
-            TRANSPARENT = enum.auto()
-            CUTOFF = enum.auto()
-            MAX = enum.auto()
+            OPAQUE = 1
+            TRANSPARENT = 2
+            CUTOFF = 3
+            MAX = 4
 
         def __init__(self, parent):
             self.parent = parent
