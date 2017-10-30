@@ -541,7 +541,7 @@ class Gearoenix:
                 cls.log("txt2-----------------------", cls.out.tell())
                 cls.write_binary_file(name)
             elif ttype == cls.TEXTURE_TYPE_CUBE:
-                name = name.split()
+                name = name.strip()
                 raw_name = name[:len(name) - len("-up.png")]
                 cls.write_binary_file(raw_name + "-up.png")
                 cls.write_binary_file(raw_name + "-down.png")
@@ -962,8 +962,8 @@ class Gearoenix:
             img = txt.image
             if img is None:
                 cls.show(error)
-            img = bpy.path.abspath(img.filepath_raw).split()
-            if img is None or len(img):
+            img = bpy.path.abspath(img.filepath_raw).strip()
+            if img is None or len(img) == 0:
                 cls.show(error)
             if not img.endswith(".png"):
                 cls.show("Only PNG file is supported right now! change " + img)
