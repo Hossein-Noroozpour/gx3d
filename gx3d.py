@@ -49,45 +49,160 @@ class Gearoenix:
 
     class Shading:
         class Reserved(enum.Enum):
-            WHITE_POS = 1
-            WHITE_POS_NRM = 2
-            WHITE_POS_UV = 3
-            WHITE_POS_NRM_UV = 4
-            MAX = 5
+            WHITE_POS = 0
+            WHITE_POS_NRM = 1
+            WHITE_POS_UV = 2
+            WHITE_POS_NRM_UV = 3
+            MAX = 4
+
+            def needs_normal(self):
+                if self == self.MAX:
+                    raise Exception('UNEXPECTED')
+                return False
+
+            def needs_uv(self):
+                if self == self.MAX:
+                    raise Exception('UNEXPECTED')
+                return False
+
+            def needs_tangent(self):
+                if self == self.MAX:
+                    raise Exception('UNEXPECTED')
+                return False
 
         class Lighting(enum.Enum):
-            RESERVED = 1
-            SHADELESS = 2
-            DIRECTIONAL = 3
+            RESERVED = 0
+            SHADELESS = 1
+            DIRECTIONAL = 2
+            NORMALMAPPED = 3
             MAX = 4
+
+            def needs_normal(self):
+                if self == self.RESERVED:
+                    raise Exception('I can not judge about reserved.')
+                if self == self.MAX:
+                    raise Exception('UNEXPECTED')
+                return self == self.DIRECTIONAL or self == self.NORMALMAPPED
+
+            def needs_uv(self):
+                if self == self.RESERVED:
+                    raise Exception('I can not judge about reserved.')
+                if self == self.MAX:
+                    raise Exception('UNEXPECTED')
+                return self == self.NORMALMAPPED
+
+            def needs_tangent(self):
+                if self == self.RESERVED:
+                    raise Exception('I can not judge about reserved.')
+                if self == self.MAX:
+                    raise Exception('UNEXPECTED')
+                return self == self.NORMALMAPPED
 
         class Texturing(enum.Enum):
-            COLORED = 1
-            TEXTURED = 2
-            MAX = 3
+            COLORED = 0
+            D2 = 1
+            D3 = 2
+            CUBE = 3
+            MAX = 4
+
+            def needs_normal(self):
+                if self == self.MAX:
+                    raise Exception('UNEXPECTED')
+                return False
+
+            def needs_uv(self):
+                if self == self.MAX:
+                    raise Exception('UNEXPECTED')
+                return self == self.D2
+
+            def needs_tangent(self):
+                if self == self.MAX:
+                    raise Exception('UNEXPECTED')
+                return False
 
         class Speculating(enum.Enum):
-            MATTE = 1
-            SPECULATED = 2
+            MATTE = 0
+            SPECULATED = 1
+            SPECTXT = 2
             MAX = 3
 
+            def needs_normal(self):
+                if self == self.MAX:
+                    raise Exception('UNEXPECTED')
+                return self != self.MATTE
+
+            def needs_uv(self):
+                if self == self.MAX:
+                    raise Exception('UNEXPECTED')
+                return self == self.SPECTXT
+
+            def needs_tangent(self):
+                if self == self.MAX:
+                    raise Exception('UNEXPECTED')
+                return False
+
         class EnvironmentMapping(enum.Enum):
-            NONREFLECTIVE = 1
-            BAKED = 2
-            REALTIME = 3
-            MAX = 4
+            NONREFLECTIVE = 0
+            BAKED = 1
+            REALTIME = 2
+            MAX = 3
+
+            def needs_normal(self):
+                if self == self.MAX:
+                    raise Exception('UNEXPECTED')
+                return self != self.NONREFLECTIVE
+
+            def needs_uv(self):
+                if self == self.MAX:
+                    raise Exception('UNEXPECTED')
+                return False
+
+            def needs_tangent(self):
+                if self == self.MAX:
+                    raise Exception('UNEXPECTED')
+                return False
 
         class Shadowing(enum.Enum):
-            SHADOWLESS = 1
-            CASTER = 2
-            FULL = 3
-            MAX = 4
+            SHADOWLESS = 0
+            CASTER = 1
+            FULL = 2
+            MAX = 3
+
+            def needs_normal(self):
+                if self == self.MAX:
+                    raise Exception('UNEXPECTED')
+                return self == self.FULL
+
+            def needs_uv(self):
+                if self == self.MAX:
+                    raise Exception('UNEXPECTED')
+                return False
+
+            def needs_tangent(self):
+                if self == self.MAX:
+                    raise Exception('UNEXPECTED')
+                return False
 
         class Transparency(enum.Enum):
             OPAQUE = 1
             TRANSPARENT = 2
             CUTOFF = 3
             MAX = 4
+
+            def needs_normal(self):
+                if self == self.MAX:
+                    raise Exception('UNEXPECTED')
+                return False
+
+            def needs_uv(self):
+                if self == self.MAX:
+                    raise Exception('UNEXPECTED')
+                return self == self.CUTOFF
+
+            def needs_tangent(self):
+                if self == self.MAX:
+                    raise Exception('UNEXPECTED')
+                return False
 
         def __init__(self, parent):
             self.parent = parent
@@ -224,6 +339,30 @@ class Gearoenix:
             result = result.lower().replace('_', '-')
             self.parent.log(result, ' = ', self.to_int())
             return result
+
+        def needs_normal(self):
+            if self.is_reserved():
+                return self.reserved.needs_normal()
+            for e in self.shading_data:
+                if e.needs_normal():
+                    return True
+            return False
+
+        def needs_uv(self):
+            if self.is_reserved():
+                return self.reserved.needs_uv()
+            for e in self.shading_data:
+                if e.needs_uv():
+                    return True
+            return False
+
+        def needs_tangent(self):
+            if self.is_reserved():
+                return self.reserved.needs_tangent()
+            for e in self.shading_data:
+                if e.needs_tangent():
+                    return True
+            return False
 
     STRING_DYNAMIC_PART = 'dynamic-part'
     STRING_DYNAMIC_PARTED = 'dynamic-parted'
@@ -393,59 +532,6 @@ class Gearoenix:
         cls.scenes_offsets = cls.items_offsets(cls.scenes, "scene")
 
     @classmethod
-    def shader_id_to_file(cls, shader_id):
-        (light, txt, spec, env, shw, trn) = shader_id
-        file_name = ""
-        error = "shader id error"
-        if light == 0:
-            return "white"
-        if light == 1:
-            file_name += "solid-"
-        elif light == 2:
-            file_name += "directional-"
-        else:
-            cls.show(error)
-        if txt == 1:
-            file_name += "colored-"
-        elif txt == 2:
-            file_name += "textured-"
-        else:
-            cls.show(error)
-        if spec == 1:
-            file_name += "speculated-"
-        elif spec == 2:
-            file_name += "not-speculated-"
-        else:
-            cls.show(error)
-        if env == 0:
-            file_name += "no-"
-        elif env == 1:
-            file_name += "cube-texture-"
-        elif env == 2:
-            file_name += "realtime-cube-"
-        else:
-            cls.show(error)
-        if shw == 0:
-            file_name += "shadeless-"
-        elif shw == 1:
-            file_name += "full-"
-        elif shw == 2:
-            file_name += "receiver-"
-        elif shw == 3:
-            file_name += "caster-"
-        else:
-            cls.show(error)
-        if trn == 0:
-            file_name += "opaque"
-        elif trn == 1:
-            file_name += "transparent"
-        elif trn == 2:
-            file_name += "cutoff"
-        else:
-            cls.show(error)
-        return file_name
-
-    @classmethod
     def write_shaders(cls):
         for shader_id in cls.shaders.keys():
             file_name = cls.shaders[shader_id][1].get_file_name()
@@ -589,20 +675,13 @@ class Gearoenix:
 
     @classmethod
     def material_needs_normal(cls, shd):
-        cls.log("It can change in future because log is dependent on Reserved.")
         shading = cls.shaders[shd][1]
-        return (not shading.is_reserved()) and \
-            (shading.get_lighting() == cls.Shading.Lighting.DIRECTIONAL or
-             shading.get_speculating() == cls.Shading.Speculating.SPECULATED or
-             shading.get_environment_mapping() !=
-             cls.Shading.EnvironmentMapping.NONREFLECTIVE or
-             shading.get_shadowing() == cls.Shading.Shadowing.FULL)
+        return shading.needs_normal()
 
     @classmethod
     def material_needs_uv(cls, shd):
-        cls.log("It can change in future because log is dependent on Reserved.")
         shading = cls.shaders[shd][1]
-        return shading.get_texturing() == cls.Shading.Texturing.TEXTURED
+        return shading.needs_uv()
 
     @classmethod
     def write_material_texture_ids(cls, obj, shd):
@@ -627,9 +706,10 @@ class Gearoenix:
                 sm = m.name.split("-")
                 if ("-" not in m.name) or len(sm) < 2 or \
                         (sm[len(sm) - 1] not in cls.STRING_CUBE_TEXTURE_FACES):
-                    name = bpy.path.abspath(
-                        m.texture_slots[0].texture.image.filepath_raw)
-                    texture_2d = cls.textures[name][1]
+                    if cls.has_material_texture2d(m):
+                        name = bpy.path.abspath(
+                            m.texture_slots[0].texture.image.filepath_raw)
+                        texture_2d = cls.textures[name][1]
                     continue
         else:
             m = obj.material_slots[0].material
@@ -895,6 +975,16 @@ class Gearoenix:
             cls.textures[filepath] = \
                 [0, cls.last_texture_id, cls.TEXTURE_TYPE_2D]
             cls.last_texture_id += 1
+
+    @classmethod
+    def has_material_texture2d(cls, m):
+        texture_count = len(m.texture_slots.keys())
+        if texture_count == 0:
+            return False
+        elif texture_count == 1:
+            return True
+        else:
+            cls.show("Unsupported number of textures in material: " + m.name)
 
     @classmethod
     def read_material(cls, m, environment=Shading.EnvironmentMapping.NONREFLECTIVE):
