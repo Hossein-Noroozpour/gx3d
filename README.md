@@ -6,8 +6,8 @@ Blender plug-in for Gearoenix 3D file format.
 
 #### Material
 
-- Only one material must be in material slots
--
+- Only one material must be in material slots, except occlusion meshes must not
+have any material.
 
 #### Texture
 
@@ -17,9 +17,10 @@ with name pattern [texture-name]-2d.
 - For cube, it must have 6 textures in its texture slots
 with name pattern [texture-name]-cube-(up/down/front/back/right/left).
 - For speculating texture, [texture-name]-spectxt.
-- If a material has a backed environment-mapping cube texture, it must have 6
+- For normal-map texture, [texture-name]-normal.
+- If a material has a baked environment-mapping cube texture, it must have 6
 textures in its texture slots with name pattern
-[texture-name]-backed-(up/down/front/back/right/left).
+[texture-name]-baked-(up/down/front/back/right/left).
 
 (Note: 3D texture is not supported now.)
 

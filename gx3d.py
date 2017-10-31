@@ -47,6 +47,30 @@ class Gearoenix:
     SPEAKER_TYPE_MUSIC = 10
     SPEAKER_TYPE_OBJECT = 20
 
+    STRING_DYNAMIC_PART = 'dynamic-part'
+    STRING_DYNAMIC_PARTED = 'dynamic-parted'
+    STRING_CUTOFF = "cutoff"
+    STRING_TRANSPARENT = "transparent"
+    STRING_ENGINE_SDK_VAR_NAME = 'VULKUST_SDK'
+    STRING_VULKAN_SDK_VAR_NAME = 'VULKAN_SDK'
+    STRING_COPY_POSTFIX_FORMAT = '.NNN'
+    STRING_2D_TEXTURE = '2d'
+    STRING_3D_TEXTURE = '3d'
+    STRING_CUBE_TEXTURE = 'cube'
+    STRING_NRM_TEXTURE = 'normal'
+    STRING_SPEC_TEXTURE = 'spectxt'
+    STRING_BAKED_ENV_TEXTURE = 'baked' 
+    STRING_CUBE_FACES = [
+        "up", "down", "left", "right", "front", "back"
+    ]
+
+    PATH_ENGINE_SDK = None
+    PATH_VULKAN_SDK = None
+    PATH_SHADERS_DIR = None
+    PATH_SHADER_COMPILER = None
+
+    MODE_DEBUG = True
+
     class Shading:
         class Reserved(enum.Enum):
             WHITE_POS = 0
@@ -98,6 +122,28 @@ class Gearoenix:
                     raise Exception('UNEXPECTED')
                 return self == self.NORMALMAPPED
 
+            def translate(self, gear, bmat, shd):
+                found = 0
+                nrm_txt = None
+                for k in bmat.texture_slots.keys():
+                    if k.endswith('-' + gear.STRING_NRM_TEXTURE):
+                        found += 1
+                        nrm_txt = bmat.texture_slots[k].texture
+                normal_found = False
+                if found == 1:
+                    normal = True
+                else:
+                    gear.show("Two normal found for material" + bmat.name)
+                shadeless = bmat.use_shadeless:
+                if shadeless and normal_found:
+                    gear.show("One material can not have both normal-map texture and have a shadeless lighting, error found in material: " + bmat.name)
+                if shadeless:
+                    return self.SHADELESS
+                if not normal_found:
+                    return self.DIRECTIONAL
+                shd.normalmap = gear.read_texture_2d(nrm_txt)
+                return self.NORMALMAPPED
+
         class Texturing(enum.Enum):
             COLORED = 0
             D2 = 1
@@ -119,6 +165,27 @@ class Gearoenix:
                 if self == self.MAX:
                     raise Exception('UNEXPECTED')
                 return False
+
+            def translate(self, gear, bmat, shd):
+                d2_found = 0
+                d2txt = None
+                d3_found = 0
+                d3txt = None
+                cube_found = [0 for i in range(6)]
+                cubetxt = None
+                for k in bmat.texture_slots.keys():
+                    if k.endswith('-' + gear.STRING_2D_TEXTURE):
+                        d2_found += 1
+                        d2txt = bmat.texture_slots[k].texture
+                    elif k.endswith('-' + gear.STRING_3D_TEXTURE):
+                        d3_found += 1
+                        d3txt = bmat.texture_slots[k].texture
+                    else:
+                        for i in range(6):
+                            if k.endswith('-' + gear.STRING_CUBE_TEXTURE + '-' + gear.STRING_CUBE_FACES[i]):
+                                cube_found[i] += 1
+                # TODO
+
 
         class Speculating(enum.Enum):
             MATTE = 0
@@ -204,7 +271,7 @@ class Gearoenix:
                     raise Exception('UNEXPECTED')
                 return False
 
-        def __init__(self, parent):
+        def __init__(self, parent, bmat=None):
             self.parent = parent
             self.shading_data = [
                 self.Lighting.SHADELESS,
@@ -215,6 +282,11 @@ class Gearoenix:
                 self.Transparency.OPAQUE,
             ]
             self.reserved = self.Reserved.WHITE_POS
+            self.normalmap = None
+            if bmat is not None:
+                for i in range(len(self.shading_data)):
+                    self.shading_data[i] = self.shading_data[i].translate(parent, bmat, shd)
+
 
         def set_lighting(self, e):
             if not isinstance(e, self.Lighting) or e.MAX == e:
@@ -363,24 +435,6 @@ class Gearoenix:
                 if e.needs_tangent():
                     return True
             return False
-
-    STRING_DYNAMIC_PART = 'dynamic-part'
-    STRING_DYNAMIC_PARTED = 'dynamic-parted'
-    STRING_CUTOFF = "cutoff"
-    STRING_TRANSPARENT = "transparent"
-    STRING_ENGINE_SDK_VAR_NAME = 'VULKUST_SDK'
-    STRING_VULKAN_SDK_VAR_NAME = 'VULKAN_SDK'
-    STRING_COPY_POSTFIX_FORMAT = '.NNN'
-    STRING_CUBE_TEXTURE_FACES = [
-        "up", "down", "left", "right", "front", "back"
-    ]
-
-    PATH_ENGINE_SDK = None
-    PATH_VULKAN_SDK = None
-    PATH_SHADERS_DIR = None
-    PATH_SHADER_COMPILER = None
-
-    MODE_DEBUG = True
 
     def __init__(self):
         pass
@@ -953,7 +1007,8 @@ class Gearoenix:
                 return
 
     @classmethod
-    def assert_texture_2d(cls, t):
+    def read_texture_2d(cls, t) -> int:
+        """It checks the correctness of an 2d texture and add it to the textures and returns id"""
         if t.type != 'IMAGE':
             cls.show("Only image textures is supported, please correct: " +
                      t.name)
@@ -970,11 +1025,13 @@ class Gearoenix:
                 cls.show("You have used a same image in two defferent " +
                          "texture type in " + t.name)
             else:
-                return
+                return cls.textures[filepath][1]
         else:
             cls.textures[filepath] = \
                 [0, cls.last_texture_id, cls.TEXTURE_TYPE_2D]
+            tid = cls.last_texture_id
             cls.last_texture_id += 1
+            return tid
 
     @classmethod
     def has_material_texture2d(cls, m):
@@ -1118,24 +1175,8 @@ class Gearoenix:
                 return
         if len(m.material_slots.keys()) == 1:
             cls.read_material(m.material_slots[0].material)
-        elif len(m.material_slots.keys()) == 7:
-            cls.read_material_slot(m.material_slots)
         else:
             cls.show("Unexpected number of materials in model " + m.name)
-
-    @classmethod
-    def get_shader_id(cls, obj) -> int:
-        material_count = len(obj.material_slots.keys())
-        if material_count == 0:
-            s = cls.Shading(cls)
-            s.set_reserved(cls.Shading.Reserved.WHITE_POS)
-            return s.to_int()
-        elif material_count == 1:
-            return cls.read_material(obj.material_slots[0].material)
-        elif material_count == 7:
-            return cls.read_material_slot(obj.material_slots)
-        else:
-            cls.show("Unexpected number of materials in model " + obj.name)
 
     @classmethod
     def read_model(cls, m):
