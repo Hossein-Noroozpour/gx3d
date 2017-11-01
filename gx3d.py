@@ -65,7 +65,7 @@ class Gearoenix:
     ]
 
     PATH_ENGINE_SDK = None
-    PATH_VULKAN_SDK = None
+    PATH_GEAROENIX_SDK = None
     PATH_SHADERS_DIR = None
     PATH_SHADER_COMPILER = None
 
@@ -182,9 +182,45 @@ class Gearoenix:
                         d3txt = bmat.texture_slots[k].texture
                     else:
                         for i in range(6):
-                            if k.endswith('-' + gear.STRING_CUBE_TEXTURE + '-' + gear.STRING_CUBE_FACES[i]):
+                            stxt = '-' + gear.STRING_CUBE_TEXTURE + '-' + gear.STRING_CUBE_FACES[i]
+                            if k.endswith(stxt):
                                 cube_found[i] += 1
-                # TODO
+                                cubetxt = stxt[:len(k)-len(stxt)] + '-' + gear.STRING_CUBE_TEXTURE
+                if d2_found > 1:
+                    gear.show("Number of 2D texture is more than 1 in material: " + bmat.name)
+                d2_found = d2_found == 1
+                if d3_found > 1:
+                    gear.show("Number of 3D texture is more than 1 in material: " + bmat.name)
+                d3_found = d3_found == 1
+                for i in range(6):
+                    if cube_found[i] > 1:
+                        gear.show("Number of " + gear.STRING_CUBE_FACES[i] + " face for cube texture is more than 1 in material: " + bmat.name)
+                    cube_found[i] = cube_found[i] == 1
+                for i in range(1, 6):
+                    if cube_found[0] != cube_found[i]:
+                        gear.show("Incomplete cube texture in material: " + bmat.name)
+                cube_found = cube_found[0]
+                found = 0
+                if d2_found:
+                    found += 1
+                if d3_found:
+                    found += 1
+                if cube_found:
+                    found += 1
+                if found == 0:
+                    return self.COLORED
+                if found > 1:
+                    gear.show("Each material only can have one of 2D, 3D or Cube textures, Error in material: ", bmat.name)
+                if d2_found:
+                    shd.d2 = gear.read_texture_2d(d2txt)
+                    return self.D2
+                if d3_found:
+                    shd.d3 = gear.read_texture_3d(d3txt)
+                    return self.D3
+                if cube_found:
+                    shd.cube = gear.read_texture_cube(bmat.texture_slots, cubetxt)
+                    return self.CUBE
+
 
 
         class Speculating(enum.Enum):
@@ -208,6 +244,22 @@ class Gearoenix:
                     raise Exception('UNEXPECTED')
                 return False
 
+            def translate(self, gear, bmat, shd):
+                found = 0
+                txt = None
+                for k in bmat.texture_slots.keys():
+                    if k.endswith('-' + gear.STRING_SPEC_TEXTURE):
+                        found += 1
+                        txt = bmat.texture_slots[k].texture
+                if found > 1:
+                    gear.show("Each material only can have one secular texture, Error in material: ", bmat.name)
+                if found == 1:
+                    shd.spectxt = gear.read_texture_2d(txt)
+                    return self.SPECTXT
+                if bmat.specular_intensity > 0.01:
+                    return self.SPECULATED
+                return self.MATTE
+
         class EnvironmentMapping(enum.Enum):
             NONREFLECTIVE = 0
             BAKED = 1
@@ -228,6 +280,32 @@ class Gearoenix:
                 if self == self.MAX:
                     raise Exception('UNEXPECTED')
                 return False
+
+            def translate(self, gear, bmat, shd):
+                baked_found = [0 for i in range(6)]
+                bakedtxt = None
+                for k in bmat.texture_slots.keys():
+                    for i in range(6):
+                        stxt = '-' + gear.STRING_BAKED_ENV_TEXTURE + '-' + gear.STRING_CUBE_FACES[i]
+                        if k.endswith(stxt):
+                            baked_found[i] += 1
+                            bakedtxt = stxt[:len(k)-len(stxt)] + '-' + gear.STRING_BAKED_ENV_TEXTURE
+                for i in range(6):
+                    if baked_found[i] > 1:
+                        gear.show("Number of " + gear.STRING_CUBE_FACES[i] + " face for baked texture is more than 1 in material: " + bmat.name)
+                    baked_found[i] = baked_found[i] == 1
+                    if baked_found[0] != baked_found[i]:
+                        gear.show("Incomplete cube texture in material: " + bmat.name)
+                baked_found = baked_found[0]
+                reflective = bmat.raytrace_mirror is not None and bmat.raytrace_mirror.use and bmat.raytrace_mirror.reflect_factor > 0.001
+                if baked_found and not reflective:
+                    gear.show("A material must set amount of reflectivity and then have a baked-env texture. Error in material: " + bmat.name)
+                if baked_found:
+                    shd.bakedenv = gear.read_texture_cube(bmat.texture_slots, bakedtxt)
+                    return self.BAKED
+                if reflective:
+                    return self.REALTIME
+                return self.NONREFLECTIVE
 
         class Shadowing(enum.Enum):
             SHADOWLESS = 0
@@ -250,6 +328,17 @@ class Gearoenix:
                     raise Exception('UNEXPECTED')
                 return False
 
+            def translate(self, gear, bmat, shd):
+                caster = bmat.use_cast_shadows
+                receiver = bmat.use_receive
+                if not caster and receiver:
+                    gear.show("A material can not be receiver but not caster. Error in material: " + bmat.name)
+                if not caster:
+                    return self.SHADOWLESS
+                if receiver:
+                    return self.FULL
+                return self.CASTER
+
         class Transparency(enum.Enum):
             OPAQUE = 1
             TRANSPARENT = 2
@@ -271,6 +360,17 @@ class Gearoenix:
                     raise Exception('UNEXPECTED')
                 return False
 
+            def translate(self, gear, bmat, shd):
+                trn = gear.STRING_TRANSPARENT in bmat
+                ctf = gear.STRING_CUTOFF in bmat
+                if trn and ctf:
+                    gear.show("A material can not be transparent and cutoff in same time. Error in material: " + bmat.name)
+                if trn:
+                    return self.TRANSPARENT
+                if ctf:
+                    return self.CUTOFF
+                return OPAQUE
+
         def __init__(self, parent, bmat=None):
             self.parent = parent
             self.shading_data = [
@@ -283,6 +383,12 @@ class Gearoenix:
             ]
             self.reserved = self.Reserved.WHITE_POS
             self.normalmap = None
+            self.d2 = None
+            self.d3 = None
+            self.cube = None
+            self.spectxt = None
+            self.bakedenv = None
+            self.bmat = bmat
             if bmat is not None:
                 for i in range(len(self.shading_data)):
                     self.shading_data[i] = self.shading_data[i].translate(parent, bmat, shd)
@@ -1007,11 +1113,10 @@ class Gearoenix:
                 return
 
     @classmethod
-    def read_texture_2d(cls, t) -> int:
-        """It checks the correctness of an 2d texture and add it to the textures and returns id"""
+    def read_texture(cls, t) -> str:
+        """It checks the correctness of a texture and returns its file path."""
         if t.type != 'IMAGE':
-            cls.show("Only image textures is supported, please correct: " +
-                     t.name)
+            cls.show("Only image textures is supported, please correct: " + t.name)
         img = t.image
         if img is None:
             cls.show("Image is not set in texture: " + t.name)
@@ -1020,6 +1125,31 @@ class Gearoenix:
             cls.show("Image is not specified yet in texture: " + t.name)
         if not filepath.endswith(".png"):
             cls.show("Use PNG image instead of " + filepath)
+        return filepath
+
+
+    @classmethod
+    def read_texture_cube(cls, slots, tname) -> int:
+        """It checks the correctness of a 2d texture and add its up face to the textures and returns id"""
+        t = slots[tname + '-' + cls.STRING_CUBE_FACES[0]].texture
+        filepath = cls.read_texture(t)
+        for i in range(1, 6):
+            cls.read_texture(slots[tname + '-' + cls.STRING_CUBE_FACES[i]].texture)
+        if filepath in cls.textures:
+            if cls.textures[filepath][2] != cls.TEXTURE_TYPE_CUBE:
+                cls.show("You have used a same image in two defferent texture type in " + t.name)
+            else:
+                return cls.textures[filepath][1]
+        else:
+            cls.textures[filepath] = [0, cls.last_texture_id, cls.TEXTURE_TYPE_CUBE]
+            tid = cls.last_texture_id
+            cls.last_texture_id += 1
+            return tid
+
+    @classmethod
+    def read_texture_2d(cls, t) -> int:
+        """It checks the correctness of a 2d texture and add it to the textures and returns id"""
+        filepath = read_texture(t)
         if filepath in cls.textures:
             if cls.textures[filepath][2] != cls.TEXTURE_TYPE_2D:
                 cls.show("You have used a same image in two defferent " +
@@ -1032,16 +1162,6 @@ class Gearoenix:
             tid = cls.last_texture_id
             cls.last_texture_id += 1
             return tid
-
-    @classmethod
-    def has_material_texture2d(cls, m):
-        texture_count = len(m.texture_slots.keys())
-        if texture_count == 0:
-            return False
-        elif texture_count == 1:
-            return True
-        else:
-            cls.show("Unsupported number of textures in material: " + m.name)
 
     @classmethod
     def read_material(cls, m, environment=Shading.EnvironmentMapping.NONREFLECTIVE):
@@ -1082,19 +1202,6 @@ class Gearoenix:
         if k not in cls.shaders:
             cls.shaders[k] = [0, s]
         return k
-
-    @classmethod
-    def assert_texture_cube(cls, up_txt_file):
-        if up_txt_file in cls.textures:
-            if cls.textures[up_txt_file][2] != cls.TEXTURE_TYPE_CUBE:
-                cls.show("You have used a same image in two defferent " +
-                         "texture type in " + up_txt_file)
-            else:
-                return
-        else:
-            cls.textures[up_txt_file] = \
-                [0, cls.last_texture_id, cls.TEXTURE_TYPE_CUBE]
-            cls.last_texture_id += 1
 
     @classmethod
     def assert_material_face(cls, face, m):
