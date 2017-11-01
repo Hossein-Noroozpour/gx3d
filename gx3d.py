@@ -389,10 +389,11 @@ class Gearoenix:
             self.spectxt = None
             self.bakedenv = None
             self.bmat = bmat
-            if bmat is not None:
+            if bmat is None:
+                self.set_reserved(self.Reserved.WHITE_POS)
+            else:
                 for i in range(len(self.shading_data)):
                     self.shading_data[i] = self.shading_data[i].translate(parent, bmat, shd)
-
 
         def set_lighting(self, e):
             if not isinstance(e, self.Lighting) or e.MAX == e:
@@ -834,111 +835,18 @@ class Gearoenix:
         pass
 
     @classmethod
-    def material_needs_normal(cls, shd):
-        shading = cls.shaders[shd][1]
-        return shading.needs_normal()
-
-    @classmethod
-    def material_needs_uv(cls, shd):
-        shading = cls.shaders[shd][1]
-        return shading.needs_uv()
-
-    @classmethod
-    def write_material_texture_ids(cls, obj, shd):
-        shading = cls.shaders[shd][1]
-        if shading.get_texturing() != cls.Shading.Texturing.TEXTURED and \
-            shading.get_environment_mapping() != \
-                cls.Shading.EnvironmentMapping.BAKED:
-            return
-        cube_texture = None
-        texture_2d = None
-        materials_count = len(obj.material_slots.keys())
-        has_cube = materials_count > len(cls.STRING_CUBE_TEXTURE_FACES)
-        if has_cube:
-            for mat in obj.material_slots.keys():
-                m = obj.material_slots[mat].material
-                if has_cube and m.name.endswith(
-                        "-" + cls.STRING_CUBE_TEXTURE_FACES[0]):
-                    name = bpy.path.abspath(
-                        m.texture_slots[0].texture.image.filepath_raw)
-                    cube_texture = cls.textures[name][1]
-                    continue
-                sm = m.name.split("-")
-                if ("-" not in m.name) or len(sm) < 2 or \
-                        (sm[len(sm) - 1] not in cls.STRING_CUBE_TEXTURE_FACES):
-                    if cls.has_material_texture2d(m):
-                        name = bpy.path.abspath(
-                            m.texture_slots[0].texture.image.filepath_raw)
-                        texture_2d = cls.textures[name][1]
-                    continue
-        else:
-            m = obj.material_slots[0].material
-            n = bpy.path.abspath(m.texture_slots[0].texture.image.filepath_raw)
-            texture_2d = cls.textures[n][1]
-        if cube_texture is not None:
-            cls.out.write(cls.TYPE_TYPE_ID(cube_texture))
-        if texture_2d is not None:
-            cls.out.write(cls.TYPE_TYPE_ID(texture_2d))
-
-    @classmethod
-    def get_info_material(cls, obj):
-        slots = obj.material_slots
-        materials_count = len(slots.keys())
-        if materials_count == 1:
-            return slots[0].material
-        for mat in slots.keys():
-            m = slots[mat].material
-            sm = m.name.split("-")
-            if ("-" not in m.name) or len(sm) < 2 or \
-                    (sm[len(sm) - 1] not in cls.STRING_CUBE_TEXTURE_FACES):
-                return m
-
-    @classmethod
-    def get_up_face_material(cls, obj):
-        slots = obj.material_slots
-        materials_count = len(slots.keys())
-        if materials_count < len(cls.STRING_CUBE_TEXTURE_FACES):
-            return None
-        for mat in slots.keys():
-            m = slots[mat].material
-            if m.name.endswith("-" + cls.STRING_CUBE_TEXTURE_FACES[0]):
-                return m
-
-    @classmethod
-    def write_material_data(cls, obj, shd):
-        cls.out.write(cls.TYPE_TYPE_ID(shd))
-        cls.write_material_texture_ids(obj, shd)
-        shading = cls.shaders[shd][1]
-        if shading.is_reserved():
-            return
-        if shading.get_texturing() == cls.Shading.Texturing.COLORED:
-            cls.write_vector(cls.get_info_material(obj).diffuse_color)
-        if shading.get_speculating() == cls.Shading.Speculating.SPECULATED:
-            cls.write_vector(cls.get_info_material(obj).specular_color)
-            cls.out.write(
-                cls.TYPE_FLOAT(cls.get_info_material(obj).specular_intensity))
-        if shading.get_environment_mapping() != \
-                cls.Shading.EnvironmentMapping.NONREFLECTIVE:
-            cls.out.write(
-                cls.TYPE_FLOAT(
-                    cls.get_up_face_material(obj)
-                    .raytrace_mirror.reflect_factor))
-        transparency = shading.get_transparency()
-        if transparency == cls.Shading.Transparency.TRANSPARENT:
-            info = cls.get_info_material(obj)
-            cls.out.write(cls.TYPE_FLOAT(info[cls.STRING_TRANSPARENT]))
-        elif transparency == cls.Shading.Transparency.CUTOFF:
-            info = cls.get_info_material(obj)
-            cls.out.write(cls.TYPE_FLOAT(info[cls.STRING_CUTOFF]))
-
-    @classmethod
-    def write_mesh(cls, obj, shd, matrix):
+    def write_mesh(cls, obj, matrix):
         cls.log("before material: ", cls.out.tell())
-        cls.write_material_data(obj, shd)
+        shd = None
+        if len(obj.material_slots.keys()) == 0:
+            shd = cls.Shading(parent)
+        else:
+            shd = cls.Shading(parent, obj.material_slots[0])
+        shd.write()
         cls.log("after material: ", cls.out.tell())
         msh = obj.data
-        nrm = cls.material_needs_normal(shd)
-        uv = cls.material_needs_uv(shd)
+        nrm = shd.needs_normal(shd)
+        uv = shd.needs_uv(shd)
         vertices = dict()
         last_index = 0
         for p in msh.polygons:
@@ -1014,12 +922,11 @@ class Gearoenix:
             child_inv = obj.matrix_world.inverted()
         else:
             mesh_matrix = inv_mat_par * obj.matrix_world
-        shd = cls.get_shader_id(obj)
         if obj.parent is None or dyn:
             if len(obj.children) == 0:
                 cls.show("Object " + obj.name + " should not have zero " +
                          "children count")
-        cls.write_mesh(obj, shd, child_inv)
+        cls.write_mesh(obj, mesh_matrix)
         cls.out.write(cls.TYPE_COUNT(len(obj.children)))
         for c in obj.children:
             cls.write_model(c.name, child_inv)
@@ -1127,7 +1034,6 @@ class Gearoenix:
             cls.show("Use PNG image instead of " + filepath)
         return filepath
 
-
     @classmethod
     def read_texture_cube(cls, slots, tname) -> int:
         """It checks the correctness of a 2d texture and add its up face to the textures and returns id"""
@@ -1164,115 +1070,13 @@ class Gearoenix:
             return tid
 
     @classmethod
-    def read_material(cls, m, environment=Shading.EnvironmentMapping.NONREFLECTIVE):
-        s = cls.Shading(cls)
-        s.set_environment_mapping(environment)
-        if m.use_shadeless:
-            s.set_lighting(cls.Shading.Lighting.SHADELESS)
-        else:
-            s.set_lighting(cls.Shading.Lighting.DIRECTIONAL)
-        texture_count = len(m.texture_slots.keys())
-        if texture_count == 0:
-            s.set_texturing(cls.Shading.Texturing.COLORED)
-        elif texture_count == 1:
-            s.set_texturing(cls.Shading.Texturing.TEXTURED)
-            cls.assert_texture_2d(m.texture_slots[0].texture)
-        else:
-            cls.show("Unsupported number of textures in material: " + m.name)
-        if m.specular_intensity > 0.001:
-            s.set_speculating(cls.Shading.Speculating.SPECULATED)
-        else:
-            s.set_speculating(cls.Shading.Speculating.MATTE)
-        if m.use_cast_shadows:
-            if m.use_shadows:
-                s.set_shadowing(cls.Shading.Shadowing.FULL)
-            else:
-                s.set_shadowing(cls.Shading.Shadowing.CASTER)
-        else:
-            if m.use_shadows:
-                cls.show(
-                    "This is impossible that a shader make no shadow but use shadow-map")
-            else:
-                s.set_shadowing(cls.Shading.Shadowing.SHADOWLESS)
-        if cls.STRING_CUTOFF in m:
-            s.set_transparency(cls.Shading.Transparency.CUTOFF)
-        elif cls.STRING_TRANSPARENT in m:
-            s.set_transparency(cls.Shading.Transparency.TRANSPARENT)
-        k = s.to_int()
-        if k not in cls.shaders:
-            cls.shaders[k] = [0, s]
-        return k
-
-    @classmethod
-    def assert_material_face(cls, face, m):
-        if len(m.texture_slots.keys()) == 1:
-            error = "Texture in material " + m.name + " is not set correctly"
-            txt = m.texture_slots[0]
-            if txt is None:
-                cls.show(error)
-            txt = txt.texture
-            if txt is None:
-                cls.show(error)
-            img = txt.image
-            if img is None:
-                cls.show(error)
-            img = bpy.path.abspath(img.filepath_raw).strip()
-            if img is None or len(img) == 0:
-                cls.show(error)
-            if not img.endswith(".png"):
-                cls.show("Only PNG file is supported right now! change " + img)
-            if not img.endswith("-" + face + ".png"):
-                cls.show("File name must end with -" + face + ".png in " + img)
-            if face == "up":
-                cls.assert_texture_cube(img)
-            return cls.Shading.EnvironmentMapping.BAKED
-        elif len(m.texture_slots.keys()) > 1:
-            cls.show("Material " + m.name +
-                     " has more than expected textures.")
-        elif not m.raytrace_mirror.use or \
-                m.raytrace_mirror.reflect_factor < 0.001:
-            cls.show("Material " + m.name + " does not set reflective.")
-        return cls.Shading.EnvironmentMapping.REALTIME
-
-    @classmethod
-    def read_material_slot(cls, s):
-        environment = None
-        for f in cls.STRING_CUBE_TEXTURE_FACES:
-            found = 0
-            face_mat = None
-            for m in s.keys():
-                mat = s[m].material
-                if mat.name.endswith("-" + f):
-                    face_mat = mat
-                    found += 1
-            if found > 1:
-                cls.show("More than 1 material found with property " + f)
-            if found < 1:
-                cls.show("No material found with name " + f)
-            face_env = cls.assert_material_face(f, face_mat)
-            if environment is None:
-                environment = face_env
-            elif environment != face_env:
-                cls.show("Material " + face_mat + " is different than others.")
-        for m in s.keys():
-            mat = s[m].material
-            found = True
-            for f in cls.STRING_CUBE_TEXTURE_FACES:
-                if mat.name.endswith("-" + f):
-                    found = False
-                    break
-            if found:
-                return cls.read_material(mat, environment=environment)
-        cls.show("Unexpected")
-
-    @classmethod
-    def assert_model_materials(cls, m):
+    def read_model_materials(cls, m):
         if m.type != 'MESH':
             return
         for c in m.children:
-            cls.assert_model_materials(c)
+            cls.read_model_materials(c)
+        material_count = len(m.material_slots.keys())
         if cls.STRING_DYNAMIC_PART in m or m.parent is None:
-            material_count = len(m.material_slots.keys())
             if material_count != 0:
                 cls.show("Dynamic/RootStatic model must have occlusion mesh " +
                          "at its root that does not have any material, your '" +
@@ -1280,8 +1084,9 @@ class Gearoenix:
                          "but it has " + str(material_count) + " material(s).")
             else:
                 return
-        if len(m.material_slots.keys()) == 1:
-            cls.read_material(m.material_slots[0].material)
+        if material_count == 1:
+            s = cls.Shading(cls, m.material_slots[0].material)
+            cls.shaders[s.to_int()] = [0, s]
         else:
             cls.show("Unexpected number of materials in model " + m.name)
 
@@ -1292,7 +1097,7 @@ class Gearoenix:
         if m.name in cls.models:
             return
         cls.assert_model_dynamism(m)
-        cls.assert_model_materials(m)
+        cls.read_model_materials(m)
         cls.models[m.name] = [0, cls.last_model_id]
         cls.last_model_id += 1
 
@@ -1467,7 +1272,6 @@ class Gearoenix:
             d = f.read()
             f.close()
             return d
-
 
 if __name__ == "__main__":
     Gearoenix.register()
