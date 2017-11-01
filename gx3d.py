@@ -94,6 +94,9 @@ class Gearoenix:
                     raise Exception('UNEXPECTED')
                 return False
 
+            def write(self, shd):
+                return
+
         class Lighting(enum.Enum):
             RESERVED = 0
             SHADELESS = 1
@@ -143,6 +146,10 @@ class Gearoenix:
                     return self.DIRECTIONAL
                 shd.normalmap = gear.read_texture_2d(nrm_txt)
                 return self.NORMALMAPPED
+
+            def write(self, shd):
+                if self.NORMALMAPPED == self:
+                    shd.parent.out.write(shd.parent.TYPE_TYPE_ID(shd.normalmap))
 
         class Texturing(enum.Enum):
             COLORED = 0
@@ -208,6 +215,7 @@ class Gearoenix:
                 if cube_found:
                     found += 1
                 if found == 0:
+                    shd.diffuse_color = bmat.diffuse_color
                     return self.COLORED
                 if found > 1:
                     gear.show("Each material only can have one of 2D, 3D or Cube textures, Error in material: ", bmat.name)
@@ -220,6 +228,17 @@ class Gearoenix:
                 if cube_found:
                     shd.cube = gear.read_texture_cube(bmat.texture_slots, cubetxt)
                     return self.CUBE
+
+            def write(self, shd):
+                if self.COLORED == self:
+                    shd.parent.write_vector(shd.diffuse_color)
+                    return
+                if self.D2 == self:
+                    shd.parent.out.write(shd.parent.TYPE_TYPE_ID(shd.d2))
+                if self.D3 == self:
+                    shd.parent.out.write(shd.parent.TYPE_TYPE_ID(shd.d3))
+                if self.CUBE == self:
+                    shd.parent.out.write(shd.parent.TYPE_TYPE_ID(shd.cube))
 
 
 
@@ -256,9 +275,19 @@ class Gearoenix:
                 if found == 1:
                     shd.spectxt = gear.read_texture_2d(txt)
                     return self.SPECTXT
-                if bmat.specular_intensity > 0.01:
+                if bmat.specular_intensity > 0.001:
+                    shd.specular_color = bmat.specular_color
+                    shd.specular_factors = mathutils.Vector(0.7, 0.9, bmat.specular_intensity)
                     return self.SPECULATED
                 return self.MATTE
+
+            def write(self, shd):
+                if self.SPECULATED == self:
+                    shd.parent.write_vector(shd.specular_color)
+                    shd.parent.write_vector(shd.specular_factors)
+                    return
+                if self.SPECTXT == self:
+                    shd.parent.out.write(shd.parent.TYPE_TYPE_ID(shd.spectxt))
 
         class EnvironmentMapping(enum.Enum):
             NONREFLECTIVE = 0
@@ -301,11 +330,20 @@ class Gearoenix:
                 if baked_found and not reflective:
                     gear.show("A material must set amount of reflectivity and then have a baked-env texture. Error in material: " + bmat.name)
                 if baked_found:
+                    shd.reflect_factor = bmat.raytrace_mirror.reflect_factor
                     shd.bakedenv = gear.read_texture_cube(bmat.texture_slots, bakedtxt)
                     return self.BAKED
                 if reflective:
+                    shd.reflect_factor = bmat.raytrace_mirror.reflect_factor
                     return self.REALTIME
                 return self.NONREFLECTIVE
+
+            def write(self, shd):
+                if self == self.BAKED or self == self.REALTIME:
+                    shd.parent.out.write(shd.parent.TYPE_FLOAT(shd.reflect_factor))
+                if self == self.BAKED:
+                    shd.parent.out.write(shd.parent.TYPE_TYPE_ID(shd.bakedenv))
+
 
         class Shadowing(enum.Enum):
             SHADOWLESS = 0
@@ -339,6 +377,9 @@ class Gearoenix:
                     return self.FULL
                 return self.CASTER
 
+            def write(self, shd):
+                return
+
         class Transparency(enum.Enum):
             OPAQUE = 1
             TRANSPARENT = 2
@@ -366,10 +407,17 @@ class Gearoenix:
                 if trn and ctf:
                     gear.show("A material can not be transparent and cutoff in same time. Error in material: " + bmat.name)
                 if trn:
+                    shd.transparency = bmat[gear.STRING_TRANSPARENT]
                     return self.TRANSPARENT
                 if ctf:
+                    shd.transparency = bmat[gear.STRING_CUTOFF]
                     return self.CUTOFF
                 return OPAQUE
+
+            def write(self, shd):
+                if self == self.TRANSPARENT or self == self.CUTOFF:
+                    shd.parent.out.write(shd.parent.TYPE_FLOAT(shd.transparency))
+
 
         def __init__(self, parent, bmat=None):
             self.parent = parent
@@ -383,11 +431,16 @@ class Gearoenix:
             ]
             self.reserved = self.Reserved.WHITE_POS
             self.normalmap = None
+            self.diffuse_color = None
             self.d2 = None
             self.d3 = None
             self.cube = None
+            self.specular_color = None
+            self.specular_factors = None
             self.spectxt = None
+            self.reflect_factor = None
             self.bakedenv = None
+            self.transparency = None
             self.bmat = bmat
             if bmat is None:
                 self.set_reserved(self.Reserved.WHITE_POS)
@@ -542,6 +595,15 @@ class Gearoenix:
                 if e.needs_tangent():
                     return True
             return False
+
+
+        def write(self):
+            parent.out.write(parent.TYPE_TYPE_ID(self.to_int()))
+            if self.shading_data[0] == Lighting.RESERVED:
+                self.reserved.write(self)
+                return
+            for e in self.shading_data:
+                e.write(self)
 
     def __init__(self):
         pass
