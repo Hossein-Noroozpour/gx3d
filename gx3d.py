@@ -134,10 +134,10 @@ class Gearoenix:
                         nrm_txt = bmat.texture_slots[k].texture
                 normal_found = False
                 if found == 1:
-                    normal = True
-                else:
+                    normal_found = True
+                elif found > 1:
                     gear.show("Two normal found for material" + bmat.name)
-                shadeless = bmat.use_shadeless:
+                shadeless = bmat.use_shadeless
                 if shadeless and normal_found:
                     gear.show("One material can not have both normal-map texture and have a shadeless lighting, error found in material: " + bmat.name)
                 if shadeless:
@@ -192,7 +192,7 @@ class Gearoenix:
                             stxt = '-' + gear.STRING_CUBE_TEXTURE + '-' + gear.STRING_CUBE_FACES[i]
                             if k.endswith(stxt):
                                 cube_found[i] += 1
-                                cubetxt = stxt[:len(k)-len(stxt)] + '-' + gear.STRING_CUBE_TEXTURE
+                                cubetxt = k[:len(k)-len(stxt)] + '-' + gear.STRING_CUBE_TEXTURE
                 if d2_found > 1:
                     gear.show("Number of 2D texture is more than 1 in material: " + bmat.name)
                 d2_found = d2_found == 1
@@ -277,7 +277,7 @@ class Gearoenix:
                     return self.SPECTXT
                 if bmat.specular_intensity > 0.001:
                     shd.specular_color = bmat.specular_color
-                    shd.specular_factors = mathutils.Vector(0.7, 0.9, bmat.specular_intensity)
+                    shd.specular_factors = mathutils.Vector((0.7, 0.9, bmat.specular_intensity))
                     return self.SPECULATED
                 return self.MATTE
 
@@ -318,7 +318,7 @@ class Gearoenix:
                         stxt = '-' + gear.STRING_BAKED_ENV_TEXTURE + '-' + gear.STRING_CUBE_FACES[i]
                         if k.endswith(stxt):
                             baked_found[i] += 1
-                            bakedtxt = stxt[:len(k)-len(stxt)] + '-' + gear.STRING_BAKED_ENV_TEXTURE
+                            bakedtxt = k[:len(k)-len(stxt)] + '-' + gear.STRING_BAKED_ENV_TEXTURE
                 for i in range(6):
                     if baked_found[i] > 1:
                         gear.show("Number of " + gear.STRING_CUBE_FACES[i] + " face for baked texture is more than 1 in material: " + bmat.name)
@@ -368,7 +368,7 @@ class Gearoenix:
 
             def translate(self, gear, bmat, shd):
                 caster = bmat.use_cast_shadows
-                receiver = bmat.use_receive
+                receiver = bmat.use_shadows
                 if not caster and receiver:
                     gear.show("A material can not be receiver but not caster. Error in material: " + bmat.name)
                 if not caster:
@@ -412,7 +412,7 @@ class Gearoenix:
                 if ctf:
                     shd.transparency = bmat[gear.STRING_CUTOFF]
                     return self.CUTOFF
-                return OPAQUE
+                return self.OPAQUE
 
             def write(self, shd):
                 if self == self.TRANSPARENT or self == self.CUTOFF:
@@ -446,7 +446,7 @@ class Gearoenix:
                 self.set_reserved(self.Reserved.WHITE_POS)
             else:
                 for i in range(len(self.shading_data)):
-                    self.shading_data[i] = self.shading_data[i].translate(parent, bmat, shd)
+                    self.shading_data[i] = self.shading_data[i].translate(parent, bmat, self)
 
         def set_lighting(self, e):
             if not isinstance(e, self.Lighting) or e.MAX == e:
@@ -598,8 +598,8 @@ class Gearoenix:
 
 
         def write(self):
-            parent.out.write(parent.TYPE_TYPE_ID(self.to_int()))
-            if self.shading_data[0] == Lighting.RESERVED:
+            self.parent.out.write(self.parent.TYPE_TYPE_ID(self.to_int()))
+            if self.shading_data[0] == self.Lighting.RESERVED:
                 self.reserved.write(self)
                 return
             for e in self.shading_data:
@@ -901,14 +901,14 @@ class Gearoenix:
         cls.log("before material: ", cls.out.tell())
         shd = None
         if len(obj.material_slots.keys()) == 0:
-            shd = cls.Shading(parent)
+            shd = cls.Shading(cls)
         else:
-            shd = cls.Shading(parent, obj.material_slots[0])
+            shd = cls.Shading(cls, obj.material_slots[0].material)
         shd.write()
         cls.log("after material: ", cls.out.tell())
         msh = obj.data
-        nrm = shd.needs_normal(shd)
-        uv = shd.needs_uv(shd)
+        nrm = shd.needs_normal()
+        uv = shd.needs_uv()
         vertices = dict()
         last_index = 0
         for p in msh.polygons:
