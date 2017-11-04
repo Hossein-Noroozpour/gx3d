@@ -59,7 +59,7 @@ class Gearoenix:
     STRING_CUBE_TEXTURE = 'cube'
     STRING_NRM_TEXTURE = 'normal'
     STRING_SPEC_TEXTURE = 'spectxt'
-    STRING_BAKED_ENV_TEXTURE = 'baked' 
+    STRING_BAKED_ENV_TEXTURE = 'baked'
     STRING_CUBE_FACES = [
         "up", "down", "left", "right", "front", "back"
     ]
@@ -850,14 +850,29 @@ class Gearoenix:
                 cls.log("txt2-----------------------", cls.out.tell())
                 cls.write_binary_file(name)
             elif ttype == cls.TEXTURE_TYPE_CUBE:
+                off_offs = cls.out.tell()
+                img_offs = [0, 0, 0, 0, 0]
+                for o in img_offs:
+                    cls.out.write(cls.TYPE_OFFSET(o))
                 name = name.strip()
                 raw_name = name[:len(name) - len("-up.png")]
                 cls.write_binary_file(raw_name + "-up.png")
+                img_offs[0] = cls.out.tell()
                 cls.write_binary_file(raw_name + "-down.png")
+                img_offs[1] = cls.out.tell()
                 cls.write_binary_file(raw_name + "-left.png")
+                img_offs[2] = cls.out.tell()
                 cls.write_binary_file(raw_name + "-right.png")
+                img_offs[3] = cls.out.tell()
                 cls.write_binary_file(raw_name + "-front.png")
+                img_offs[4] = cls.out.tell()
                 cls.write_binary_file(raw_name + "-back.png")
+                off_end = cls.out.tell()
+                cls.out.seek(off_offs)
+                for o in img_offs:
+                    cls.out.write(cls.TYPE_OFFSET(o))
+                cls.out.seek(off_end)
+
             else:
                 cls.show("Unexpected texture type:", ttype)
 
@@ -1117,7 +1132,7 @@ class Gearoenix:
     @classmethod
     def read_texture_2d(cls, t) -> int:
         """It checks the correctness of a 2d texture and add it to the textures and returns id"""
-        filepath = read_texture(t)
+        filepath = cls.read_texture(t)
         if filepath in cls.textures:
             if cls.textures[filepath][2] != cls.TEXTURE_TYPE_2D:
                 cls.show("You have used a same image in two defferent " +
