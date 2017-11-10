@@ -51,6 +51,7 @@ class Gearoenix:
     STRING_DYNAMIC_PARTED = 'dynamic-parted'
     STRING_CUTOFF = "cutoff"
     STRING_TRANSPARENT = "transparent"
+    STRING_MESH = "mesh"
     STRING_ENGINE_SDK_VAR_NAME = 'VULKUST_SDK'
     STRING_VULKAN_SDK_VAR_NAME = 'VULKAN_SDK'
     STRING_COPY_POSTFIX_FORMAT = '.NNN'
@@ -60,9 +61,7 @@ class Gearoenix:
     STRING_NRM_TEXTURE = 'normal'
     STRING_SPEC_TEXTURE = 'spectxt'
     STRING_BAKED_ENV_TEXTURE = 'baked'
-    STRING_CUBE_FACES = [
-        "up", "down", "left", "right", "front", "back"
-    ]
+    STRING_CUBE_FACES = ["up", "down", "left", "right", "front", "back"]
 
     PATH_ENGINE_SDK = None
     PATH_GEAROENIX_SDK = None
@@ -139,7 +138,10 @@ class Gearoenix:
                     gear.show("Two normal found for material" + bmat.name)
                 shadeless = bmat.use_shadeless
                 if shadeless and normal_found:
-                    gear.show("One material can not have both normal-map texture and have a shadeless lighting, error found in material: " + bmat.name)
+                    gear.show(
+                        "One material can not have both normal-map texture " +
+                        "and have a shadeless lighting, error found in " +
+                        "material: " + bmat.name)
                 if shadeless:
                     return self.SHADELESS
                 if not normal_found:
@@ -149,7 +151,8 @@ class Gearoenix:
 
             def write(self, shd):
                 if self.NORMALMAPPED == self:
-                    shd.parent.out.write(shd.parent.TYPE_TYPE_ID(shd.normalmap))
+                    shd.parent.out.write(
+                        shd.parent.TYPE_TYPE_ID(shd.normalmap))
 
         class Texturing(enum.Enum):
             COLORED = 0
@@ -189,23 +192,32 @@ class Gearoenix:
                         d3txt = bmat.texture_slots[k].texture
                     else:
                         for i in range(6):
-                            stxt = '-' + gear.STRING_CUBE_TEXTURE + '-' + gear.STRING_CUBE_FACES[i]
+                            stxt = '-' + gear.STRING_CUBE_TEXTURE + \
+                                '-' + gear.STRING_CUBE_FACES[i]
                             if k.endswith(stxt):
                                 cube_found[i] += 1
-                                cubetxt = k[:len(k)-len(stxt)] + '-' + gear.STRING_CUBE_TEXTURE
+                                cubetxt = k[:len(k) - len(stxt)] + \
+                                    '-' + gear.STRING_CUBE_TEXTURE
                 if d2_found > 1:
-                    gear.show("Number of 2D texture is more than 1 in material: " + bmat.name)
+                    gear.show(
+                        "Number of 2D texture is more than 1 in material: " +
+                        bmat.name)
                 d2_found = d2_found == 1
                 if d3_found > 1:
-                    gear.show("Number of 3D texture is more than 1 in material: " + bmat.name)
+                    gear.show(
+                        "Number of 3D texture is more than 1 in material: " +
+                        bmat.name)
                 d3_found = d3_found == 1
                 for i in range(6):
                     if cube_found[i] > 1:
-                        gear.show("Number of " + gear.STRING_CUBE_FACES[i] + " face for cube texture is more than 1 in material: " + bmat.name)
+                        gear.show("Number of " + gear.STRING_CUBE_FACES[i] +
+                                  " face for cube texture is " +
+                                  "more than 1 in material: " + bmat.name)
                     cube_found[i] = cube_found[i] == 1
                 for i in range(1, 6):
                     if cube_found[0] != cube_found[i]:
-                        gear.show("Incomplete cube texture in material: " + bmat.name)
+                        gear.show("Incomplete cube texture in material: " +
+                                  bmat.name)
                 cube_found = cube_found[0]
                 found = 0
                 if d2_found:
@@ -218,7 +230,9 @@ class Gearoenix:
                     shd.diffuse_color = bmat.diffuse_color
                     return self.COLORED
                 if found > 1:
-                    gear.show("Each material only can have one of 2D, 3D or Cube textures, Error in material: ", bmat.name)
+                    gear.show(
+                        "Each material only can have one of 2D, 3D or Cube " +
+                        "textures, Error in material: ", bmat.name)
                 if d2_found:
                     shd.d2 = gear.read_texture_2d(d2txt)
                     return self.D2
@@ -226,7 +240,8 @@ class Gearoenix:
                     shd.d3 = gear.read_texture_3d(d3txt)
                     return self.D3
                 if cube_found:
-                    shd.cube = gear.read_texture_cube(bmat.texture_slots, cubetxt)
+                    shd.cube = gear.read_texture_cube(bmat.texture_slots,
+                                                      cubetxt)
                     return self.CUBE
 
             def write(self, shd):
@@ -239,8 +254,6 @@ class Gearoenix:
                     shd.parent.out.write(shd.parent.TYPE_TYPE_ID(shd.d3))
                 if self.CUBE == self:
                     shd.parent.out.write(shd.parent.TYPE_TYPE_ID(shd.cube))
-
-
 
         class Speculating(enum.Enum):
             MATTE = 0
@@ -271,13 +284,16 @@ class Gearoenix:
                         found += 1
                         txt = bmat.texture_slots[k].texture
                 if found > 1:
-                    gear.show("Each material only can have one secular texture, Error in material: ", bmat.name)
+                    gear.show(
+                        "Each material only can have one secular texture, " +
+                        "Error in material: ", bmat.name)
                 if found == 1:
                     shd.spectxt = gear.read_texture_2d(txt)
                     return self.SPECTXT
                 if bmat.specular_intensity > 0.001:
                     shd.specular_color = bmat.specular_color
-                    shd.specular_factors = mathutils.Vector((0.7, 0.9, bmat.specular_intensity))
+                    shd.specular_factors = mathutils.Vector(
+                        (0.7, 0.9, bmat.specular_intensity))
                     return self.SPECULATED
                 return self.MATTE
 
@@ -315,23 +331,34 @@ class Gearoenix:
                 bakedtxt = None
                 for k in bmat.texture_slots.keys():
                     for i in range(6):
-                        stxt = '-' + gear.STRING_BAKED_ENV_TEXTURE + '-' + gear.STRING_CUBE_FACES[i]
+                        stxt = '-' + gear.STRING_BAKED_ENV_TEXTURE + \
+                            '-' + gear.STRING_CUBE_FACES[i]
                         if k.endswith(stxt):
                             baked_found[i] += 1
-                            bakedtxt = k[:len(k)-len(stxt)] + '-' + gear.STRING_BAKED_ENV_TEXTURE
+                            bakedtxt = k[:len(k) - len(stxt)] + \
+                                '-' + gear.STRING_BAKED_ENV_TEXTURE
                 for i in range(6):
                     if baked_found[i] > 1:
-                        gear.show("Number of " + gear.STRING_CUBE_FACES[i] + " face for baked texture is more than 1 in material: " + bmat.name)
+                        gear.show("Number of " + gear.STRING_CUBE_FACES[i] +
+                                  " face for baked texture is " +
+                                  "more than 1 in material: " + bmat.name)
                     baked_found[i] = baked_found[i] == 1
                     if baked_found[0] != baked_found[i]:
-                        gear.show("Incomplete cube texture in material: " + bmat.name)
+                        gear.show("Incomplete cube texture in material: " +
+                                  bmat.name)
                 baked_found = baked_found[0]
-                reflective = bmat.raytrace_mirror is not None and bmat.raytrace_mirror.use and bmat.raytrace_mirror.reflect_factor > 0.001
+                reflective = bmat.raytrace_mirror is not None and \
+                    bmat.raytrace_mirror.use and \
+                    bmat.raytrace_mirror.reflect_factor > 0.001
                 if baked_found and not reflective:
-                    gear.show("A material must set amount of reflectivity and then have a baked-env texture. Error in material: " + bmat.name)
+                    gear.show(
+                        "A material must set amount of reflectivity and " +
+                        "then have a baked-env texture. Error in material: " +
+                        bmat.name)
                 if baked_found:
                     shd.reflect_factor = bmat.raytrace_mirror.reflect_factor
-                    shd.bakedenv = gear.read_texture_cube(bmat.texture_slots, bakedtxt)
+                    shd.bakedenv = gear.read_texture_cube(bmat.texture_slots,
+                                                          bakedtxt)
                     return self.BAKED
                 if reflective:
                     shd.reflect_factor = bmat.raytrace_mirror.reflect_factor
@@ -340,10 +367,10 @@ class Gearoenix:
 
             def write(self, shd):
                 if self == self.BAKED or self == self.REALTIME:
-                    shd.parent.out.write(shd.parent.TYPE_FLOAT(shd.reflect_factor))
+                    shd.parent.out.write(
+                        shd.parent.TYPE_FLOAT(shd.reflect_factor))
                 if self == self.BAKED:
                     shd.parent.out.write(shd.parent.TYPE_TYPE_ID(shd.bakedenv))
-
 
         class Shadowing(enum.Enum):
             SHADOWLESS = 0
@@ -370,7 +397,8 @@ class Gearoenix:
                 caster = bmat.use_cast_shadows
                 receiver = bmat.use_shadows
                 if not caster and receiver:
-                    gear.show("A material can not be receiver but not caster. Error in material: " + bmat.name)
+                    gear.show("A material can not be receiver but not " +
+                              "caster. Error in material: " + bmat.name)
                 if not caster:
                     return self.SHADOWLESS
                 if receiver:
@@ -405,7 +433,8 @@ class Gearoenix:
                 trn = gear.STRING_TRANSPARENT in bmat
                 ctf = gear.STRING_CUTOFF in bmat
                 if trn and ctf:
-                    gear.show("A material can not be transparent and cutoff in same time. Error in material: " + bmat.name)
+                    gear.show("A material can not be transparent and cutoff " +
+                              "in same time. Error in material: " + bmat.name)
                 if trn:
                     shd.transparency = bmat[gear.STRING_TRANSPARENT]
                     return self.TRANSPARENT
@@ -416,8 +445,8 @@ class Gearoenix:
 
             def write(self, shd):
                 if self == self.TRANSPARENT or self == self.CUTOFF:
-                    shd.parent.out.write(shd.parent.TYPE_FLOAT(shd.transparency))
-
+                    shd.parent.out.write(
+                        shd.parent.TYPE_FLOAT(shd.transparency))
 
         def __init__(self, parent, bmat=None):
             self.parent = parent
@@ -446,7 +475,8 @@ class Gearoenix:
                 self.set_reserved(self.Reserved.WHITE_POS)
             else:
                 for i in range(len(self.shading_data)):
-                    self.shading_data[i] = self.shading_data[i].translate(parent, bmat, self)
+                    self.shading_data[i] = self.shading_data[i].translate(
+                        parent, bmat, self)
 
         def set_lighting(self, e):
             if not isinstance(e, self.Lighting) or e.MAX == e:
@@ -538,13 +568,11 @@ class Gearoenix:
                 else:
                     for e in es[0]:
                         sub_print(es[1:], pre + [e], shd)
+
             sub_print([
-                self.Lighting,
-                self.Texturing,
-                self.Speculating,
-                self.EnvironmentMapping,
-                self.Shadowing,
-                self.Transparency], [], self)
+                self.Lighting, self.Texturing, self.Speculating,
+                self.EnvironmentMapping, self.Shadowing, self.Transparency
+            ], [], self)
             self.shading_data[0] = self.Lighting.RESERVED
             for e in self.Reserved:
                 self.reserved = e
@@ -595,7 +623,6 @@ class Gearoenix:
                 if e.needs_tangent():
                     return True
             return False
-
 
         def write(self):
             self.parent.out.write(self.parent.TYPE_TYPE_ID(self.to_int()))
@@ -676,8 +703,8 @@ class Gearoenix:
             if subprocess.run(args).returncode != 0:
                 cls.show('Shader %s can not be build!' % shader_name)
         tmp = tmp.read()
-        cls.log("Shader '", shader_name,
-                "'is compiled has length of: ", len(tmp))
+        cls.log("Shader '", shader_name, "'is compiled has length of: ",
+                len(tmp))
         cls.out.write(cls.TYPE_SIZE(len(tmp)))
         cls.out.write(tmp)
 
@@ -1016,8 +1043,8 @@ class Gearoenix:
         for name in items:
             cls.assert_model_name(name)
             cls.models[name][0] = cls.out.tell()
-            cls.log("model with name:", name,
-                    " and offset:", cls.models[name][0])
+            cls.log("model with name:", name, " and offset:",
+                    cls.models[name][0])
             cls.write_model(name)
 
     @classmethod
@@ -1028,8 +1055,8 @@ class Gearoenix:
             items[iid] = name
         for name in items:
             cls.scenes[name][0] = cls.out.tell()
-            cls.log("offset of scene with name",
-                    name, ":", cls.scenes[name][0])
+            cls.log("offset of scene with name", name, ":",
+                    cls.scenes[name][0])
             scene = bpy.data.scenes[name]
             models = []
             cameras = []
@@ -1066,6 +1093,25 @@ class Gearoenix:
             cls.write_vector(scene.world.ambient_color, 3)
 
     @classmethod
+    def read_mesh(cls, o):
+        if m.type != 'MESH':
+            return
+        if not o.name.startswith(cls.STRING_MESH + "-"):
+            return
+        if len(o.name.strip().split(".")) == 2:
+            try:
+                return int(o.name.strip().split(".")[1])
+            except:
+                pass
+        if o.parent is not None:
+            cls.show("Mesh can not have parent: " + o.name)
+        if o.children is not None:
+            cls.show("Mesh can not have children: " + o.name)
+        if o.name is not in cls.meshes:
+            cls.meshes = [0, cls.last_mesh_id]
+            cls.last_mesh_id += 1
+
+    @classmethod
     def model_has_dynamic_part(cls, m):
         has_dynamic_child = cls.STRING_DYNAMIC_PART in m and \
             m[cls.STRING_DYNAMIC_PART] == 1.0
@@ -1100,7 +1146,8 @@ class Gearoenix:
     def read_texture(cls, t) -> str:
         """It checks the correctness of a texture and returns its file path."""
         if t.type != 'IMAGE':
-            cls.show("Only image textures is supported, please correct: " + t.name)
+            cls.show("Only image textures is supported, please correct: " +
+                     t.name)
         img = t.image
         if img is None:
             cls.show("Image is not set in texture: " + t.name)
@@ -1113,25 +1160,31 @@ class Gearoenix:
 
     @classmethod
     def read_texture_cube(cls, slots, tname) -> int:
-        """It checks the correctness of a 2d texture and add its up face to the textures and returns id"""
+        """It checks the correctness of a 2d texture and add its
+        up face to the textures and returns id"""
         t = slots[tname + '-' + cls.STRING_CUBE_FACES[0]].texture
         filepath = cls.read_texture(t)
         for i in range(1, 6):
-            cls.read_texture(slots[tname + '-' + cls.STRING_CUBE_FACES[i]].texture)
+            cls.read_texture(
+                slots[tname + '-' + cls.STRING_CUBE_FACES[i]].texture)
         if filepath in cls.textures:
             if cls.textures[filepath][2] != cls.TEXTURE_TYPE_CUBE:
-                cls.show("You have used a same image in two defferent texture type in " + t.name)
+                cls.show("You have used a same image in two " +
+                         "defferent texture type in " + t.name)
             else:
                 return cls.textures[filepath][1]
         else:
-            cls.textures[filepath] = [0, cls.last_texture_id, cls.TEXTURE_TYPE_CUBE]
+            cls.textures[filepath] = [
+                0, cls.last_texture_id, cls.TEXTURE_TYPE_CUBE
+            ]
             tid = cls.last_texture_id
             cls.last_texture_id += 1
             return tid
 
     @classmethod
     def read_texture_2d(cls, t) -> int:
-        """It checks the correctness of a 2d texture and add it to the textures and returns id"""
+        """It checks the correctness of a 2d texture and add it
+        to the textures and returns id"""
         filepath = cls.read_texture(t)
         if filepath in cls.textures:
             if cls.textures[filepath][2] != cls.TEXTURE_TYPE_2D:
@@ -1156,8 +1209,8 @@ class Gearoenix:
         if cls.STRING_DYNAMIC_PART in m or m.parent is None:
             if material_count != 0:
                 cls.show("Dynamic/RootStatic model must have occlusion mesh " +
-                         "at its root that does not have any material, your '" +
-                         m.name + "' model has to not have any material " +
+                         "at its root that does not have any material, your '"
+                         + m.name + "' model has to not have any material " +
                          "but it has " + str(material_count) + " material(s).")
             else:
                 return
@@ -1207,23 +1260,25 @@ class Gearoenix:
             cls.last_speaker_id += 1
 
     @classmethod
-    def read_object(cls, o):
-        if o.type == 'MESH':
-            return cls.read_model(o)
-        if o.type == 'CAMERA':
-            return cls.read_camera(o)
-        if o.type == 'LAMP':
-            return cls.read_light(o)
-        if o.type == 'SPEAKER':
-            return cls.read_speaker(o)
-
-    @classmethod
     def read_scenes(cls):
         for s in bpy.data.scenes:
             if s.name in cls.scenes:
                 continue
             for o in s.objects:
-                cls.read_object(o)
+                cls.read_mesh(o)
+            for o in s.objects:
+                if o.type == 'CAMERA':
+                    cls.read_camera(o)
+            for o in s.objects:
+                if o.type == 'LAMP':
+                    cls.read_light(o)
+            for o in s.objects:
+                if o.type == 'SPEAKER':
+                    cls.read_speaker(o)
+            for o in s.objects:
+                if o.type == 'MESH' and not \
+                        o.name.startswith(cls.STRING_MESH + "-"):
+                    cls.read_model(o)
             cls.scenes[s.name] = [0, cls.last_scene_id]
             cls.last_scene_id += 1
 
@@ -1268,6 +1323,8 @@ class Gearoenix:
         cls.last_texture_id = 0
         cls.scenes = dict()  # name: [offset, id<con>]
         cls.last_scene_id = 0
+        cls.meshes = dict()  # name: [offset, id<con>]
+        cls.last_mesh_id = 0
         cls.models = dict()  # name: [offset, id<con>]
         cls.last_model_id = 0
         cls.cameras = dict()  # name: [offset, id<con>]
@@ -1306,11 +1363,17 @@ class Gearoenix:
         export_vulkan = bpy.props.BoolProperty(
             name="Enable Vulkan",
             description="This item enables data exporting for Vulkan engine.",
-            default=False, options={'ANIMATABLE'}, subtype='NONE', update=None)
+            default=False,
+            options={'ANIMATABLE'},
+            subtype='NONE',
+            update=None)
         export_metal = bpy.props.BoolProperty(
             name="Enable Metal",
             description="This item enables data exporting for Metal engine.",
-            default=False, options={'ANIMATABLE'}, subtype='NONE', update=None)
+            default=False,
+            options={'ANIMATABLE'},
+            subtype='NONE',
+            update=None)
 
         def execute(self, context):
             if not (Gearoenix.check_env()):
@@ -1349,6 +1412,7 @@ class Gearoenix:
             d = f.read()
             f.close()
             return d
+
 
 if __name__ == "__main__":
     Gearoenix.register()
