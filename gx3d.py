@@ -749,12 +749,17 @@ class Gearoenix:
     def items_offsets(cls, items, mod_name):
         offsets = [i for i in range(len(items))]
         cls.rust_code.write("pub mod " + mod_name + " {\n")
+        cls.cpp_code.write("namespace " + mod_name + "\n{\n")
         for name, offset_id in items.items():
             offset, item_id = offset_id[0:2]
             cls.rust_code.write("\tpub const " + cls.const_string(name) +
                                 ": u64 = " + str(item_id) + ";\n")
+            cls.rust_code.write("\tconst std::uint64_t " +
+                                cls.const_string(name) + " = " + str(item_id) +
+                                ";\n")
             offsets[item_id] = offset
         cls.rust_code.write("}\n")
+        cls.cpp_code.write("}\n")
         return offsets
 
     @classmethod
@@ -772,6 +777,10 @@ class Gearoenix:
     @classmethod
     def gather_textures_offsets(cls):
         cls.textures_offsets = cls.items_offsets(cls.textures, "texture")
+
+    @classmethod
+    def gather_meshes_offsets(cls):
+        cls.meshes_offsets = cls.items_offsets(cls.meshes, "mesh")
 
     @classmethod
     def gather_models_offsets(cls):
@@ -912,16 +921,19 @@ class Gearoenix:
             return False
         return False
 
+    @staticmethod
+    def write_meshes(cls):
+        items = [i for i in range(len(cls.meshes))]
+        for name, (offset, iid) in cls.models.items():
+            items[iid] = name
+        for name in items:
+            cls.meshes[name][0] = cls.out.tell()
+            cls.write_mesh(name)
+
     @classmethod
-    def write_mesh(cls, obj, matrix):
-        cls.log("before material: ", cls.out.tell())
-        shd = None
-        if len(obj.material_slots.keys()) == 0:
-            shd = cls.Shading(cls)
-        else:
-            shd = cls.Shading(cls, obj.material_slots[0].material)
-        shd.write()
-        cls.log("after material: ", cls.out.tell())
+    def write_mesh(cls, name):
+        obj = bpy.data.objects[name]
+        shd = cls.Shading(cls, obj.material_slots[0].material)
         msh = obj.data
         nrm = shd.needs_normal()
         uv = shd.needs_uv()
@@ -932,16 +944,12 @@ class Gearoenix:
                 cls.show("Object " + obj.name + " is not triangled!")
             for i, li in zip(p.vertices, p.loop_indices):
                 vertex = []
-                v = matrix * msh.vertices[i].co
+                v = msh.vertices[i].co
                 vertex.append(v[0])
                 vertex.append(v[1])
                 vertex.append(v[2])
                 if nrm:
-                    normal = msh.vertices[i].normal
-                    normal = mathutils.Vector(
-                        (normal[0], normal[1], normal[2], 0.0))
-                    normal = matrix * normal
-                    normal = normal.normalized()
+                    normal = msh.vertices[i].normal.normalized()
                     vertex.append(normal[0])
                     vertex.append(normal[1])
                     vertex.append(normal[2])
@@ -973,32 +981,32 @@ class Gearoenix:
             cls.out.write(cls.TYPE_U32(i))
 
     @classmethod
-    def write_model(cls, name, inv_mat_par=mathutils.Matrix()):
+    def write_model(cls, name):
         obj = bpy.data.objects[name]
-        dyn = cls.STRING_DYNAMIC_PART in obj
-        origin = cls.assert_copied_model(name)
-        is_copy = origin is not None
-        cls.write_bool(is_copy)
-        if is_copy:
-            cls.write_matrix(obj.matrix_world)
-            cls.out.write(cls.TYPE_TYPE_ID(cls.models[origin.name][1]))
-            return
-        cls.write_bool(dyn)
-        mesh_matrix = mathutils.Matrix()
-        child_inv = inv_mat_par
-        if dyn:
-            cls.write_matrix(obj.matrix_world)
-            child_inv = obj.matrix_world.inverted()
-        else:
-            mesh_matrix = inv_mat_par * obj.matrix_world
-        if obj.parent is None or dyn:
-            if len(obj.children) == 0:
-                cls.show("Object " + obj.name + " should not have zero " +
-                         "children count")
-        cls.write_mesh(obj, mesh_matrix)
-        cls.out.write(cls.TYPE_COUNT(len(obj.children)))
+        cls.write_matrix(obj.matrix_world)
+        meshes = []
+        children = []
         for c in obj.children:
-            cls.write_model(c.name, child_inv)
+            if c.name.startswith(cls.STRING_MESH + '-'):
+                mesh_name = c.name.strip().split('.')
+                if len(mesh_name) != 2:
+                    cls.show("Wrong name in: " + c.name)
+                try:
+                    int(mesh_name[1])
+                except:
+                    cls.show("Wrong name in: " + c.name)
+                mesh_name = mesh_name[0]
+                shd = cls.Shading(cls, c.material_slots[0].material)
+                meshes.append((cls.meshes[mesh_name][1], shd))
+            else:
+                children.append(c.name)
+        cls.out.write(cls.TYPE_COUNT(len(meshes)))
+        for m in meshes:
+            cls.out.write(cls.TYPE_TYPE_ID(m[0]))
+            m[1].write()
+        cls.out.write(cls.TYPE_COUNT(len(children)))
+        for c in children:
+            cls.write_model(c)
 
     @classmethod
     def write_models(cls):
@@ -1006,7 +1014,6 @@ class Gearoenix:
         for name, (offset, iid) in cls.models.items():
             items[iid] = name
         for name in items:
-            cls.assert_model_name(name)
             cls.models[name][0] = cls.out.tell()
             cls.log("model with name:", name, " and offset:",
                     cls.models[name][0])
@@ -1072,6 +1079,8 @@ class Gearoenix:
             cls.show("Mesh can not have parent: " + o.name)
         if o.children is not None:
             cls.show("Mesh can not have children: " + o.name)
+        if o.matrix_world != mathutils.Matrix():
+            cls.show("Mesh must have identity transformation: "+ o.name)
         if o.name is not in cls.meshes:
             cls.meshes = [0, cls.last_mesh_id]
             cls.last_mesh_id += 1
@@ -1094,7 +1103,7 @@ class Gearoenix:
         return filepath
 
     @classmethod
-    def read_texture_cube(cls, slots, tname) -> int:
+    def read_texture_cube(cls, slots, tname):
         """It checks the correctness of a 2d texture and add its
         up face to the textures and returns id"""
         t = slots[tname + '-' + cls.STRING_CUBE_FACES[0]].texture
@@ -1142,8 +1151,9 @@ class Gearoenix:
         if material_count == 1:
             s = cls.Shading(cls, m.material_slots[0].material)
             sid = s.to_int()
-            if sid not in cls.shaders:
-                cls.shaders[sid] = [0, s]
+            if sid in cls.shaders:
+                return
+            cls.shaders[sid] = [0, s]
         else:
             cls.show("Unexpected number of materials in mesh " + m.name)
 
@@ -1214,12 +1224,14 @@ class Gearoenix:
         cls.gather_speakers_offsets()
         cls.gather_lights_offsets()
         cls.gather_textures_offsets()
+        cls.gather_meshes_offsets()
         cls.gather_models_offsets()
         cls.gather_scenes_offsets()
         cls.write_offset_array(cls.cameras_offsets)
         cls.write_offset_array(cls.speakers_offsets)
         cls.write_offset_array(cls.lights_offsets)
         cls.write_offset_array(cls.textures_offsets)
+        cls.write_offset_array(cls.meshes_offsets)
         cls.write_offset_array(cls.models_offsets)
         cls.write_offset_array(cls.scenes_offsets)
 
@@ -1267,15 +1279,20 @@ class Gearoenix:
         cls.write_speakers()
         cls.write_lights()
         cls.write_textures()
+        cls.write_meshes()
         cls.write_models()
         cls.write_scenes()
         cls.out.flush()
         cls.out.seek(tables_offset)
+        cls.rust_code.seek(0)
+        cls.cpp_code.seek(0)
         cls.write_tables()
         cls.out.flush()
         cls.out.close()
         cls.rust_code.flush()
         cls.rust_code.close()
+        cls.cpp_code.flush()
+        cls.cpp_code.close()
 
     class Exporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
         """This is a plug in for Gearoenix 3D file format"""
@@ -1308,6 +1325,7 @@ class Gearoenix:
                 Gearoenix.export_metal = bool(self.export_metal)
                 Gearoenix.out = open(self.filepath, mode='wb')
                 Gearoenix.rust_code = open(self.filepath + ".rs", mode='w')
+                Gearoenix.cpp_code = open(self.filepath + ".hpp", mode='w')
             except:
                 cls.show('file %s can not be opened!' % self.filepath)
             Gearoenix.write_file()
@@ -1337,7 +1355,6 @@ class Gearoenix:
             d = f.read()
             f.close()
             return d
-
 
 if __name__ == "__main__":
     Gearoenix.register()

@@ -7,15 +7,17 @@ Blender plug-in for Gearoenix 3D file format.
  - Its name starts with `mesh-` and it should not have tailing number at its
    name.
  - Its mesh name must be same.
+ - Its name can not contain `.`.
  - It should not have any transformation.
  - it must be located in zero.
- - It should not have any not applied modifier.
+ - It should not have not applied modifier.
  - All of its face must be triangle.
- - It should not have any parent or child.
+ - It should not have neither parent nor child.
 - Model
  - It must have at least 1 mesh or 1 model as its child.
  - It name should not start with `mesh-`.
  - Its mesh child specify with `mesh-[name].xxx` pattern.
+ - Its name can not contain `.`.
 - Material
  - Only one material must be in material slots.
 - Texture
