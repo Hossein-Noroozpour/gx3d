@@ -997,7 +997,8 @@ class Gearoenix:
                     cls.show("Wrong name in: " + c.name)
                 mesh_name = mesh_name[0]
                 shd = cls.Shading(cls, c.material_slots[0].material)
-                meshes.append((cls.meshes[mesh_name][1], shd))
+                mtx = c.matrix_world
+                meshes.append((cls.meshes[mesh_name][1], shd, mtx))
             else:
                 children.append(c.name)
         cls.out.write(cls.TYPE_COUNT(len(meshes)))
