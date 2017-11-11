@@ -2,7 +2,7 @@
 Blender plug-in for Gearoenix 3D file format.
 
 ## Rules for objects:
-- ### Mesh
+- Mesh
  - It is an object.
  - Its name starts with `mesh-` and it should not have tailing number at its
    name.
@@ -12,13 +12,13 @@ Blender plug-in for Gearoenix 3D file format.
  - It should not have any not applied modifier.
  - All of its face must be triangle.
  - It should not have any parent or child.
-- ### Model
+- Model
  - It must have at least 1 mesh or 1 model as its child.
  - It name should not start with `mesh-`.
  - Its mesh child specify with `mesh-[name].xxx` pattern.
-- ### Material
+- Material
  - Only one material must be in material slots.
-- ### Texture
+- Texture
  - If material has a 2D texture, it must have one texture in its texture slots
    with name pattern `[texture-name]-2d`.
  - For 3D texture, `[texture-name]-3d`.
