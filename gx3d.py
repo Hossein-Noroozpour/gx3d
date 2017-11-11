@@ -913,32 +913,6 @@ class Gearoenix:
         return False
 
     @classmethod
-    def assert_copied_model(cls, name):
-        psf = cls.STRING_COPY_POSTFIX_FORMAT
-        lpsf = len(psf)
-        ln = len(name)
-        if ln > lpsf and name[ln - lpsf] == psf[0] and \
-                cls.check_uint(name[ln - (lpsf - 1):]):
-            origin = name[:ln - lpsf]
-            origin = bpy.data.objects[origin]
-            if origin.parent is not None:
-                cls.show("Object " + origin + " must be root because it is " +
-                         "copied in " + name)
-            if origin.matrix_world != mathutils.Matrix():
-                cls.show("Object " + origin.name + " must not have any " +
-                         "transformation because it is copied in " + name)
-            if cls.STRING_DYNAMIC_PARTED in origin:
-                cls.show("Object " + origin.name +
-                         "must not have any dynamic part.")
-            return origin
-        return None
-
-    @classmethod
-    def assert_model_name(cls, name):
-        # this is True for now but in future it may change
-        pass
-
-    @classmethod
     def write_mesh(cls, obj, matrix):
         cls.log("before material: ", cls.out.tell())
         shd = None
@@ -997,15 +971,6 @@ class Gearoenix:
         cls.out.write(cls.TYPE_COUNT(len(indices)))
         for i in indices:
             cls.out.write(cls.TYPE_U32(i))
-
-    @staticmethod
-    def model_has_dynamic_parent(obj):
-        o = obj.parent
-        while o is not None:
-            if cls.STRING_DYNAMIC_PART in o:
-                return True
-            o = o.parent
-        return False
 
     @classmethod
     def write_model(cls, name, inv_mat_par=mathutils.Matrix()):
@@ -1112,37 +1077,6 @@ class Gearoenix:
             cls.last_mesh_id += 1
 
     @classmethod
-    def model_has_dynamic_part(cls, m):
-        has_dynamic_child = cls.STRING_DYNAMIC_PART in m and \
-            m[cls.STRING_DYNAMIC_PART] == 1.0
-        for c in m.children:
-            has_dynamic_child = \
-                has_dynamic_child or cls.model_has_dynamic_part(c)
-        return has_dynamic_child
-
-    @classmethod
-    def assert_model_dynamism(cls, m):
-        for c in m.children:
-            cls.assert_model_dynamism(c)
-        d = cls.model_has_dynamic_part(m)
-        if cls.STRING_DYNAMIC_PARTED in m and \
-                m[cls.STRING_DYNAMIC_PARTED] == 1.0:
-            if d:
-                return
-            else:
-                cls.show("Model: " + m.name + " has " + cls.
-                         STRING_DYNAMIC_PARTED + " property but does not have "
-                         + " a correct " + cls.STRING_DYNAMIC_PART + " child.")
-        else:
-            if d:
-                cls.show("Model: " + m.name + " does not have a correct " +
-                         cls.STRING_DYNAMIC_PARTED +
-                         " property but has a correct " +
-                         cls.STRING_DYNAMIC_PART + " child.")
-            else:
-                return
-
-    @classmethod
     def read_texture(cls, t) -> str:
         """It checks the correctness of a texture and returns its file path."""
         if t.type != 'IMAGE':
@@ -1224,9 +1158,10 @@ class Gearoenix:
     def read_model(cls, m):
         if m.parent is not None:
             return
+        if m.name.startswith(cls.STRING_MESH + "-"):
+            return
         if m.name in cls.models:
             return
-        cls.assert_model_dynamism(m)
         cls.read_model_materials(m)
         cls.models[m.name] = [0, cls.last_model_id]
         cls.last_model_id += 1
@@ -1276,9 +1211,7 @@ class Gearoenix:
                 if o.type == 'SPEAKER':
                     cls.read_speaker(o)
             for o in s.objects:
-                if o.type == 'MESH' and not \
-                        o.name.startswith(cls.STRING_MESH + "-"):
-                    cls.read_model(o)
+                cls.read_model(o)
             cls.scenes[s.name] = [0, cls.last_scene_id]
             cls.last_scene_id += 1
 
