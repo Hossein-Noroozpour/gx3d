@@ -1075,6 +1075,7 @@ class Gearoenix:
         if o.name is not in cls.meshes:
             cls.meshes = [0, cls.last_mesh_id]
             cls.last_mesh_id += 1
+            cls.read_materials(o)
 
     @classmethod
     def read_texture(cls, t) -> str:
@@ -1116,7 +1117,7 @@ class Gearoenix:
             return tid
 
     @classmethod
-    def read_texture_2d(cls, t) -> int:
+    def read_texture_2d(cls, t):
         """It checks the correctness of a 2d texture and add it
         to the textures and returns id"""
         filepath = cls.read_texture(t)
@@ -1134,25 +1135,17 @@ class Gearoenix:
             return tid
 
     @classmethod
-    def read_model_materials(cls, m):
+    def read_materials(cls, m):
         if m.type != 'MESH':
             return
-        for c in m.children:
-            cls.read_model_materials(c)
         material_count = len(m.material_slots.keys())
-        if cls.STRING_DYNAMIC_PART in m or m.parent is None:
-            if material_count != 0:
-                cls.show("Dynamic/RootStatic model must have occlusion mesh " +
-                         "at its root that does not have any material, your '"
-                         + m.name + "' model has to not have any material " +
-                         "but it has " + str(material_count) + " material(s).")
-            else:
-                return
         if material_count == 1:
             s = cls.Shading(cls, m.material_slots[0].material)
-            cls.shaders[s.to_int()] = [0, s]
+            sid = s.to_int()
+            if sid not in cls.shaders:
+                cls.shaders[sid] = [0, s]
         else:
-            cls.show("Unexpected number of materials in model " + m.name)
+            cls.show("Unexpected number of materials in mesh " + m.name)
 
     @classmethod
     def read_model(cls, m):
@@ -1162,7 +1155,6 @@ class Gearoenix:
             return
         if m.name in cls.models:
             return
-        cls.read_model_materials(m)
         cls.models[m.name] = [0, cls.last_model_id]
         cls.last_model_id += 1
 
