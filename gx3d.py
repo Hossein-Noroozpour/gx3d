@@ -52,7 +52,7 @@ class Gearoenix:
     STRING_CUTOFF = "cutoff"
     STRING_TRANSPARENT = "transparent"
     STRING_MESH = "mesh"
-    STRING_ENGINE_SDK_VAR_NAME = 'VULKUST_SDK'
+    STRING_ENGINE_SDK_VAR_NAME = 'GEAROENIX_SDK'
     STRING_VULKAN_SDK_VAR_NAME = 'VULKAN_SDK'
     STRING_COPY_POSTFIX_FORMAT = '.NNN'
     STRING_2D_TEXTURE = '2d'
@@ -662,8 +662,7 @@ class Gearoenix:
         if cls.PATH_ENGINE_SDK is None:
             cls.show('"' + cls.STRING_ENGINE_SDK_VAR_NAME +
                      '" variable is not set!')
-            return False
-        cls.PATH_SHADERS_DIR = cls.PATH_ENGINE_SDK + '/vulkust/src/shaders/'
+        cls.PATH_SHADERS_DIR = cls.PATH_ENGINE_SDK + '/vulkan/shaders/'
         if sys.platform == 'darwin':
             cls.PATH_SHADER_COMPILER = "xcrun"
         else:
@@ -921,10 +920,10 @@ class Gearoenix:
             return False
         return False
 
-    @staticmethod
+    @classmethod
     def write_meshes(cls):
         items = [i for i in range(len(cls.meshes))]
-        for name, (offset, iid) in cls.models.items():
+        for name, (offset, iid) in cls.meshes.items():
             items[iid] = name
         for name in items:
             cls.meshes[name][0] = cls.out.tell()
@@ -1038,7 +1037,8 @@ class Gearoenix:
             for o in scene.objects:
                 if o.parent is not None:
                     continue
-                if o.type == "MESH":
+                if o.type == "MESH" and \
+                        not o.name.startswith(cls.STRING_MESH + '-'):
                     models.append(cls.models[o.name][1])
                 elif o.type == "CAMERA":
                     cameras.append(cls.cameras[o.name][1])
@@ -1067,7 +1067,7 @@ class Gearoenix:
 
     @classmethod
     def read_mesh(cls, o):
-        if m.type != 'MESH':
+        if o.type != 'MESH':
             return
         if not o.name.startswith(cls.STRING_MESH + "-"):
             return
@@ -1078,12 +1078,12 @@ class Gearoenix:
                 pass
         if o.parent is not None:
             cls.show("Mesh can not have parent: " + o.name)
-        if o.children is not None:
+        if len(o.children) != 0:
             cls.show("Mesh can not have children: " + o.name)
         if o.matrix_world != mathutils.Matrix():
             cls.show("Mesh must have identity transformation: "+ o.name)
-        if o.name is not in cls.meshes:
-            cls.meshes = [0, cls.last_mesh_id]
+        if o.name not in cls.meshes:
+            cls.meshes[o.name] = [0, cls.last_mesh_id]
             cls.last_mesh_id += 1
             cls.read_materials(o)
 
@@ -1319,8 +1319,8 @@ class Gearoenix:
             update=None)
 
         def execute(self, context):
-            if not (Gearoenix.check_env()):
-                return {'CANCELLED'}
+            if self.export_vulkan or self.export_metal:
+                Gearoenix.check_env()
             try:
                 Gearoenix.export_vulkan = bool(self.export_vulkan)
                 Gearoenix.export_metal = bool(self.export_metal)
