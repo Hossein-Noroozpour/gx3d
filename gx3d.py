@@ -1166,6 +1166,8 @@ class Gearoenix:
             return
         if m.name in cls.models:
             return
+        if len(m.children):
+            cls.show("Model can not have no children: " + m.name)
         cls.models[m.name] = [0, cls.last_model_id]
         cls.last_model_id += 1
 
