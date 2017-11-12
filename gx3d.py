@@ -709,7 +709,7 @@ class Gearoenix:
 
     @staticmethod
     def const_string(s):
-        return s.replace("-", "_").upper()
+        return s.replace("-", "_").replace('/', '_').replace('.', '_').upper()
 
     @classmethod
     def write_bool(cls, b):
@@ -753,7 +753,7 @@ class Gearoenix:
             offset, item_id = offset_id[0:2]
             cls.rust_code.write("\tpub const " + cls.const_string(name) +
                                 ": u64 = " + str(item_id) + ";\n")
-            cls.rust_code.write("\tconst std::uint64_t " +
+            cls.cpp_code.write("\tconst gearoenix::core::Id " +
                                 cls.const_string(name) + " = " + str(item_id) +
                                 ";\n")
             offsets[item_id] = offset
@@ -968,6 +968,7 @@ class Gearoenix:
                 last_index += 1
         indices = [0 for _ in range(last_index)]
         last_index = 0
+        cls.out.write(cls.TYPE_COUNT(len(vertives[0])))
         cls.out.write(cls.TYPE_COUNT(len(vertices)))
         for vertex, index_list in vertices.items():
             for e in vertex:
@@ -1002,11 +1003,11 @@ class Gearoenix:
                 children.append(c.name)
         cls.out.write(cls.TYPE_COUNT(len(meshes)))
         for m in meshes:
-            cls.out.write(cls.TYPE_TYPE_ID(m[0]))
             m[1].write()
+            cls.out.write(cls.TYPE_TYPE_ID(m[0]))
         cls.out.write(cls.TYPE_COUNT(len(children)))
         for c in children:
-            cls.write_model(c)
+            cls.out.write(cls.TYPE_TYPE_ID(cls.models[c][1]))
 
     @classmethod
     def write_models(cls):
@@ -1160,13 +1161,13 @@ class Gearoenix:
 
     @classmethod
     def read_model(cls, m):
-        if m.parent is not None:
+        if m.type != 'MESH':
             return
         if m.name.startswith(cls.STRING_MESH + "-"):
             return
         if m.name in cls.models:
             return
-        if len(m.children):
+        if len(m.children) == 0:
             cls.show("Model can not have no children: " + m.name)
         cls.models[m.name] = [0, cls.last_model_id]
         cls.last_model_id += 1
