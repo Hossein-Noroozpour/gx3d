@@ -968,7 +968,9 @@ class Gearoenix:
                 last_index += 1
         indices = [0 for _ in range(last_index)]
         last_index = 0
-        cls.out.write(cls.TYPE_COUNT(len(vertives[0])))
+        for k in vertices.keys():
+            cls.out.write(cls.TYPE_COUNT(len(k)))
+            break
         cls.out.write(cls.TYPE_COUNT(len(vertices)))
         for vertex, index_list in vertices.items():
             for e in vertex:
