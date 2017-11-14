@@ -72,10 +72,10 @@ class Gearoenix:
 
     class Shading:
         class Reserved(enum.Enum):
-            WHITE_POS = 0
-            WHITE_POS_NRM = 1
-            WHITE_POS_UV = 2
-            WHITE_POS_NRM_UV = 3
+            DEPTH_POS = 0
+            DEPTH_POS_NRM = 1
+            DEPTH_POS_UV = 2
+            DEPTH_POS_NRM_UV = 3
             MAX = 4
 
             def needs_normal(self):
@@ -458,7 +458,7 @@ class Gearoenix:
                 self.Shadowing.SHADOWLESS,
                 self.Transparency.OPAQUE,
             ]
-            self.reserved = self.Reserved.WHITE_POS
+            self.reserved = self.Reserved.DEPTH_POS
             self.normalmap = None
             self.diffuse_color = None
             self.d2 = None
@@ -472,7 +472,7 @@ class Gearoenix:
             self.transparency = None
             self.bmat = bmat
             if bmat is None:
-                self.set_reserved(self.Reserved.WHITE_POS)
+                self.set_reserved(self.Reserved.DEPTH_POS)
             else:
                 for i in range(len(self.shading_data)):
                     self.shading_data[i] = self.shading_data[i].translate(
@@ -1247,16 +1247,16 @@ class Gearoenix:
         s.print_all_enums()
         cls.shaders = dict()  # Id<discret>: [offset, obj]
         s = cls.Shading(cls)
-        s.set_reserved(cls.Shading.Reserved.WHITE_POS)
+        s.set_reserved(cls.Shading.Reserved.DEPTH_POS)
         cls.shaders[s.to_int()] = [0, s]
         s = cls.Shading(cls)
-        s.set_reserved(cls.Shading.Reserved.WHITE_POS_NRM)
+        s.set_reserved(cls.Shading.Reserved.DEPTH_POS_NRM)
         cls.shaders[s.to_int()] = [0, s]
         s = cls.Shading(cls)
-        s.set_reserved(cls.Shading.Reserved.WHITE_POS_UV)
+        s.set_reserved(cls.Shading.Reserved.DEPTH_POS_UV)
         cls.shaders[s.to_int()] = [0, s]
         s = cls.Shading(cls)
-        s.set_reserved(cls.Shading.Reserved.WHITE_POS_NRM_UV)
+        s.set_reserved(cls.Shading.Reserved.DEPTH_POS_NRM_UV)
         cls.shaders[s.to_int()] = [0, s]
 
     @classmethod
