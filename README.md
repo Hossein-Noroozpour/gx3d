@@ -17,6 +17,8 @@ Blender plug-in for Gearoenix 3D file format.
  - It must have at least 1 mesh or 1 model as its child.
  - It name should not start with `mesh-`.
  - Its mesh child specify with `mesh-[name].xxx` pattern.
+ - Its mesh child can not have different material that require different vertex
+   attributes.
  - It can not have a several children from one mesh.
 - Material
  - Only one material must be in material slots.

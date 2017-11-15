@@ -999,6 +999,13 @@ class Gearoenix:
                     cls.show("Wrong name in: " + c.name)
                 mesh_name = mesh_name[0]
                 shd = cls.Shading(cls, c.material_slots[0].material)
+                orgshd = cls.Shading(cls,
+                    bpy.data.objects[mesh_name].material_slots[0].material)
+                if shd.needs_uv() != orgshd.needs_uv() or \
+                        shd.needs_normal() != orgshd.needs_normal() or \
+                        shd.needs_tangent() != orgshd.needs_tangent():
+                    cls.show("The main mesh does not match the origin's " +
+                        "material: " + c.name)
                 mtx = c.matrix_world
                 meshes.append((cls.meshes[mesh_name][1], shd, mtx))
             else:
