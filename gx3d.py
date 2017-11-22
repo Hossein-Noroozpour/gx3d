@@ -959,7 +959,7 @@ class Gearoenix:
                                  obj.name)
                     texco = uv_lyrs.active.data[li].uv
                     vertex.append(texco[0])
-                    vertex.append(texco[1])
+                    vertex.append(1.0 - texco[1])
                 vertex = tuple(vertex)
                 if vertex in vertices:
                     vertices[vertex].append(last_index)
