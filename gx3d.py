@@ -755,8 +755,8 @@ class Gearoenix:
             cls.rust_code.write("\tpub const " + cls.const_string(name) +
                                 ": u64 = " + str(item_id) + ";\n")
             cls.cpp_code.write("\tconst gearoenix::core::Id " +
-                                cls.const_string(name) + " = " + str(item_id) +
-                                ";\n")
+                               cls.const_string(name) + " = " + str(
+                                   item_id) + ";\n")
             offsets[item_id] = offset
         cls.rust_code.write("}\n")
         cls.cpp_code.write("}\n")
@@ -1002,25 +1002,37 @@ class Gearoenix:
                     cls.show("Wrong name in: " + c.name)
                 mesh_name = mesh_name[0]
                 shd = cls.Shading(cls, c.material_slots[0].material)
-                orgshd = cls.Shading(cls,
+                orgshd = cls.Shading(
+                    cls,
                     bpy.data.objects[mesh_name].material_slots[0].material)
                 if shd.needs_uv() != orgshd.needs_uv() or \
                         shd.needs_normal() != orgshd.needs_normal() or \
                         shd.needs_tangent() != orgshd.needs_tangent():
                     cls.show("The main mesh does not match the origin's " +
-                        "material: " + c.name)
+                             "material: " + c.name)
                 mtx = c.matrix_world
                 meshes.append((cls.meshes[mesh_name][1], shd, mtx))
-            elif c.type = 'EMPTY':
-                if c.name != cls.STRING_OCCLUSION:
+            elif c.type == 'EMPTY':
+                if not c.name.startswith(cls.STRING_OCCLUSION):
                     cls.show("The only acceptable name for an EMPTY object " +
-                        "is " + cls.STRING_OCCLUSION + " in: " + name)
+                             "starts with " + cls.STRING_OCCLUSION + " in: " +
+                             name)
                 if c.empty_draw_type != 'SPHERE':
-                    cls.show("The only acceptable name for an " +
-                        cls.STRING_OCCLUSION + " is sphere. in: " + name)
-                center = c.location
+                    cls.show("The only acceptable shape for an " +
+                             cls.STRING_OCCLUSION + " is sphere. in: " + name)
+                center = c.matrix_world * mathutils.Vector((0.0, 0.0, 0.0))
+                x = c.matrix_world * mathutils.Vector((1.0, 0.0, 0.0))
+                y = c.matrix_world * mathutils.Vector((0.0, 1.0, 0.0))
+                z = c.matrix_world * mathutils.Vector((0.0, 0.0, 1.0))
+                x -= center
+                y -= center
+                z -= center
+                x = abs(x[0])
+                y = abs(y[1])
+                z = abs(z[2])
+                center = obj.matrix_world.inverted() * center
                 radius = c.empty_draw_size
-                radius *= max(c.scale[0], c.scale[1], c.scale[2])
+                radius *= max(x, y, z)
             else:
                 if c.type != 'MESH':
                     cls.show("Only mesh acceptable in here. in " + name)
@@ -1110,7 +1122,7 @@ class Gearoenix:
         if len(o.children) != 0:
             cls.show("Mesh can not have children: " + o.name)
         if o.matrix_world != mathutils.Matrix():
-            cls.show("Mesh must have identity transformation: "+ o.name)
+            cls.show("Mesh must have identity transformation: " + o.name)
         if o.name not in cls.meshes:
             cls.meshes[o.name] = [0, cls.last_mesh_id]
             cls.last_mesh_id += 1
@@ -1387,6 +1399,7 @@ class Gearoenix:
             d = f.read()
             f.close()
             return d
+
 
 if __name__ == "__main__":
     Gearoenix.register()
