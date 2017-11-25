@@ -50,6 +50,7 @@ class Gearoenix:
     STRING_DYNAMIC_PART = 'dynamic-part'
     STRING_DYNAMIC_PARTED = 'dynamic-parted'
     STRING_CUTOFF = "cutoff"
+    STRING_OCCLUSION = "occlusion"
     STRING_TRANSPARENT = "transparent"
     STRING_MESH = "mesh"
     STRING_ENGINE_SDK_VAR_NAME = 'GEAROENIX_SDK'
@@ -986,6 +987,8 @@ class Gearoenix:
     def write_model(cls, name):
         obj = bpy.data.objects[name]
         cls.write_matrix(obj.matrix_world)
+        center = None
+        radius = None
         meshes = []
         children = []
         for c in obj.children:
@@ -1008,8 +1011,24 @@ class Gearoenix:
                         "material: " + c.name)
                 mtx = c.matrix_world
                 meshes.append((cls.meshes[mesh_name][1], shd, mtx))
+            elif c.type = 'EMPTY':
+                if c.name != cls.STRING_OCCLUSION:
+                    cls.show("The only acceptable name for an EMPTY object " +
+                        "is " + cls.STRING_OCCLUSION + " in: " + name)
+                if c.empty_draw_type != 'SPHERE':
+                    cls.show("The only acceptable name for an " +
+                        cls.STRING_OCCLUSION + " is sphere. in: " + name)
+                center = c.location
+                radius = c.empty_draw_size
+                radius *= max(c.scale[0], c.scale[1], c.scale[2])
             else:
+                if c.type != 'MESH':
+                    cls.show("Only mesh acceptable in here. in " + name)
                 children.append(c.name)
+        if center is None:
+            cls.show("No occlusion sphere found in " + name)
+        cls.write_vector(center)
+        cls.out.write(cls.TYPE_FLOAT(radius))
         cls.out.write(cls.TYPE_COUNT(len(meshes)))
         for m in meshes:
             m[1].write()

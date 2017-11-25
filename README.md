@@ -15,6 +15,7 @@ Blender plug-in for Gearoenix 3D file format.
  - It should not have neither parent nor child.
 - Model
  - It must have at least 1 mesh or 1 model as its child.
+ - It must have an occlusion bounding sphere in its child with name `occlusion`.
  - It name should not start with `mesh-`.
  - Its mesh child specify with `mesh-[name].xxx` pattern.
  - Its mesh child can not have different material that require different vertex
