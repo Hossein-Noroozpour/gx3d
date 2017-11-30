@@ -1026,18 +1026,11 @@ class Gearoenix:
                     cls.show("The only acceptable shape for an " +
                              cls.STRING_OCCLUSION + " is sphere. in: " + name)
                 center = c.matrix_world * mathutils.Vector((0.0, 0.0, 0.0))
-                x = c.matrix_world * mathutils.Vector((1.0, 0.0, 0.0))
-                y = c.matrix_world * mathutils.Vector((0.0, 1.0, 0.0))
-                z = c.matrix_world * mathutils.Vector((0.0, 0.0, 1.0))
-                x -= center
-                y -= center
-                z -= center
-                x = abs(x[0])
-                y = abs(y[1])
-                z = abs(z[2])
-                center = obj.matrix_world.inverted() * center
                 radius = c.empty_draw_size
-                radius *= max(x, y, z)
+                radius = mathutils.Vector((radius, radius, radius))
+                radius = c.matrix_world * radius
+                radius -= center
+                center = obj.matrix_world.inverted() * center
             else:
                 if c.type != 'MESH':
                     cls.show("Only mesh acceptable in here. in " + name)
@@ -1045,7 +1038,7 @@ class Gearoenix:
         if center is None:
             cls.show("No occlusion sphere found in " + name)
         cls.write_vector(center)
-        cls.out.write(cls.TYPE_FLOAT(radius))
+        cls.write_vector(radius)
         cls.out.write(cls.TYPE_COUNT(len(meshes)))
         for m in meshes:
             m[1].write()
