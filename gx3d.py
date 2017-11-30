@@ -820,6 +820,8 @@ class Gearoenix:
             cls.cameras[name][0] = cls.out.tell()
             if cam.type == 'PERSP':
                 cls.out.write(cls.TYPE_TYPE_ID(1))
+            elif cam.type == 'ORTHO':
+                cls.out.write(cls.TYPE_TYPE_ID(2))
             else:
                 cls.show("Camera with type '" + cam.type +
                          "' is not supported yet.")
@@ -831,7 +833,10 @@ class Gearoenix:
             cls.out.write(cls.TYPE_FLOAT(obj.rotation_euler[2]))
             cls.out.write(cls.TYPE_FLOAT(cam.clip_start))
             cls.out.write(cls.TYPE_FLOAT(cam.clip_end))
-            cls.out.write(cls.TYPE_FLOAT(cam.angle_x / 2.0))
+            if cam.type == 'PERSP':
+                cls.out.write(cls.TYPE_FLOAT(cam.angle_x / 2.0))
+            elif cam.type == 'ORTHO':
+                cls.out.write(cls.TYPE_FLOAT(cam.ortho_scale / 2.0))
 
     @classmethod
     def write_speakers(cls):
