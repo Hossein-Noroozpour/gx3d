@@ -1127,7 +1127,7 @@ class Gearoenix:
             cls.read_materials(o)
 
     @classmethod
-    def read_texture(cls, t) -> str:
+    def read_texture(cls, t):
         """It checks the correctness of a texture and returns its file path."""
         if t.type != 'IMAGE':
             cls.show("Only image textures is supported, please correct: " +

@@ -14,13 +14,20 @@ Blender plug-in for Gearoenix 3D file format.
  - All of its face must be triangle.
  - It should not have neither parent nor child.
 - Model
+ - It is an object.
+ - Its name must start with `model-`.
+ - Its blender mesh data will be ignored.
  - It must have at least 1 mesh or 1 model as its child.
  - It must have an occlusion bounding sphere in its child with name `occlusion`.
- - It name should not start with `mesh-`.
- - Its mesh child specify with `mesh-[name].xxx` pattern.
+ - Its mesh child specifies with `mesh-[name].xxx` pattern.
  - Its mesh child can not have different material that require different vertex
-   attributes.
- - It can not have a several children from one mesh.
+   attributes with its origin mesh.
+ - It can not have a several children from one mesh, It can only have one mesh
+   from one origin.
+ - Each model can have one collider at max.
+ - If it is a solid model with no physical attributes, it does not need to have
+   collider as its child.
+ - If a model has a collider it must have a symmetric scale.
 - Material
  - Only one material must be in material slots.
 - Texture
@@ -35,6 +42,32 @@ Blender plug-in for Gearoenix 3D file format.
    textures in its texture slots with name pattern
    `[texture-name]-baked-(up/down/front/back/right/left)`.
  - Note: 3D texture is not supported right now.
+- Collider
+ - Its name start with `collider-[collider-type]-[name]`.
+ - There are these types of collider:
+   - Sphere
+     - Collider name becomes like this `collider-sphere-[name]`.
+     - It is an empty object of type sphere.
+     - It must not have local transformation except translation.
+   - Cylinder
+     - Collider name becomes like this `collider-cylinder-[name]`.
+     - It is an empty object of type sphere.
+     - It must not have local transformation except translation.
+     - It must have a child with name `collider-cylinder-child-[name]`.
+     - Child is an empty object of type plain axes.
+   - Capsule
+     - Collider name becomes like this `collider-capsule-[name]`.
+     - It is an empty object of type sphere.
+     - It must not have local transformation except translation.
+     - It must have a child with name `collider-cylinder-child-[name]`.
+     - Child is an empty object of type plain axes.
+   - Mesh
+     - Collider name becomes like this `collider-mesh-[name]`.
+     - It is an object.
+     - Triangulated.
+     - Not local transformation.
+     - Mostly like a mesh.
+
 
 ## License
 - Do not use it!
