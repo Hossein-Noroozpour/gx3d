@@ -1,4 +1,4 @@
-# Blender Gearoenix 3D file exporter
+# Gearoenix Blender plugin
 Blender plug-in for Gearoenix 3D file format.
 
 ## Rules for objects:
