@@ -46,27 +46,27 @@ Blender plug-in for Gearoenix 3D file format.
  - Its name start with `collider-[collider-type]-[name]`.
  - There are these types of collider:
      - Sphere
-       - Collider name becomes like this `collider-sphere-[name]`.
-       - It is an empty object of type sphere.
-       - It must not have local transformation except translation.
+         - Collider name becomes like this `collider-sphere-[name]`.
+         - It is an empty object of type sphere.
+         - It must not have local transformation except translation.
      - Cylinder
-       - Collider name becomes like this `collider-cylinder-[name]`.
-       - It is an empty object of type sphere.
-       - It must not have local transformation except translation.
-       - It must have a child with name `collider-cylinder-child-[name]`.
-       - Child is an empty object of type plain axes.
+         - Collider name becomes like this `collider-cylinder-[name]`.
+         - It is an empty object of type sphere.
+         - It must not have local transformation except translation.
+         - It must have a child with name `collider-cylinder-child-[name]`.
+         - Child is an empty object of type plain axes.
      - Capsule
-       - Collider name becomes like this `collider-capsule-[name]`.
-       - It is an empty object of type sphere.
-       - It must not have local transformation except translation.
-       - It must have a child with name `collider-cylinder-child-[name]`.
-       - Child is an empty object of type plain axes.
+         - Collider name becomes like this `collider-capsule-[name]`.
+         - It is an empty object of type sphere.
+         - It must not have local transformation except translation.
+         - It must have a child with name `collider-cylinder-child-[name]`.
+         - Child is an empty object of type plain axes.
      - Mesh
-       - Collider name becomes like this `collider-mesh-[name]`.
-       - It is an object.
-       - Triangulated.
-       - Not local transformation.
-       - Mostly like a mesh.
+         - Collider name becomes like this `collider-mesh-[name]`.
+         - It is an object.
+         - Triangulated.
+         - Not local transformation.
+         - Mostly like a mesh.
 
 
 ## License
