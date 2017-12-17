@@ -53,6 +53,7 @@ class Gearoenix:
     STRING_OCCLUSION = "occlusion"
     STRING_TRANSPARENT = "transparent"
     STRING_MESH = "mesh"
+    STRING_MODEL = "model"
     STRING_ENGINE_SDK_VAR_NAME = 'GEAROENIX_SDK'
     STRING_VULKAN_SDK_VAR_NAME = 'VULKAN_SDK'
     STRING_COPY_POSTFIX_FORMAT = '.NNN'
@@ -997,44 +998,47 @@ class Gearoenix:
         meshes = []
         children = []
         for c in obj.children:
-            if c.name.startswith(cls.STRING_MESH + '-'):
-                mesh_name = c.name.strip().split('.')
-                if len(mesh_name) != 2:
-                    cls.show("Wrong name in: " + c.name)
-                try:
-                    int(mesh_name[1])
-                except:
-                    cls.show("Wrong name in: " + c.name)
-                mesh_name = mesh_name[0]
-                shd = cls.Shading(cls, c.material_slots[0].material)
-                orgshd = cls.Shading(
-                    cls,
-                    bpy.data.objects[mesh_name].material_slots[0].material)
-                if shd.needs_uv() != orgshd.needs_uv() or \
-                        shd.needs_normal() != orgshd.needs_normal() or \
-                        shd.needs_tangent() != orgshd.needs_tangent():
-                    cls.show("The main mesh does not match the origin's " +
-                             "material: " + c.name)
-                mtx = c.matrix_world
-                meshes.append((cls.meshes[mesh_name][1], shd, mtx))
+            if c.type = 'MESH':
+                if c.name.startswith(cls.STRING_MESH + '-'):
+                    mesh_name = c.name.strip().split('.')
+                    if len(mesh_name) != 2:
+                        cls.show("Wrong name in: " + c.name)
+                    try:
+                        int(mesh_name[1])
+                    except:
+                        cls.show("Wrong name in: " + c.name)
+                    mesh_name = mesh_name[0]
+                    shd = cls.Shading(cls, c.material_slots[0].material)
+                    orgshd = cls.Shading(
+                        cls,
+                        bpy.data.objects[mesh_name].material_slots[0].material)
+                    if shd.needs_uv() != orgshd.needs_uv() or \
+                            shd.needs_normal() != orgshd.needs_normal() or \
+                            shd.needs_tangent() != orgshd.needs_tangent():
+                        cls.show("The main mesh does not match the origin's " +
+                                 "material: " + c.name)
+                    mtx = c.matrix_world
+                    meshes.append((cls.meshes[mesh_name][1], shd, mtx))
+                elif c.name.startswith(cls.STRING_MODEL + '-'):
+                    children.append(c.name)
+                else:
+                    cls.show("Unexpected mesh object " + c.name)
             elif c.type == 'EMPTY':
-                if not c.name.startswith(cls.STRING_OCCLUSION):
-                    cls.show("The only acceptable name for an EMPTY object " +
-                             "starts with " + cls.STRING_OCCLUSION + " in: " +
-                             name)
-                if c.empty_draw_type != 'SPHERE':
-                    cls.show("The only acceptable shape for an " +
-                             cls.STRING_OCCLUSION + " is sphere. in: " + name)
-                center = c.matrix_world * mathutils.Vector((0.0, 0.0, 0.0))
-                radius = c.empty_draw_size
-                radius = mathutils.Vector((radius, radius, radius))
-                radius = c.matrix_world * radius
-                radius -= center
-                center = obj.matrix_world.inverted() * center
+                if c.name.startswith(cls.STRING_OCCLUSION):
+                    if c.empty_draw_type != 'SPHERE':
+                        cls.show("The only acceptable shape for an " +
+                            "occlusion is sphere. in: " + name)
+                    center = c.matrix_world * mathutils.Vector((0.0, 0.0, 0.0))
+                    radius = c.empty_draw_size
+                    radius = mathutils.Vector((radius, radius, radius))
+                    radius = c.matrix_world * radius
+                    radius -= center
+                    center = obj.matrix_world.inverted() * center
+                else:
+                    cls.show("Unexpected empty object: " + c.name)
             else:
-                if c.type != 'MESH':
-                    cls.show("Only mesh acceptable in here. in " + name)
-                children.append(c.name)
+                cls.show("Unexpected object: '" + c.name +
+                    "' with type: " + c.type)
         if center is None:
             cls.show("No occlusion sphere found in " + name)
         cls.write_vector(center)
@@ -1201,7 +1205,7 @@ class Gearoenix:
     def read_model(cls, m):
         if m.type != 'MESH':
             return
-        if m.name.startswith(cls.STRING_MESH + "-"):
+        if not m.name.startswith(cls.STRING_MODEL + "-"):
             return
         if m.name in cls.models:
             return
