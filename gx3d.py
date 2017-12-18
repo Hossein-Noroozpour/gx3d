@@ -998,7 +998,7 @@ class Gearoenix:
         meshes = []
         children = []
         for c in obj.children:
-            if c.type = 'MESH':
+            if c.type == 'MESH':
                 if c.name.startswith(cls.STRING_MESH + '-'):
                     mesh_name = c.name.strip().split('.')
                     if len(mesh_name) != 2:
