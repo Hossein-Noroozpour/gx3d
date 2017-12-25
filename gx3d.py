@@ -229,7 +229,14 @@ class Gearoenix:
                 if cube_found:
                     found += 1
                 if found == 0:
-                    shd.diffuse_color = bmat.diffuse_color
+                    shd.diffuse_color = []
+                    shd.diffuse_color.append(bmat.diffuse_color[0])
+                    shd.diffuse_color.append(bmat.diffuse_color[1])
+                    shd.diffuse_color.append(bmat.diffuse_color[2])
+                    if bmat.use_transparency:
+                        shd.diffuse_color.append(bmat.alpha)
+                    else:
+                        shd.diffuse_color.append(1.0)
                     return self.COLORED
                 if found > 1:
                     gear.show(
@@ -248,7 +255,7 @@ class Gearoenix:
 
             def write(self, shd):
                 if self.COLORED == self:
-                    shd.parent.write_vector(shd.diffuse_color)
+                    shd.parent.write_vector(shd.diffuse_color, 4)
                     return
                 if self.D2 == self:
                     shd.parent.out.write(shd.parent.TYPE_TYPE_ID(shd.d2))
