@@ -44,7 +44,10 @@ Blender plug-in for Gearoenix 3D file format.
  - Note: 3D texture is not supported right now.
 - Collider
  - Its name start with `collider-[collider-type]-[name]`.
+ - Currently only one collider can exist in one object.
  - There are these types of collider:
+     - Ghost
+         - It should not have any collider object.
      - Sphere
          - Collider name becomes like this `collider-sphere-[name]`.
          - It is an empty object of type sphere.
@@ -67,6 +70,7 @@ Blender plug-in for Gearoenix 3D file format.
          - Triangulated.
          - Not local transformation.
          - Mostly like a mesh.
+         - Its normal must be flat, not smooth.
 
 
 ## License

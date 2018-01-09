@@ -17,6 +17,7 @@ bl_info = {
 #    everything from blender and support every features of Blender.
 #    Always best practises are the correct way of presenting data.
 
+import abc
 import ctypes
 import enum
 import io
@@ -641,6 +642,77 @@ class Gearoenix:
             for e in self.shading_data:
                 e.write(self)
 
+    class Collider(abs.ABS):
+
+        GHOST = Gearoenix.TYPE_TYPE_ID(1)
+        MESH = Gearoenix.TYPE_TYPE_ID(2)
+
+        def __init__(self, obj, gear):
+            if not obj.name.startswith("collider-"):
+                gear.show("Collider object name is wrong. In: " + obj.name)
+            self.obj = obj
+            self.gear = gear
+
+        @abs.abstractmethod
+        def write(self, file):
+            pass
+
+        @staticmethod
+        def read(pobj, gear):
+            collider_object = None
+            found = 0
+            for c in pobj.children:
+                if c.name.startswith("collider-"):
+                    found += 1
+                    collider_object = c
+            if found > 1:
+                cls.show("More than one collider is acceptable. " +
+                         "In model: " + pobj.name)
+            if found == 0:
+                return gear.GhostCollider(gear)
+            if collider_object.name.startswith("collider-mesh-"):
+                return gear.MeshCollider(collider_object, gear)
+            gear.show("Collider type not recognized in model: " + pobj.name)
+
+    class GhostCollider(Gearoenix.Collider):
+
+        def __init__(self, gear):
+            self.gear = gear
+            pass
+
+        def write(self, file):
+            file.write(self.GHOST)
+
+    class MeshCollider(Gearoenix.Collider):
+
+        def __init__(self, obj, gear):
+            super().__init__(obj, gear)
+            if not obj.name.startswith("collider-mesh-"):
+                gear.show("Collider object name is wrong. In: " + obj.name)
+            if obj.type != 'MESH':
+                cls.show('Mesh collider must have mesh object type' +
+                         'In model: ' + obj.name)
+            for i in range(3):
+                if obj.location[i] != 0.0 | | obj.rotation_euler[i] != 0.0:
+                    gear.show('Mesh collider not have any transformation' +
+                              obj.name)
+            msh = obj.data
+            self.triangles = []
+            for p in msh.polygons:
+                triangle = []
+                if len(p.vertices) > 3:
+                    cls.show("Object " + obj.name + " is not triangled!")
+                for i, li in zip(p.vertices, p.loop_indices):
+                    triangle.append(msh.vertices[i].co)
+                self.triangles.append(triangle)
+
+        def write(self, file):
+            file.write(self.MESH)
+            file.write(gear.TYPE_COUNT(len(self.triangles)))
+            for t in self.triangles:
+                for pos in t:
+                    self.gear.write_vector(pos)
+
     def __init__(self):
         pass
 
@@ -1004,6 +1076,7 @@ class Gearoenix:
         radius = None
         meshes = []
         children = []
+        collider = None
         for c in obj.children:
             if c.type == 'MESH':
                 if c.name.startswith(cls.STRING_MESH + '-'):
@@ -1028,13 +1101,15 @@ class Gearoenix:
                     meshes.append((cls.meshes[mesh_name][1], shd, mtx))
                 elif c.name.startswith(cls.STRING_MODEL + '-'):
                     children.append(c.name)
+                elif c.name.startswith('collider-'):
+                    collider = cls.Collider.read(c, cls)
                 else:
                     cls.show("Unexpected mesh object " + c.name)
             elif c.type == 'EMPTY':
                 if c.name.startswith(cls.STRING_OCCLUSION):
                     if c.empty_draw_type != 'SPHERE':
                         cls.show("The only acceptable shape for an " +
-                            "occlusion is sphere. in: " + name)
+                                 "occlusion is sphere. in: " + name)
                     center = c.matrix_world * mathutils.Vector((0.0, 0.0, 0.0))
                     radius = c.empty_draw_size
                     radius = mathutils.Vector((radius, radius, radius))
@@ -1045,7 +1120,7 @@ class Gearoenix:
                     cls.show("Unexpected empty object: " + c.name)
             else:
                 cls.show("Unexpected object: '" + c.name +
-                    "' with type: " + c.type)
+                         "' with type: " + c.type)
         if center is None:
             cls.show("No occlusion sphere found in " + name)
         cls.write_vector(center)
@@ -1057,6 +1132,7 @@ class Gearoenix:
         cls.out.write(cls.TYPE_COUNT(len(children)))
         for c in children:
             cls.out.write(cls.TYPE_TYPE_ID(cls.models[c][1]))
+        collider.write(cls.out)
 
     @classmethod
     def write_models(cls):
