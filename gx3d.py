@@ -713,6 +713,77 @@ class Gearoenix:
                 for pos in t:
                     self.gear.write_vector(pos)
 
+    class Placer:
+
+        PREFIX = "placer-"
+        DESC = "Placer object"
+        BTYPE = "EMPTY"
+        ATT_X_MIDDLE = 'x-middle' # 0
+        ATT_Y_MIDDLE = 'x-middle' # 1
+        ATT_X_RIGHT = 'x-right' # 2
+        ATT_X_LEFT = 'x-left' # 3
+        ATT_Y_UP = 'y-up' # 4
+        ATT_Y_DOWN = 'y-down' # 5
+        ATT_RATIO = 'ratio' # 6
+        LAST_ID = 0
+
+        def __init__(self, obj, gear):
+            super().__init__(obj, gear)
+            if not obj.name.startswith(self.PREFIX):
+                gear.show(self.DESC + " name didn't start with " +
+                          self.PREFIX + " in object: " + obj.name)
+            if obj.type != self.BTYPE:
+                gear.show(self.DESC + " type must be " + self.BTYPE +
+                          " in object: " + obj.name)
+            if not gear.has_transformation(obj):
+                gear.show(self.DESC + " should not have any transformation, " +
+                          "in object: " + obj.name)
+            for c in obj.children:
+                if not c.name.startswith(gear.STRING_MODEL + "-"):
+                    gear.show(self.DESC + " can only have model as its " +
+                              "child, in object: " + obj.name)
+            self.attrs = [None for i in range(7)]
+            if self.ATT_X_MIDDLE in obj:
+                self.attrs[0] = obj[self.ATT_X_MIDDLE]
+                gear.limit_check(self.properties[0], 0.8, 0.0, obj)
+            if self.ATT_Y_MIDDLE in obj:
+                gear.show("Not implemented, in object: " + obj.name)
+            if self.ATT_X_LEFT in obj:
+                gear.show("Not implemented, in object: " + obj.name)
+            if self.ATT_X_RIGHT in obj:
+                gear.show("Not implemented, in object: " + obj.name)
+            if self.ATT_Y_UP in obj:
+                gear.show("Not implemented, in object: " + obj.name)
+            if self.ATT_Y_DOWN in obj:
+                self.attrs[5] = obj[self.ATT_Y_DOWN]
+                gear.limit_check(self.attrs[5], 0.8, 0.0, obj)
+            if self.ATT_RATIO in obj:
+                self.attrs[6] = obj[self.ATT_RATIO]
+            else:
+                gear.show(self.DESC + " must have " + self.ATT_RATIO +
+                          " properties, in object: " + obj.name)
+            self.type_id = 0
+            for att in self.attrs:
+                self.type_id <<= 1;
+                if att is not None:
+                    self.type_id |= 1
+            if self.type_id not in (33):
+                gear.show(self.DESC + " must have meaningful combination, " +
+                          "in object: " + obj.name)
+            self.obj = obj
+            self.my_id = self.LAST_ID
+            self.LAST_ID += 1
+            self.gear = gear
+
+        def write(self):
+            self.gear.out.write(self.gear.TYPE_TYPE_ID(self.type_id))
+            if self.type_id == 33:
+                self.gear.out.write(self.gear.TYPE_FLOAT(self.attrs[0]))
+                self.gear.out.write(self.gear.TYPE_FLOAT(self.attrs[5]))
+            else:
+                self.show("It is not implemented, in object: " + obj.name)
+
+
     def __init__(self):
         pass
 
@@ -725,6 +796,18 @@ class Gearoenix:
             self.report({'ERROR'},
                         Gearoenix.ErrorMsgBox.gearoenix_exporter_msg)
             return {'CANCELLED'}
+
+    @classmethod
+    def limit_check(cls, val, maxval=1.0, minval=0.0, obj=None):
+        if val > maxval or val < minval:
+            msg = "Out of range value"
+            if obj in not None:
+                msg += " in object: " + obj.name
+            cls.show(msg)
+
+    @classmethod
+    def has_transformation(cls, obj):
+        return obj.matrix_world != mathutils.Matrix()
 
     @classmethod
     def log(cls, *args):
@@ -1399,6 +1482,7 @@ class Gearoenix:
         cls.last_light_id = 0
         cls.speakers = dict()  # name: [offset, id<con>, type]
         cls.last_speaker_id = 0
+        cls.Placer.LAST_ID = 0
         cls.read_scenes()
         cls.write_bool(sys.byteorder == 'little')
         tables_offset = cls.out.tell()

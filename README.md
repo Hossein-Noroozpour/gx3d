@@ -88,6 +88,8 @@ Blender plug-in for Gearoenix 3D file format.
 - Placer:
 
   - Its name is `placer-[name]`.
+  - It is an empty object.
+  - It should not have any transformation.
   - It can have only model in its children.
   - In every size event it will compute the space and the position of the object and if the remained space was smaller than the current size of the object, object will be fitted by scaling down and on the other hand if object was smaller than the allowed space that it can fill, it will be fill the space by scaling up.
   - It has following attributes (misusing may cause undefined behavior):
@@ -98,7 +100,7 @@ Blender plug-in for Gearoenix 3D file format.
     - x-right: (todo: will be added, whenever needed)
     - y-down: place the object with a specified distance from bottom border.
     - y-up: (todo: will be added, whenever needed)
-    - ratio: Its value is (width / height), it is a **mandatory** attribute.
+    - ratio: Its value is (width / height), it is a mandatory attribute.
 
 ## License
 
