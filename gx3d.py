@@ -1275,6 +1275,7 @@ class Gearoenix:
             cls.log("offset of scene with name", name, ":",
                     cls.scenes[name][0])
             scene = bpy.data.scenes[name]
+            placers = []
             models = []
             cameras = []
             speakers = []
@@ -1282,7 +1283,9 @@ class Gearoenix:
             for o in scene.objects:
                 if o.parent is not None:
                     continue
-                if o.type == "MESH" and \
+                if o.name.startswith(cls.Placer.PREFIX):
+                    placers.append(cls.Placer.ITEMS[o.name].my_id)
+                elif o.type == "MESH" and \
                         not o.name.startswith(cls.STRING_MESH + '-'):
                     models.append(cls.models[o.name][1])
                 elif o.type == "CAMERA":
@@ -1291,6 +1294,8 @@ class Gearoenix:
                     speakers.append(cls.speakers[o.name][1])
                 elif o.type == "LAMP":
                     lights.append(cls.lights[o.name][1])
+                else:
+                    cls.show("Unexpected")
             if len(lights) > 1:
                 cls.show(
                     "Currently only one light is supported in game engine")
@@ -1308,6 +1313,7 @@ class Gearoenix:
             cls.out.write(cls.TYPE_COUNT(len(models)))
             for m in models:
                 cls.out.write(cls.TYPE_TYPE_ID(m))
+            cls.write_offset_array(placers)
             cls.write_vector(scene.world.ambient_color, 3)
 
     @classmethod
