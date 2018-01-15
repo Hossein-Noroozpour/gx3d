@@ -30,16 +30,184 @@ import bpy
 import bpy_extras
 import mathutils
 
+TYPE_BOOLEAN = ctypes.c_uint8
+TYPE_U64 = ctypes.c_uint64
+TYPE_BYTE = ctypes.c_uint8
+TYPE_FLOAT = ctypes.c_float
+TYPE_U32 = ctypes.c_uint32
+
+
+class Placer:
+
+    PREFIX = "placer-"
+    DESC = "Placer object"
+    BTYPE = "EMPTY"
+    ATT_X_MIDDLE = 'x-middle'  # 0
+    ATT_Y_MIDDLE = 'y-middle'  # 1
+    ATT_X_RIGHT = 'x-right'  # 2
+    ATT_X_LEFT = 'x-left'  # 3
+    ATT_Y_UP = 'y-up'  # 4
+    ATT_Y_DOWN = 'y-down'  # 5
+    ATT_RATIO = 'ratio'
+    LAST_ID = 0
+    ITEMS = dict()  # name: instance
+
+    def __init__(self, obj, gear):
+        if not obj.name.startswith(self.PREFIX):
+            gear.show(self.DESC + " name didn't start with " +
+                      self.PREFIX + " in object: " + obj.name)
+        if obj.type != self.BTYPE:
+            gear.show(self.DESC + " type must be " + self.BTYPE +
+                      " in object: " + obj.name)
+        if gear.has_transformation(obj):
+            gear.show(self.DESC + " should not have any transformation, " +
+                      "in object: " + obj.name)
+        if len(obj.children) < 1:
+            gear.show(self.DESC + " must have more than 0 children, " +
+                      "in object: " + obj.name)
+        for c in obj.children:
+            if not c.name.startswith(gear.STRING_MODEL + "-"):
+                gear.show(self.DESC + " can only have model as its " +
+                          "child, in object: " + obj.name)
+        self.attrs = [None for i in range(6)]
+        if self.ATT_X_MIDDLE in obj:
+            self.attrs[0] = obj[self.ATT_X_MIDDLE]
+            gear.limit_check(self.attrs[0], 0.8, 0.0, obj)
+        if self.ATT_Y_MIDDLE in obj:
+            gear.show("Not implemented, in object: " + obj.name)
+        if self.ATT_X_LEFT in obj:
+            gear.show("Not implemented, in object: " + obj.name)
+        if self.ATT_X_RIGHT in obj:
+            gear.show("Not implemented, in object: " + obj.name)
+        if self.ATT_Y_UP in obj:
+            gear.show("Not implemented, in object: " + obj.name)
+        if self.ATT_Y_DOWN in obj:
+            self.attrs[5] = obj[self.ATT_Y_DOWN]
+            gear.limit_check(self.attrs[5], 0.8, 0.0, obj)
+        if self.ATT_RATIO in obj:
+            self.ratio = obj[self.ATT_RATIO]
+        else:
+            gear.show(self.DESC + " must have " + self.ATT_RATIO +
+                      " properties, in object: " + obj.name)
+        self.type_id = 0
+        for i in range(len(self.attrs)):
+            if self.attrs[i] is not None:
+                self.type_id |= (1 << i)
+        print(self.type_id)
+        if self.type_id not in {33, }:
+            gear.show(self.DESC + " must have meaningful combination, " +
+                      "in object: " + obj.name)
+        self.obj = obj
+        self.my_id = self.LAST_ID
+        self.offset = 0
+        self.LAST_ID += 1
+        self.gear = gear
+
+    def write(self):
+        self.gear.out.write(TYPE_U64(self.type_id))
+        if self.type_id == 33:
+            self.gear.out.write(TYPE_FLOAT(self.attrs[0]))
+            self.gear.out.write(TYPE_FLOAT(self.attrs[5]))
+        else:
+            self.show("It is not implemented, in object: " + obj.name)
+        childrenids = []
+        for c in self.obj.children:
+            childrenids.append(self.gear.models[c.name][1])
+        childrenids.sort()
+        self.gear.write_offset_array(childrenids)
+
+    @classmethod
+    def read(cls, obj, gear):
+        if not obj.name.startswith(cls.PREFIX):
+            return
+        if obj.name in cls.ITEMS:
+            return
+        cls.ITEMS[obj.name] = Placer(obj, gear)
+
+    @classmethod
+    def init(cls):
+        cls.LAST_ID = 0
+        cls.ITEMS = dict()  # name: instance
+
+
+class Collider:
+
+    GHOST = TYPE_U64(1)
+    MESH = TYPE_U64(2)
+    PREFIX = 'collider-'
+
+    def __init__(self, obj, gear):
+        if not obj.name.startswith(self.PREFIX):
+            gear.show("Collider object name is wrong. In: " + obj.name)
+        self.obj = obj
+        self.gear = gear
+
+    def write(self):
+        pass
+
+    @classmethod
+    def read(cls, pobj, gear):
+        collider_object = None
+        found = 0
+        for c in pobj.children:
+            if c.name.startswith(cls.PREFIX):
+                found += 1
+                collider_object = c
+        if found > 1:
+            cls.show("More than one collider is acceptable. " +
+                     "In model: " + pobj.name)
+        if found == 0:
+            return GhostCollider(gear)
+        if collider_object.name.startswith(MeshCollider.PREFIX):
+            return MeshCollider(collider_object, gear)
+        gear.show("Collider type not recognized in model: " + pobj.name)
+
+
+class GhostCollider:
+
+    def __init__(self, gear):
+        self.gear = gear
+        pass
+
+    def write(self):
+        self.gear.out.write(Collider.GHOST)
+
+
+class MeshCollider:
+
+    PREFIX = 'collider-mesh-'
+
+    def __init__(self, obj, gear):
+        self.obj = obj
+        self.gear = gear
+        if not obj.name.startswith(self.PREFIX):
+            gear.show("Collider object name is wrong. In: " + obj.name)
+        if obj.type != 'MESH':
+            cls.show('Mesh collider must have mesh object type' +
+                     'In model: ' + obj.name)
+        for i in range(3):
+            if obj.location[i] != 0.0 or obj.rotation_euler[i] != 0.0:
+                gear.show('Mesh collider not have any transformation' +
+                          obj.name)
+        msh = obj.data
+        self.triangles = []
+        for p in msh.polygons:
+            triangle = []
+            if len(p.vertices) > 3:
+                cls.show("Object " + obj.name + " is not triangled!")
+            for i, li in zip(p.vertices, p.loop_indices):
+                triangle.append(msh.vertices[i].co)
+            self.triangles.append(triangle)
+
+    def write(self):
+        self.gear.out.write(Collider.MESH)
+        self.gear.out.write(TYPE_U64(len(self.triangles)))
+        for t in self.triangles:
+            for pos in t:
+                self.gear.write_vector(pos)
+
 
 class Gearoenix:
-    TYPE_BOOLEAN = ctypes.c_uint8
-    TYPE_OFFSET = ctypes.c_uint64
-    TYPE_TYPE_ID = ctypes.c_uint64
-    TYPE_SIZE = ctypes.c_uint64
-    TYPE_COUNT = ctypes.c_uint64
-    TYPE_BYTE = ctypes.c_uint8
-    TYPE_FLOAT = ctypes.c_float
-    TYPE_U32 = ctypes.c_uint32
 
     TEXTURE_TYPE_2D = 10
     TEXTURE_TYPE_CUBE = 20
@@ -153,8 +321,7 @@ class Gearoenix:
 
             def write(self, shd):
                 if self.NORMALMAPPED == self:
-                    shd.parent.out.write(
-                        shd.parent.TYPE_TYPE_ID(shd.normalmap))
+                    shd.parent.out.write(TYPE_U64(shd.normalmap))
 
         class Texturing(enum.Enum):
             COLORED = 0
@@ -258,11 +425,11 @@ class Gearoenix:
                     shd.parent.write_vector(shd.diffuse_color, 4)
                     return
                 if self.D2 == self:
-                    shd.parent.out.write(shd.parent.TYPE_TYPE_ID(shd.d2))
+                    shd.parent.out.write(TYPE_U64(shd.d2))
                 if self.D3 == self:
-                    shd.parent.out.write(shd.parent.TYPE_TYPE_ID(shd.d3))
+                    shd.parent.out.write(TYPE_U64(shd.d3))
                 if self.CUBE == self:
-                    shd.parent.out.write(shd.parent.TYPE_TYPE_ID(shd.cube))
+                    shd.parent.out.write(TYPE_U64(shd.cube))
 
         class Speculating(enum.Enum):
             MATTE = 0
@@ -312,7 +479,7 @@ class Gearoenix:
                     shd.parent.write_vector(shd.specular_factors)
                     return
                 if self.SPECTXT == self:
-                    shd.parent.out.write(shd.parent.TYPE_TYPE_ID(shd.spectxt))
+                    shd.parent.out.write(TYPE_U64(shd.spectxt))
 
         class EnvironmentMapping(enum.Enum):
             NONREFLECTIVE = 0
@@ -377,9 +544,9 @@ class Gearoenix:
             def write(self, shd):
                 if self == self.BAKED or self == self.REALTIME:
                     shd.parent.out.write(
-                        shd.parent.TYPE_FLOAT(shd.reflect_factor))
+                        TYPE_FLOAT(shd.reflect_factor))
                 if self == self.BAKED:
-                    shd.parent.out.write(shd.parent.TYPE_TYPE_ID(shd.bakedenv))
+                    shd.parent.out.write(TYPE_U64(shd.bakedenv))
 
         class Shadowing(enum.Enum):
             SHADOWLESS = 0
@@ -455,7 +622,7 @@ class Gearoenix:
             def write(self, shd):
                 if self == self.TRANSPARENT or self == self.CUTOFF:
                     shd.parent.out.write(
-                        shd.parent.TYPE_FLOAT(shd.transparency))
+                        TYPE_FLOAT(shd.transparency))
 
         def __init__(self, parent, bmat=None):
             self.parent = parent
@@ -634,179 +801,12 @@ class Gearoenix:
             return False
 
         def write(self):
-            self.parent.out.write(self.parent.TYPE_TYPE_ID(self.to_int()))
+            self.parent.out.write(TYPE_U64(self.to_int()))
             if self.shading_data[0] == self.Lighting.RESERVED:
                 self.reserved.write(self)
                 return
             for e in self.shading_data:
                 e.write(self)
-
-    class Collider:
-
-        GHOST = Gearoenix.TYPE_TYPE_ID(1)
-        MESH = Gearoenix.TYPE_TYPE_ID(2)
-        PREFIX = 'collider-'
-
-        def __init__(self, obj, gear):
-            if not obj.name.startswith(self.PREFIX):
-                gear.show("Collider object name is wrong. In: " + obj.name)
-            self.obj = obj
-            self.gear = gear
-
-        def write(self):
-            pass
-
-        @classmethod
-        def read(cls, pobj, gear):
-            collider_object = None
-            found = 0
-            for c in pobj.children:
-                if c.name.startswith(cls.PREFIX):
-                    found += 1
-                    collider_object = c
-            if found > 1:
-                cls.show("More than one collider is acceptable. " +
-                         "In model: " + pobj.name)
-            if found == 0:
-                return gear.GhostCollider(gear)
-            if collider_object.name.startswith(gear.MeshCollider.PREFIX):
-                return gear.MeshCollider(collider_object, gear)
-            gear.show("Collider type not recognized in model: " + pobj.name)
-
-    class GhostCollider:
-
-        def __init__(self, gear):
-            self.gear = gear
-            pass
-
-        def write(self):
-            self.gear.out.write(self.gear.Collider.GHOST)
-
-    class MeshCollider:
-
-        PREFIX = 'collider-mesh-'
-
-        def __init__(self, obj, gear):
-            self.obj = obj
-            self.gear = gear
-            if not obj.name.startswith(self.PREFIX):
-                gear.show("Collider object name is wrong. In: " + obj.name)
-            if obj.type != 'MESH':
-                cls.show('Mesh collider must have mesh object type' +
-                         'In model: ' + obj.name)
-            for i in range(3):
-                if obj.location[i] != 0.0 | | obj.rotation_euler[i] != 0.0:
-                    gear.show('Mesh collider not have any transformation' +
-                              obj.name)
-            msh = obj.data
-            self.triangles = []
-            for p in msh.polygons:
-                triangle = []
-                if len(p.vertices) > 3:
-                    cls.show("Object " + obj.name + " is not triangled!")
-                for i, li in zip(p.vertices, p.loop_indices):
-                    triangle.append(msh.vertices[i].co)
-                self.triangles.append(triangle)
-
-        def write(self, file):
-            file.write(self.MESH)
-            file.write(gear.TYPE_COUNT(len(self.triangles)))
-            for t in self.triangles:
-                for pos in t:
-                    self.gear.write_vector(pos)
-
-    class Placer:
-
-        PREFIX = "placer-"
-        DESC = "Placer object"
-        BTYPE = "EMPTY"
-        ATT_X_MIDDLE = 'x-middle' # 0
-        ATT_Y_MIDDLE = 'x-middle' # 1
-        ATT_X_RIGHT = 'x-right' # 2
-        ATT_X_LEFT = 'x-left' # 3
-        ATT_Y_UP = 'y-up' # 4
-        ATT_Y_DOWN = 'y-down' # 5
-        ATT_RATIO = 'ratio' # 6
-        LAST_ID = 0
-        ITEMS = dict()  # name: instance
-
-        def __init__(self, obj, gear):
-            super().__init__(obj, gear)
-            if not obj.name.startswith(self.PREFIX):
-                gear.show(self.DESC + " name didn't start with " +
-                          self.PREFIX + " in object: " + obj.name)
-            if obj.type != self.BTYPE:
-                gear.show(self.DESC + " type must be " + self.BTYPE +
-                          " in object: " + obj.name)
-            if not gear.has_transformation(obj):
-                gear.show(self.DESC + " should not have any transformation, " +
-                          "in object: " + obj.name)
-            if len(obj.children) < 1:
-                gear.show(self.DESC + " must have more than 0 children, " +
-                        "in object: " + obj.name)
-            for c in obj.children:
-                if not c.name.startswith(gear.STRING_MODEL + "-"):
-                    gear.show(self.DESC + " can only have model as its " +
-                              "child, in object: " + obj.name)
-            self.attrs = [None for i in range(7)]
-            if self.ATT_X_MIDDLE in obj:
-                self.attrs[0] = obj[self.ATT_X_MIDDLE]
-                gear.limit_check(self.properties[0], 0.8, 0.0, obj)
-            if self.ATT_Y_MIDDLE in obj:
-                gear.show("Not implemented, in object: " + obj.name)
-            if self.ATT_X_LEFT in obj:
-                gear.show("Not implemented, in object: " + obj.name)
-            if self.ATT_X_RIGHT in obj:
-                gear.show("Not implemented, in object: " + obj.name)
-            if self.ATT_Y_UP in obj:
-                gear.show("Not implemented, in object: " + obj.name)
-            if self.ATT_Y_DOWN in obj:
-                self.attrs[5] = obj[self.ATT_Y_DOWN]
-                gear.limit_check(self.attrs[5], 0.8, 0.0, obj)
-            if self.ATT_RATIO in obj:
-                self.attrs[6] = obj[self.ATT_RATIO]
-            else:
-                gear.show(self.DESC + " must have " + self.ATT_RATIO +
-                          " properties, in object: " + obj.name)
-            self.type_id = 0
-            for att in self.attrs:
-                self.type_id <<= 1;
-                if att is not None:
-                    self.type_id |= 1
-            if self.type_id not in (33):
-                gear.show(self.DESC + " must have meaningful combination, " +
-                          "in object: " + obj.name)
-            self.obj = obj
-            self.my_id = self.LAST_ID
-            self.offset = 0
-            self.LAST_ID += 1
-            self.gear = gear
-
-        def write(self):
-            self.gear.out.write(self.gear.TYPE_TYPE_ID(self.type_id))
-            if self.type_id == 33:
-                self.gear.out.write(self.gear.TYPE_FLOAT(self.attrs[0]))
-                self.gear.out.write(self.gear.TYPE_FLOAT(self.attrs[5]))
-            else:
-                self.show("It is not implemented, in object: " + obj.name)
-            childrenids = []
-            for c in self.obj:
-                childrenids.append(self.gear.models[c.name][1])
-            childrenids.sort()
-            self.gear.write_offset_array(children)
-
-        @classmethod
-        def read(cls, obj, gear):
-            if not obj.name.startswith(cls.PREFIX):
-                return
-            if obj.name in cls.ITEMS:
-                return
-            cls.ITEMS[obj.name] = gear.Placer(obj, gear)
-
-        @classmethod
-        def init(cls):
-            cls.LAST_ID = 0
-            cls.ITEMS = dict()  # name: instance
 
     def __init__(self):
         pass
@@ -825,7 +825,7 @@ class Gearoenix:
     def limit_check(cls, val, maxval=1.0, minval=0.0, obj=None):
         if val > maxval or val < minval:
             msg = "Out of range value"
-            if obj in not None:
+            if obj is not None:
                 msg += " in object: " + obj.name
             cls.show(msg)
 
@@ -892,7 +892,7 @@ class Gearoenix:
         tmp = tmp.read()
         cls.log("Shader '", shader_name, "'is compiled has length of: ",
                 len(tmp))
-        cls.out.write(cls.TYPE_SIZE(len(tmp)))
+        cls.out.write(TYPE_U64(len(tmp)))
         cls.out.write(tmp)
 
     @staticmethod
@@ -904,32 +904,32 @@ class Gearoenix:
         data = 0
         if b:
             data = 1
-        cls.out.write(cls.TYPE_BOOLEAN(data))
+        cls.out.write(TYPE_BOOLEAN(data))
 
     @classmethod
     def write_vector(cls, v, element_count=3):
         for i in range(element_count):
-            cls.out.write(cls.TYPE_FLOAT(v[i]))
+            cls.out.write(TYPE_FLOAT(v[i]))
 
     @classmethod
     def write_matrix(cls, matrix):
         for i in range(0, 4):
             for j in range(0, 4):
-                cls.out.write(cls.TYPE_FLOAT(matrix[j][i]))
+                cls.out.write(TYPE_FLOAT(matrix[j][i]))
 
     @classmethod
     def write_offset_array(cls, arr):
-        cls.out.write(cls.TYPE_COUNT(len(arr)))
+        cls.out.write(TYPE_U64(len(arr)))
         for o in arr:
-            cls.out.write(cls.TYPE_OFFSET(o))
+            cls.out.write(TYPE_U64(o))
 
     @classmethod
     def write_shaders_table(cls):
-        cls.out.write(cls.TYPE_COUNT(len(cls.shaders)))
+        cls.out.write(TYPE_U64(len(cls.shaders)))
         for shader_id, offset_obj in cls.shaders.items():
             offset, obj = offset_obj
-            cls.out.write(cls.TYPE_TYPE_ID(shader_id))
-            cls.out.write(cls.TYPE_OFFSET(offset))
+            cls.out.write(TYPE_U64(shader_id))
+            cls.out.write(TYPE_U64(offset))
             cls.log("Shader with id:", shader_id, "and offset:", offset)
 
     @classmethod
@@ -1025,24 +1025,24 @@ class Gearoenix:
             cam = obj.data
             cls.cameras[name][0] = cls.out.tell()
             if cam.type == 'PERSP':
-                cls.out.write(cls.TYPE_TYPE_ID(1))
+                cls.out.write(TYPE_U64(1))
             elif cam.type == 'ORTHO':
-                cls.out.write(cls.TYPE_TYPE_ID(2))
+                cls.out.write(TYPE_U64(2))
             else:
                 cls.show("Camera with type '" + cam.type +
                          "' is not supported yet.")
-            cls.out.write(cls.TYPE_FLOAT(obj.location[0]))
-            cls.out.write(cls.TYPE_FLOAT(obj.location[1]))
-            cls.out.write(cls.TYPE_FLOAT(obj.location[2]))
-            cls.out.write(cls.TYPE_FLOAT(obj.rotation_euler[0]))
-            cls.out.write(cls.TYPE_FLOAT(obj.rotation_euler[1]))
-            cls.out.write(cls.TYPE_FLOAT(obj.rotation_euler[2]))
-            cls.out.write(cls.TYPE_FLOAT(cam.clip_start))
-            cls.out.write(cls.TYPE_FLOAT(cam.clip_end))
+            cls.out.write(TYPE_FLOAT(obj.location[0]))
+            cls.out.write(TYPE_FLOAT(obj.location[1]))
+            cls.out.write(TYPE_FLOAT(obj.location[2]))
+            cls.out.write(TYPE_FLOAT(obj.rotation_euler[0]))
+            cls.out.write(TYPE_FLOAT(obj.rotation_euler[1]))
+            cls.out.write(TYPE_FLOAT(obj.rotation_euler[2]))
+            cls.out.write(TYPE_FLOAT(cam.clip_start))
+            cls.out.write(TYPE_FLOAT(cam.clip_end))
             if cam.type == 'PERSP':
-                cls.out.write(cls.TYPE_FLOAT(cam.angle_x / 2.0))
+                cls.out.write(TYPE_FLOAT(cam.angle_x / 2.0))
             elif cam.type == 'ORTHO':
-                cls.out.write(cls.TYPE_FLOAT(cam.ortho_scale / 2.0))
+                cls.out.write(TYPE_FLOAT(cam.ortho_scale / 2.0))
 
     @classmethod
     def write_speakers(cls):
@@ -1052,7 +1052,7 @@ class Gearoenix:
             items[iid] = (name, ttype)
         for name, ttype in items:
             cls.speakers[name][0] = cls.out.tell()
-            cls.out.write(cls.TYPE_TYPE_ID(ttype))
+            cls.out.write(TYPE_U64(ttype))
             cls.write_binary_file(name)
 
     @classmethod
@@ -1065,23 +1065,23 @@ class Gearoenix:
             sun = bpy.data.objects[name]
             cls.lights[name][0] = cls.out.tell()
             # This is temporary, only for keeping the design
-            cls.out.write(cls.TYPE_TYPE_ID(10))
-            cls.out.write(cls.TYPE_FLOAT(sun.location[0]))
-            cls.out.write(cls.TYPE_FLOAT(sun.location[1]))
-            cls.out.write(cls.TYPE_FLOAT(sun.location[2]))
-            cls.out.write(cls.TYPE_FLOAT(sun.rotation_euler[0]))
-            cls.out.write(cls.TYPE_FLOAT(sun.rotation_euler[1]))
-            cls.out.write(cls.TYPE_FLOAT(sun.rotation_euler[2]))
-            cls.out.write(cls.TYPE_FLOAT(sun['near']))
-            cls.out.write(cls.TYPE_FLOAT(sun['far']))
-            cls.out.write(cls.TYPE_FLOAT(sun['size']))
+            cls.out.write(TYPE_U64(10))
+            cls.out.write(TYPE_FLOAT(sun.location[0]))
+            cls.out.write(TYPE_FLOAT(sun.location[1]))
+            cls.out.write(TYPE_FLOAT(sun.location[2]))
+            cls.out.write(TYPE_FLOAT(sun.rotation_euler[0]))
+            cls.out.write(TYPE_FLOAT(sun.rotation_euler[1]))
+            cls.out.write(TYPE_FLOAT(sun.rotation_euler[2]))
+            cls.out.write(TYPE_FLOAT(sun['near']))
+            cls.out.write(TYPE_FLOAT(sun['far']))
+            cls.out.write(TYPE_FLOAT(sun['size']))
             cls.write_vector(sun.data.color)
 
     @classmethod
     def write_binary_file(cls, name):
         f = open(name, "rb")
         f = f.read()
-        cls.out.write(cls.TYPE_COUNT(len(f)))
+        cls.out.write(TYPE_U64(len(f)))
         cls.out.write(f)
 
     @classmethod
@@ -1092,7 +1092,7 @@ class Gearoenix:
             items[iid] = [name, ttype]
         for name, ttype in items:
             cls.textures[name][0] = cls.out.tell()
-            cls.out.write(cls.TYPE_TYPE_ID(ttype))
+            cls.out.write(TYPE_U64(ttype))
             if ttype == cls.TEXTURE_TYPE_2D:
                 cls.log("txt2-----------------------", cls.out.tell())
                 cls.write_binary_file(name)
@@ -1100,7 +1100,7 @@ class Gearoenix:
                 off_offs = cls.out.tell()
                 img_offs = [0, 0, 0, 0, 0]
                 for o in img_offs:
-                    cls.out.write(cls.TYPE_OFFSET(o))
+                    cls.out.write(TYPE_U64(o))
                 name = name.strip()
                 raw_name = name[:len(name) - len("-up.png")]
                 cls.write_binary_file(raw_name + "-up.png")
@@ -1117,7 +1117,7 @@ class Gearoenix:
                 off_end = cls.out.tell()
                 cls.out.seek(off_offs)
                 for o in img_offs:
-                    cls.out.write(cls.TYPE_OFFSET(o))
+                    cls.out.write(TYPE_U64(o))
                 cls.out.seek(off_end)
 
             else:
@@ -1181,18 +1181,18 @@ class Gearoenix:
         indices = [0 for _ in range(last_index)]
         last_index = 0
         for k in vertices.keys():
-            cls.out.write(cls.TYPE_COUNT(len(k)))
+            cls.out.write(TYPE_U64(len(k)))
             break
-        cls.out.write(cls.TYPE_COUNT(len(vertices)))
+        cls.out.write(TYPE_U64(len(vertices)))
         for vertex, index_list in vertices.items():
             for e in vertex:
-                cls.out.write(cls.TYPE_FLOAT(e))
+                cls.out.write(TYPE_FLOAT(e))
             for i in index_list:
                 indices[i] = last_index
             last_index += 1
-        cls.out.write(cls.TYPE_COUNT(len(indices)))
+        cls.out.write(TYPE_U64(len(indices)))
         for i in indices:
-            cls.out.write(cls.TYPE_U32(i))
+            cls.out.write(TYPE_U32(i))
 
     @classmethod
     def write_model(cls, name):
@@ -1202,7 +1202,7 @@ class Gearoenix:
         radius = None
         meshes = []
         children = []
-        collider = cls.Collider.read(c, cls)
+        collider = Collider.read(obj, cls)
         for c in obj.children:
             if c.name.startswith(cls.STRING_MESH + '-'):
                 mesh_name = c.name.strip().split('.')
@@ -1226,7 +1226,7 @@ class Gearoenix:
                 meshes.append((cls.meshes[mesh_name][1], shd, mtx))
             elif c.name.startswith(cls.STRING_MODEL + '-'):
                 children.append(c.name)
-            elif c.name.startswith(cls.Collider.PREFIX):
+            elif c.name.startswith(Collider.PREFIX):
                 continue
             elif c.name.startswith(cls.STRING_OCCLUSION):
                 if c.empty_draw_type != 'SPHERE':
@@ -1244,14 +1244,14 @@ class Gearoenix:
             cls.show("No occlusion sphere found in " + name)
         cls.write_vector(center)
         cls.write_vector(radius)
-        cls.out.write(cls.TYPE_COUNT(len(meshes)))
+        cls.out.write(TYPE_U64(len(meshes)))
         for m in meshes:
             m[1].write()
-            cls.out.write(cls.TYPE_TYPE_ID(m[0]))
-        cls.out.write(cls.TYPE_COUNT(len(children)))
+            cls.out.write(TYPE_U64(m[0]))
+        cls.out.write(TYPE_U64(len(children)))
         for c in children:
-            cls.out.write(cls.TYPE_TYPE_ID(cls.models[c][1]))
-        collider.write(cls.out)
+            cls.out.write(TYPE_U64(cls.models[c][1]))
+        collider.write()
 
     @classmethod
     def write_models(cls):
@@ -1283,11 +1283,12 @@ class Gearoenix:
             for o in scene.objects:
                 if o.parent is not None:
                     continue
-                if o.name.startswith(cls.Placer.PREFIX):
-                    placers.append(cls.Placer.ITEMS[o.name].my_id)
-                elif o.type == "MESH" and \
-                        not o.name.startswith(cls.STRING_MESH + '-'):
+                elif o.name.startswith(Placer.PREFIX):
+                    placers.append(Placer.ITEMS[o.name].my_id)
+                elif o.name.startswith(cls.STRING_MODEL + '-'):
                     models.append(cls.models[o.name][1])
+                elif o.name.startswith(cls.STRING_MESH + '-'):
+                    continue
                 elif o.type == "CAMERA":
                     cameras.append(cls.cameras[o.name][1])
                 elif o.type == "SPEAKER":
@@ -1295,24 +1296,24 @@ class Gearoenix:
                 elif o.type == "LAMP":
                     lights.append(cls.lights[o.name][1])
                 else:
-                    cls.show("Unexpected")
+                    cls.show("Unexpected object: " + o.name)
             if len(lights) > 1:
                 cls.show(
                     "Currently only one light is supported in game engine")
             if len(cameras) < 1:
                 cls.show("At least one camera must exist.")
-            cls.out.write(cls.TYPE_COUNT(len(cameras)))
+            cls.out.write(TYPE_U64(len(cameras)))
             for c in cameras:
-                cls.out.write(cls.TYPE_TYPE_ID(c))
-            cls.out.write(cls.TYPE_COUNT(len(speakers)))
+                cls.out.write(TYPE_U64(c))
+            cls.out.write(TYPE_U64(len(speakers)))
             for s in speakers:
-                cls.out.write(cls.TYPE_TYPE_ID(s))
-            cls.out.write(cls.TYPE_COUNT(len(lights)))
+                cls.out.write(TYPE_U64(s))
+            cls.out.write(TYPE_U64(len(lights)))
             for l in lights:
-                cls.out.write(cls.TYPE_TYPE_ID(l))
-            cls.out.write(cls.TYPE_COUNT(len(models)))
+                cls.out.write(TYPE_U64(l))
+            cls.out.write(TYPE_U64(len(models)))
             for m in models:
-                cls.out.write(cls.TYPE_TYPE_ID(m))
+                cls.out.write(TYPE_U64(m))
             cls.write_offset_array(placers)
             cls.write_vector(scene.world.ambient_color, 3)
 
@@ -1478,7 +1479,7 @@ class Gearoenix:
             for o in s.objects:
                 cls.read_model(o)
             for o in s.objects:
-                cls.Placer.read(o, cls)
+                Placer.read(o, cls)
             cls.scenes[s.name] = [0, cls.last_scene_id]
             cls.last_scene_id += 1
 
@@ -1499,7 +1500,7 @@ class Gearoenix:
         cls.write_offset_array(cls.meshes_offsets)
         cls.write_offset_array(cls.models_offsets)
         cls.write_offset_array(cls.scenes_offsets)
-        cls.write_instances_offsets(cls.Placer)
+        cls.write_instances_offsets(Placer)
 
     @classmethod
     def initialize_shaders(cls):
@@ -1536,7 +1537,7 @@ class Gearoenix:
         cls.last_light_id = 0
         cls.speakers = dict()  # name: [offset, id<con>, type]
         cls.last_speaker_id = 0
-        cls.Placer.init()
+        Placer.init()
         cls.read_scenes()
         cls.write_bool(sys.byteorder == 'little')
         tables_offset = cls.out.tell()
@@ -1548,7 +1549,7 @@ class Gearoenix:
         cls.write_textures()
         cls.write_meshes()
         cls.write_models()
-        cls.write_all_instances(cls.Placer)
+        cls.write_all_instances(Placer)
         cls.write_scenes()
         cls.out.flush()
         cls.out.seek(tables_offset)
