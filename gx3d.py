@@ -17,7 +17,6 @@ bl_info = {
 #    everything from blender and support every features of Blender.
 #    Always best practises are the correct way of presenting data.
 
-import abc
 import ctypes
 import enum
 import io
@@ -642,27 +641,27 @@ class Gearoenix:
             for e in self.shading_data:
                 e.write(self)
 
-    class Collider(abs.ABS):
+    class Collider:
 
         GHOST = Gearoenix.TYPE_TYPE_ID(1)
         MESH = Gearoenix.TYPE_TYPE_ID(2)
+        PREFIX = 'collider-'
 
         def __init__(self, obj, gear):
-            if not obj.name.startswith("collider-"):
+            if not obj.name.startswith(self.PREFIX):
                 gear.show("Collider object name is wrong. In: " + obj.name)
             self.obj = obj
             self.gear = gear
 
-        @abs.abstractmethod
-        def write(self, file):
+        def write(self):
             pass
 
-        @staticmethod
-        def read(pobj, gear):
+        @classmethod
+        def read(cls, pobj, gear):
             collider_object = None
             found = 0
             for c in pobj.children:
-                if c.name.startswith("collider-"):
+                if c.name.startswith(cls.PREFIX):
                     found += 1
                     collider_object = c
             if found > 1:
@@ -670,24 +669,27 @@ class Gearoenix:
                          "In model: " + pobj.name)
             if found == 0:
                 return gear.GhostCollider(gear)
-            if collider_object.name.startswith("collider-mesh-"):
+            if collider_object.name.startswith(gear.MeshCollider.PREFIX):
                 return gear.MeshCollider(collider_object, gear)
             gear.show("Collider type not recognized in model: " + pobj.name)
 
-    class GhostCollider(Gearoenix.Collider):
+    class GhostCollider:
 
         def __init__(self, gear):
             self.gear = gear
             pass
 
-        def write(self, file):
-            file.write(self.GHOST)
+        def write(self):
+            self.gear.out.write(self.gear.Collider.GHOST)
 
-    class MeshCollider(Gearoenix.Collider):
+    class MeshCollider:
+
+        PREFIX = 'collider-mesh-'
 
         def __init__(self, obj, gear):
-            super().__init__(obj, gear)
-            if not obj.name.startswith("collider-mesh-"):
+            self.obj = obj
+            self.gear = gear
+            if not obj.name.startswith(self.PREFIX):
                 gear.show("Collider object name is wrong. In: " + obj.name)
             if obj.type != 'MESH':
                 cls.show('Mesh collider must have mesh object type' +
@@ -726,6 +728,7 @@ class Gearoenix:
         ATT_Y_DOWN = 'y-down' # 5
         ATT_RATIO = 'ratio' # 6
         LAST_ID = 0
+        ITEMS = dict()  # name: instance
 
         def __init__(self, obj, gear):
             super().__init__(obj, gear)
@@ -738,6 +741,9 @@ class Gearoenix:
             if not gear.has_transformation(obj):
                 gear.show(self.DESC + " should not have any transformation, " +
                           "in object: " + obj.name)
+            if len(obj.children) < 1:
+                gear.show(self.DESC + " must have more than 0 children, " +
+                        "in object: " + obj.name)
             for c in obj.children:
                 if not c.name.startswith(gear.STRING_MODEL + "-"):
                     gear.show(self.DESC + " can only have model as its " +
@@ -772,6 +778,7 @@ class Gearoenix:
                           "in object: " + obj.name)
             self.obj = obj
             self.my_id = self.LAST_ID
+            self.offset = 0
             self.LAST_ID += 1
             self.gear = gear
 
@@ -782,7 +789,24 @@ class Gearoenix:
                 self.gear.out.write(self.gear.TYPE_FLOAT(self.attrs[5]))
             else:
                 self.show("It is not implemented, in object: " + obj.name)
+            childrenids = []
+            for c in self.obj:
+                childrenids.append(self.gear.models[c.name][1])
+            childrenids.sort()
+            self.gear.write_offset_array(children)
 
+        @classmethod
+        def read(cls, obj, gear):
+            if not obj.name.startswith(cls.PREFIX):
+                return
+            if obj.name in cls.ITEMS:
+                return
+            cls.ITEMS[obj.name] = gear.Placer(obj, gear)
+
+        @classmethod
+        def init(cls):
+            cls.LAST_ID = 0
+            cls.ITEMS = dict()  # name: instance
 
     def __init__(self):
         pass
@@ -907,6 +931,25 @@ class Gearoenix:
             cls.out.write(cls.TYPE_TYPE_ID(shader_id))
             cls.out.write(cls.TYPE_OFFSET(offset))
             cls.log("Shader with id:", shader_id, "and offset:", offset)
+
+    @classmethod
+    def write_instances_offsets(cls, clsobj):
+        offsets = [i for i in range(len(clsobj.ITEMS))]
+        mod_name = clsobj.__name__
+        cls.rust_code.write("pub mod " + mod_name + " {\n")
+        cls.cpp_code.write("namespace " + mod_name + "\n{\n")
+        for name, instance in clsobj.ITEMS.items():
+            offset = instance.offset
+            item_id = instance.my_id
+            name = cls.const_string(name)
+            cls.rust_code.write("\tpub const " + name +
+                                ": u64 = " + str(item_id) + ";\n")
+            cls.cpp_code.write("\tconst gearoenix::core::Id " +
+                               name + " = " + str(item_id) + ";\n")
+            offsets[item_id] = offset
+        cls.rust_code.write("}\n")
+        cls.cpp_code.write("}\n")
+        cls.write_offset_array(offsets)
 
     @classmethod
     def items_offsets(cls, items, mod_name):
@@ -1159,51 +1202,44 @@ class Gearoenix:
         radius = None
         meshes = []
         children = []
-        collider = None
+        collider = cls.Collider.read(c, cls)
         for c in obj.children:
-            if c.type == 'MESH':
-                if c.name.startswith(cls.STRING_MESH + '-'):
-                    mesh_name = c.name.strip().split('.')
-                    if len(mesh_name) != 2:
-                        cls.show("Wrong name in: " + c.name)
-                    try:
-                        int(mesh_name[1])
-                    except:
-                        cls.show("Wrong name in: " + c.name)
-                    mesh_name = mesh_name[0]
-                    shd = cls.Shading(cls, c.material_slots[0].material)
-                    orgshd = cls.Shading(
-                        cls,
-                        bpy.data.objects[mesh_name].material_slots[0].material)
-                    if shd.needs_uv() != orgshd.needs_uv() or \
-                            shd.needs_normal() != orgshd.needs_normal() or \
-                            shd.needs_tangent() != orgshd.needs_tangent():
-                        cls.show("The main mesh does not match the origin's " +
-                                 "material: " + c.name)
-                    mtx = c.matrix_world
-                    meshes.append((cls.meshes[mesh_name][1], shd, mtx))
-                elif c.name.startswith(cls.STRING_MODEL + '-'):
-                    children.append(c.name)
-                elif c.name.startswith('collider-'):
-                    collider = cls.Collider.read(c, cls)
-                else:
-                    cls.show("Unexpected mesh object " + c.name)
-            elif c.type == 'EMPTY':
-                if c.name.startswith(cls.STRING_OCCLUSION):
-                    if c.empty_draw_type != 'SPHERE':
-                        cls.show("The only acceptable shape for an " +
-                                 "occlusion is sphere. in: " + name)
-                    center = c.matrix_world * mathutils.Vector((0.0, 0.0, 0.0))
-                    radius = c.empty_draw_size
-                    radius = mathutils.Vector((radius, radius, radius))
-                    radius = c.matrix_world * radius
-                    radius -= center
-                    center = obj.matrix_world.inverted() * center
-                else:
-                    cls.show("Unexpected empty object: " + c.name)
+            if c.name.startswith(cls.STRING_MESH + '-'):
+                mesh_name = c.name.strip().split('.')
+                if len(mesh_name) != 2:
+                    cls.show("Wrong name in: " + c.name)
+                try:
+                    int(mesh_name[1])
+                except:
+                    cls.show("Wrong name in: " + c.name)
+                mesh_name = mesh_name[0]
+                shd = cls.Shading(cls, c.material_slots[0].material)
+                orgshd = cls.Shading(
+                    cls,
+                    bpy.data.objects[mesh_name].material_slots[0].material)
+                if shd.needs_uv() != orgshd.needs_uv() or \
+                        shd.needs_normal() != orgshd.needs_normal() or \
+                        shd.needs_tangent() != orgshd.needs_tangent():
+                    cls.show("The main mesh does not match the origin's " +
+                             "material: " + c.name)
+                mtx = c.matrix_world
+                meshes.append((cls.meshes[mesh_name][1], shd, mtx))
+            elif c.name.startswith(cls.STRING_MODEL + '-'):
+                children.append(c.name)
+            elif c.name.startswith(cls.Collider.PREFIX):
+                continue
+            elif c.name.startswith(cls.STRING_OCCLUSION):
+                if c.empty_draw_type != 'SPHERE':
+                    cls.show("The only acceptable shape for an " +
+                             "occlusion is sphere. in: " + name)
+                center = c.matrix_world * mathutils.Vector((0.0, 0.0, 0.0))
+                radius = c.empty_draw_size
+                radius = mathutils.Vector((radius, radius, radius))
+                radius = c.matrix_world * radius
+                radius -= center
+                center = obj.matrix_world.inverted() * center
             else:
-                cls.show("Unexpected object: '" + c.name +
-                         "' with type: " + c.type)
+                cls.show("Unexpected object: " + c.name)
         if center is None:
             cls.show("No occlusion sphere found in " + name)
         cls.write_vector(center)
@@ -1273,6 +1309,15 @@ class Gearoenix:
             for m in models:
                 cls.out.write(cls.TYPE_TYPE_ID(m))
             cls.write_vector(scene.world.ambient_color, 3)
+
+    @classmethod
+    def write_all_instances(cls, clsobj):
+        items = [i for i in range(len(clsobj.ITEMS))]
+        for item in clsobj.ITEMS.values():
+            items[item.my_id] = item
+        for item in items:
+            item.offset = cls.out.tell()
+            item.write()
 
     @classmethod
     def read_mesh(cls, o):
@@ -1426,6 +1471,8 @@ class Gearoenix:
                     cls.read_speaker(o)
             for o in s.objects:
                 cls.read_model(o)
+            for o in s.objects:
+                cls.Placer.read(o, cls)
             cls.scenes[s.name] = [0, cls.last_scene_id]
             cls.last_scene_id += 1
 
@@ -1446,6 +1493,7 @@ class Gearoenix:
         cls.write_offset_array(cls.meshes_offsets)
         cls.write_offset_array(cls.models_offsets)
         cls.write_offset_array(cls.scenes_offsets)
+        cls.write_instances_offsets(cls.Placer)
 
     @classmethod
     def initialize_shaders(cls):
@@ -1482,7 +1530,7 @@ class Gearoenix:
         cls.last_light_id = 0
         cls.speakers = dict()  # name: [offset, id<con>, type]
         cls.last_speaker_id = 0
-        cls.Placer.LAST_ID = 0
+        cls.Placer.init()
         cls.read_scenes()
         cls.write_bool(sys.byteorder == 'little')
         tables_offset = cls.out.tell()
@@ -1494,6 +1542,7 @@ class Gearoenix:
         cls.write_textures()
         cls.write_meshes()
         cls.write_models()
+        cls.write_all_instances(cls.Placer)
         cls.write_scenes()
         cls.out.flush()
         cls.out.seek(tables_offset)
