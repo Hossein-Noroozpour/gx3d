@@ -37,6 +37,14 @@ TYPE_FLOAT = ctypes.c_float
 TYPE_U32 = ctypes.c_uint32
 
 
+class Constrain:
+
+    PLACER = TYPE_U64(1)
+    TRACKER = TYPE_U64(2)
+    SPRING = TYPE_U64(3)
+    SPRING_JOINT = TYPE_U64(4)
+
+
 class Placer:
 
     PREFIX = "placer-"
@@ -104,6 +112,7 @@ class Placer:
         self.gear = gear
 
     def write(self):
+        self.gear.out.write(Constrain.PLACER)
         self.gear.out.write(TYPE_U64(self.type_id))
         if self.type_id == 33:
             self.gear.out.write(TYPE_FLOAT(self.attrs[0]))
