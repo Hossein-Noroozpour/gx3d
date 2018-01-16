@@ -123,7 +123,7 @@ class Placer:
         for c in self.obj.children:
             childrenids.append(self.gear.models[c.name][1])
         childrenids.sort()
-        self.gear.write_offset_array(childrenids)
+        self.gear.write_u64_array(childrenids)
 
     @classmethod
     def read(cls, obj, gear):
@@ -927,7 +927,7 @@ class Gearoenix:
                 cls.out.write(TYPE_FLOAT(matrix[j][i]))
 
     @classmethod
-    def write_offset_array(cls, arr):
+    def write_u64_array(cls, arr):
         cls.out.write(TYPE_U64(len(arr)))
         for o in arr:
             cls.out.write(TYPE_U64(o))
@@ -958,7 +958,7 @@ class Gearoenix:
             offsets[item_id] = offset
         cls.rust_code.write("}\n")
         cls.cpp_code.write("}\n")
-        cls.write_offset_array(offsets)
+        cls.write_u64_array(offsets)
 
     @classmethod
     def items_offsets(cls, items, mod_name):
@@ -1323,7 +1323,7 @@ class Gearoenix:
             cls.out.write(TYPE_U64(len(models)))
             for m in models:
                 cls.out.write(TYPE_U64(m))
-            cls.write_offset_array(placers)
+            cls.write_u64_array(placers)
             cls.write_vector(scene.world.ambient_color, 3)
 
     @classmethod
@@ -1502,13 +1502,13 @@ class Gearoenix:
         cls.gather_meshes_offsets()
         cls.gather_models_offsets()
         cls.gather_scenes_offsets()
-        cls.write_offset_array(cls.cameras_offsets)
-        cls.write_offset_array(cls.speakers_offsets)
-        cls.write_offset_array(cls.lights_offsets)
-        cls.write_offset_array(cls.textures_offsets)
-        cls.write_offset_array(cls.meshes_offsets)
-        cls.write_offset_array(cls.models_offsets)
-        cls.write_offset_array(cls.scenes_offsets)
+        cls.write_u64_array(cls.cameras_offsets)
+        cls.write_u64_array(cls.speakers_offsets)
+        cls.write_u64_array(cls.lights_offsets)
+        cls.write_u64_array(cls.textures_offsets)
+        cls.write_u64_array(cls.meshes_offsets)
+        cls.write_u64_array(cls.models_offsets)
+        cls.write_u64_array(cls.scenes_offsets)
         cls.write_instances_offsets(Placer)
 
     @classmethod
