@@ -62,8 +62,8 @@ class Placer:
 
     def __init__(self, obj, gear):
         if not obj.name.startswith(self.PREFIX):
-            gear.show(self.DESC + " name didn't start with " +
-                      self.PREFIX + " in object: " + obj.name)
+            gear.show(self.DESC + " name didn't start with " + self.PREFIX +
+                      " in object: " + obj.name)
         if obj.type != self.BTYPE:
             gear.show(self.DESC + " type must be " + self.BTYPE +
                       " in object: " + obj.name)
@@ -112,10 +112,11 @@ class Placer:
         self.gear = gear
 
     def write(self):
-        self.gear.log(self.DESC + " is being written with offset: " +
-                      str(self.offset))
+        self.gear.log(self.DESC + " is being written with offset: " + str(
+            self.offset))
         self.gear.out.write(Constrain.PLACER)
         self.gear.out.write(TYPE_U64(self.type_id))
+        self.gear.out.write(TYPE_FLOAT(self.ratio))
         if self.type_id == 33:
             self.gear.out.write(TYPE_FLOAT(self.attrs[0]))
             self.gear.out.write(TYPE_FLOAT(self.attrs[5]))
@@ -165,8 +166,8 @@ class Collider:
                 found += 1
                 collider_object = c
         if found > 1:
-            cls.show("More than one collider is acceptable. " +
-                     "In model: " + pobj.name)
+            cls.show("More than one collider is acceptable. " + "In model: " +
+                     pobj.name)
         if found == 0:
             return GhostCollider(gear)
         if collider_object.name.startswith(MeshCollider.PREFIX):
@@ -175,7 +176,6 @@ class Collider:
 
 
 class GhostCollider:
-
     def __init__(self, gear):
         self.gear = gear
         pass
@@ -194,8 +194,8 @@ class MeshCollider:
         if not obj.name.startswith(self.PREFIX):
             gear.show("Collider object name is wrong. In: " + obj.name)
         if obj.type != 'MESH':
-            cls.show('Mesh collider must have mesh object type' +
-                     'In model: ' + obj.name)
+            cls.show('Mesh collider must have mesh object type' + 'In model: '
+                     + obj.name)
         for i in range(3):
             if obj.location[i] != 0.0 or obj.rotation_euler[i] != 0.0:
                 gear.show('Mesh collider not have any transformation' +
@@ -554,8 +554,7 @@ class Gearoenix:
 
             def write(self, shd):
                 if self == self.BAKED or self == self.REALTIME:
-                    shd.parent.out.write(
-                        TYPE_FLOAT(shd.reflect_factor))
+                    shd.parent.out.write(TYPE_FLOAT(shd.reflect_factor))
                 if self == self.BAKED:
                     shd.parent.out.write(TYPE_U64(shd.bakedenv))
 
@@ -632,8 +631,7 @@ class Gearoenix:
 
             def write(self, shd):
                 if self == self.TRANSPARENT or self == self.CUTOFF:
-                    shd.parent.out.write(
-                        TYPE_FLOAT(shd.transparency))
+                    shd.parent.out.write(TYPE_FLOAT(shd.transparency))
 
         def __init__(self, parent, bmat=None):
             self.parent = parent
@@ -953,10 +951,10 @@ class Gearoenix:
             offset = instance.offset
             item_id = instance.my_id
             name = cls.const_string(name)
-            cls.rust_code.write("\tpub const " + name +
-                                ": u64 = " + str(item_id) + ";\n")
-            cls.cpp_code.write("\tconst gearoenix::core::Id " +
-                               name + " = " + str(item_id) + ";\n")
+            cls.rust_code.write("\tpub const " + name + ": u64 = " + str(
+                item_id) + ";\n")
+            cls.cpp_code.write("\tconst gearoenix::core::Id " + name + " = " +
+                               str(item_id) + ";\n")
             offsets[item_id] = offset
         cls.rust_code.write("}\n")
         cls.cpp_code.write("}\n")
