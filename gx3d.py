@@ -112,6 +112,8 @@ class Placer:
         self.gear = gear
 
     def write(self):
+        self.gear.log(self.DESC + " is being written with offset: " +
+                      str(self.offset))
         self.gear.out.write(Constrain.PLACER)
         self.gear.out.write(TYPE_U64(self.type_id))
         if self.type_id == 33:
@@ -1508,8 +1510,8 @@ class Gearoenix:
         cls.write_u64_array(cls.textures_offsets)
         cls.write_u64_array(cls.meshes_offsets)
         cls.write_u64_array(cls.models_offsets)
-        cls.write_u64_array(cls.scenes_offsets)
         cls.write_instances_offsets(Placer)
+        cls.write_u64_array(cls.scenes_offsets)
 
     @classmethod
     def initialize_shaders(cls):
