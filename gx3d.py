@@ -37,7 +37,7 @@ TYPE_FLOAT = ctypes.c_float
 TYPE_U32 = ctypes.c_uint32
 
 
-class Constrain:
+class Constraint:
 
     PLACER = TYPE_U64(1)
     TRACKER = TYPE_U64(2)
@@ -46,7 +46,7 @@ class Constrain:
 
 
 class Placer:
-
+    PARENT = Constraint
     PREFIX = "placer-"
     DESC = "Placer object"
     BTYPE = "EMPTY"
@@ -114,7 +114,7 @@ class Placer:
     def write(self):
         self.gear.log(self.DESC + " is being written with offset: " + str(
             self.offset))
-        self.gear.out.write(Constrain.PLACER)
+        self.gear.out.write(Constraint.PLACER)
         self.gear.out.write(TYPE_U64(self.type_id))
         self.gear.out.write(TYPE_FLOAT(self.ratio))
         if self.type_id == 33:
@@ -142,8 +142,10 @@ class Placer:
         cls.ITEMS = dict()  # name: instance
 
 
-class Collider:
+Constraint.CHILDREN = [Placer]
 
+
+class Collider:
     GHOST = TYPE_U64(1)
     MESH = TYPE_U64(2)
     PREFIX = 'collider-'
@@ -176,6 +178,8 @@ class Collider:
 
 
 class GhostCollider:
+    PARENT = Collider
+
     def __init__(self, gear):
         self.gear = gear
         pass
@@ -185,7 +189,7 @@ class GhostCollider:
 
 
 class MeshCollider:
-
+    PARENT = Collider
     PREFIX = 'collider-mesh-'
 
     def __init__(self, obj, gear):
@@ -216,6 +220,9 @@ class MeshCollider:
         for t in self.triangles:
             for pos in t:
                 self.gear.write_vector(pos)
+
+
+Collider.CHILDREN = [GhostCollider, MeshCollider]
 
 
 class Gearoenix:
