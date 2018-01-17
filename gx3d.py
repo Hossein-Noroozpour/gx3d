@@ -36,11 +36,11 @@ TYPE_BYTE = ctypes.c_uint8
 TYPE_FLOAT = ctypes.c_float
 TYPE_U32 = ctypes.c_uint32
 
-
 GX3D_FILE = None
 CPP_FILE = None
 RUST_FILE = None
 
+DEBUG_MODE = True
 
 def terminate(*msgs):
     msg = ""
@@ -49,10 +49,46 @@ def terminate(*msgs):
     print("Error: " + msg)
     raise Exception(msg)
 
+def log_info(*msgs):
+    if DEBUG_MODE:
+        msg = ""
+        for m in msgs:
+            msg += str(m) + " "
+        print("Info: " + msg)
+
+def write_instances_ids(inss):
+    GX3D_FILE.write(TYPE_U64(len(inss)))
+    for ins in inss:
+        GX3D_FILE.write(TYPE_U64(ins.my_id))
+
+def write_vector(v, element_count=3):
+    for i in range(element_count):
+        GX3D_FILE.write(TYPE_FLOAT(v[i]))
+
 
 class RenderObject:
+    # each instance of this class must define:
+    #     MY_TYPE    int
+    #     LAST_ID    int
+    #     ITEMS      dict[name] = instance
+    #     DESC       str
+    #     CHILDREN   [subclass]
+    #     PREFIX     str
+    # it will add following fiels:
+    #     name       str
+    #     my_id      int
+    #     offset     int
+    #     bobj       blender-object
+    # The immediate subclass must:
+    #     Be itself root of other type, like scene, model, mesh, ...
+    #     Must have at least one child
+    # Most of the times leaf classes only needs this:
+    #     PREFIX
+    #     DESC
+    #     MY_TYPE
 
     def __init__(self, bobj):
+        self.bobj = bobj
         self.my_id = self.LAST_ID
         self.LAST_ID += 1
         self.name = bobj.name
@@ -67,9 +103,18 @@ class RenderObject:
         GX3D_FILE.write(TYPE_U64(self.MY_TYPE))
 
     @classmethod
+    def write_all(cls):
+        items = [i for i in range(len(cls.ITEMS))]
+        for item in cls.ITEMS.values():
+            items[item.my_id] = item
+        for item in items:
+            item.offset = GX3D_FILE.tell()
+            item.write()
+
+    @classmethod
     def read(cls, bobj):
         if not bobj.name.startswith(cls.PREFIX):
-            return False
+            return None
         cc = None
         for c in cls.CHILDREN:
             if bobj.name.startswith(c.PREFIX):
@@ -77,8 +122,7 @@ class RenderObject:
                 break
         if cc is None:
             terminate("Type not found. ", cls.DESC, ":", bobj.name)
-        sc(bobj)
-        return True
+        return sc(bobj)
 
 
 class Constraint:
@@ -269,24 +313,58 @@ class MeshCollider:
 Collider.CHILDREN = [GhostCollider, MeshCollider]
 
 
+class Model(RenderObject):
+
+
 class Scene(RenderObject):
     PREFIX = 'scene-'
     LAST_ID = 0
     ITEMS = dict()  # name: instance
     DESC = "Scene"
     CHILDREN = []
+    MY_TYPE = 0
     TYPE_GAME = 1
     TYPE_UI = 2
 
     def __init__(self, bobj):
         super().__init__(bobj)
-        if not obj.name.startswith(self.PREFIX):
-            gear.show("Collider object name is wrong. In: " + obj.name)
-        self.obj = obj
-        self.gear = gear
+        self.models = []
+        self.cameras = []
+        self.lights = []
+        self.audios = []
+        self.constraints = []
+        for o in bobj.objects:
+            if o.parent is not None:
+                continue
+            ins = Model.read(o)
+            if ins is not None:
+                self.models.append(ins)
+                continue
+            ins = Camera.read(o)
+            if ins is not None:
+                self.cameras.append(ins)
+                continue
+            ins = Light.read(o)
+            if ins is not None:
+                self.lights.append(ins)
+                continue
+            ins = Audio.read(o)
+            if ins is not None:
+                self.audios.append(ins)
+                continue
+            ins = Constraint.read(o)
+            if ins is not None:
+                self.constraints.append(ins)
+                continue
 
     def write(self):
-        pass
+        super().write()
+        write_vector(self.bobj.world.ambient_color)
+        write_instances_ids(self.cameras)
+        write_instances_ids(self.audios)
+        write_instances_ids(self.lights)
+        write_instances_ids(self.models)
+        write_instances_ids(self.constraints)
 
     @classmethod
     def read_all(cls):
@@ -300,14 +378,30 @@ class Scene(RenderObject):
 class GameScene(Scene):
     PREFIX = Scene.PREFIX + 'game-'
     DESC = "Game scene"
+    MY_TYPE = Scene.TYPE_GAME
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
+
+    def write(self):
+        super().write()
 
 
-Scene.CHILDREN.append(BasicScene)
+Scene.CHILDREN.append(GameScene)
 
 
 class UiScene(Scene):
     PREFIX = Scene.PREFIX + 'ui-'
     DESC = "UI scene"
+    MY_TYPE = Scene.TYPE_UI
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
+        # todo add widget class for ui
+
+    def write(self):
+        super().write()
+        # todo add widget class for ui
 
 
 Scene.CHILDREN.append(UiScene)
@@ -1011,11 +1105,6 @@ class Gearoenix:
         cls.out.write(TYPE_BOOLEAN(data))
 
     @classmethod
-    def write_vector(cls, v, element_count=3):
-        for i in range(element_count):
-            cls.out.write(TYPE_FLOAT(v[i]))
-
-    @classmethod
     def write_matrix(cls, matrix):
         for i in range(0, 4):
             for j in range(0, 4):
@@ -1369,59 +1458,6 @@ class Gearoenix:
             cls.write_model(name)
 
     @classmethod
-    def write_scenes(cls):
-        items = [i for i in range(len(cls.scenes))]
-        for name, offset_id in cls.scenes.items():
-            offset, iid = offset_id
-            items[iid] = name
-        for name in items:
-            cls.scenes[name][0] = cls.out.tell()
-            cls.log("offset of scene with name", name, ":",
-                    cls.scenes[name][0])
-            scene = bpy.data.scenes[name]
-            placers = []
-            models = []
-            cameras = []
-            speakers = []
-            lights = []
-            for o in scene.objects:
-                if o.parent is not None:
-                    continue
-                elif o.name.startswith(Placer.PREFIX):
-                    placers.append(Placer.ITEMS[o.name].my_id)
-                elif o.name.startswith(cls.STRING_MODEL + '-'):
-                    models.append(cls.models[o.name][1])
-                elif o.name.startswith(cls.STRING_MESH + '-'):
-                    continue
-                elif o.type == "CAMERA":
-                    cameras.append(cls.cameras[o.name][1])
-                elif o.type == "SPEAKER":
-                    speakers.append(cls.speakers[o.name][1])
-                elif o.type == "LAMP":
-                    lights.append(cls.lights[o.name][1])
-                else:
-                    cls.show("Unexpected object: " + o.name)
-            if len(lights) > 1:
-                cls.show(
-                    "Currently only one light is supported in game engine")
-            if len(cameras) < 1:
-                cls.show("At least one camera must exist.")
-            cls.out.write(TYPE_U64(len(cameras)))
-            for c in cameras:
-                cls.out.write(TYPE_U64(c))
-            cls.out.write(TYPE_U64(len(speakers)))
-            for s in speakers:
-                cls.out.write(TYPE_U64(s))
-            cls.out.write(TYPE_U64(len(lights)))
-            for l in lights:
-                cls.out.write(TYPE_U64(l))
-            cls.out.write(TYPE_U64(len(models)))
-            for m in models:
-                cls.out.write(TYPE_U64(m))
-            cls.write_u64_array(placers)
-            cls.write_vector(scene.world.ambient_color, 3)
-
-    @classmethod
     def write_all_instances(cls, clsobj):
         items = [i for i in range(len(clsobj.ITEMS))]
         for item in clsobj.ITEMS.values():
@@ -1563,29 +1599,6 @@ class Gearoenix:
         else:
             cls.speakers[name] = [0, cls.last_speaker_id, speaker_type]
             cls.last_speaker_id += 1
-
-    @classmethod
-    def read_scenes(cls):
-        for s in bpy.data.scenes:
-            if s.name in cls.scenes:
-                continue
-            for o in s.objects:
-                cls.read_mesh(o)
-            for o in s.objects:
-                if o.type == 'CAMERA':
-                    cls.read_camera(o)
-            for o in s.objects:
-                if o.type == 'LAMP':
-                    cls.read_light(o)
-            for o in s.objects:
-                if o.type == 'SPEAKER':
-                    cls.read_speaker(o)
-            for o in s.objects:
-                cls.read_model(o)
-            for o in s.objects:
-                Placer.read(o, cls)
-            cls.scenes[s.name] = [0, cls.last_scene_id]
-            cls.last_scene_id += 1
 
     @classmethod
     def write_tables(cls):
