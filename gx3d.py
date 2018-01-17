@@ -37,6 +37,50 @@ TYPE_FLOAT = ctypes.c_float
 TYPE_U32 = ctypes.c_uint32
 
 
+GX3D_FILE = None
+CPP_FILE = None
+RUST_FILE = None
+
+
+def terminate(*msgs):
+    msg = ""
+    for m in msgs:
+        msg += str(m) + " "
+    print("Error: " + msg)
+    raise Exception(msg)
+
+
+class RenderObject:
+
+    def __init__(self, bobj):
+        self.my_id = self.LAST_ID
+        self.LAST_ID += 1
+        self.name = bobj.name
+        if not self.name.startswith(self.PREFIX):
+            terminate("Unexpected name in ", self.DESC)
+        if self.name in self.ITEMS:
+            terminate("Unexpected instance of ", self.DESC,
+                      " already imported")
+        self.ITEMS[self.name] = self
+
+    def write(self):
+        GX3D_FILE.write(TYPE_U64(self.MY_TYPE))
+
+    @classmethod
+    def read(cls, bobj):
+        if not bobj.name.startswith(cls.PREFIX):
+            return False
+        cc = None
+        for c in cls.CHILDREN:
+            if bobj.name.startswith(c.PREFIX):
+                cc = c
+                break
+        if cc is None:
+            terminate("Type not found. ", cls.DESC, ":", bobj.name)
+        sc(bobj)
+        return True
+
+
 class Constraint:
 
     PLACER = TYPE_U64(1)
@@ -223,6 +267,50 @@ class MeshCollider:
 
 
 Collider.CHILDREN = [GhostCollider, MeshCollider]
+
+
+class Scene(RenderObject):
+    PREFIX = 'scene-'
+    LAST_ID = 0
+    ITEMS = dict()  # name: instance
+    DESC = "Scene"
+    CHILDREN = []
+    TYPE_GAME = 1
+    TYPE_UI = 2
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
+        if not obj.name.startswith(self.PREFIX):
+            gear.show("Collider object name is wrong. In: " + obj.name)
+        self.obj = obj
+        self.gear = gear
+
+    def write(self):
+        pass
+
+    @classmethod
+    def read_all(cls):
+        for s in bpy.data.scenes:
+            if super().read(s):
+                continue
+            else:
+                terminate("Unexpected scene", s.name)
+
+
+class GameScene(Scene):
+    PREFIX = Scene.PREFIX + 'game-'
+    DESC = "Game scene"
+
+
+Scene.CHILDREN.append(BasicScene)
+
+
+class UiScene(Scene):
+    PREFIX = Scene.PREFIX + 'ui-'
+    DESC = "UI scene"
+
+
+Scene.CHILDREN.append(UiScene)
 
 
 class Gearoenix:
