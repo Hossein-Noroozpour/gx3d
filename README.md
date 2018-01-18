@@ -85,22 +85,24 @@ Blender plug-in for Gearoenix 3D file format.
       - Mostly like a mesh.
       - Its normal must be flat, not smooth.
 
-- Placer:
+- Constraints:
 
-  - Its name is `placer-[name]`.
-  - It is an empty object.
-  - It should not have any transformation.
-  - It can have only model in its children.
-  - In every size event it will compute the space and the position of the object and if the remained space was smaller than the current size of the object, object will be fitted by scaling down and on the other hand if object was smaller than the allowed space that it can fill, it will be fill the space by scaling up.
-  - It has following attributes (misusing may cause undefined behavior):
+  - Placer:
 
-    - x-middle: Place the object in x: 0.0 and with the specified distance from right and left borders.
-    - y-middle: (todo: will be added, whenever needed)
-    - x-left: (todo: will be added, whenever needed)
-    - x-right: (todo: will be added, whenever needed)
-    - y-down: place the object with a specified distance from bottom border.
-    - y-up: (todo: will be added, whenever needed)
-    - ratio: Its value is (width / height), it is a mandatory attribute.
+    - Its name is `placer-[name]`.
+    - It is an empty object.
+    - It should not have any transformation.
+    - It can have only model in its children.
+    - In every size event it will compute the space and the position of the object and if the remained space was smaller than the current size of the object, object will be fitted by scaling down and on the other hand if object was smaller than the allowed space that it can fill, it will be fill the space by scaling up.
+    - It has following attributes (misusing may cause undefined behavior):
+
+      - x-middle: Place the object in x: 0.0 and with the specified distance from right and left borders.
+      - y-middle: (todo: will be added, whenever needed)
+      - x-left: (todo: will be added, whenever needed)
+      - x-right: (todo: will be added, whenever needed)
+      - y-down: place the object with a specified distance from bottom border.
+      - y-up: (todo: will be added, whenever needed)
+      - ratio: Its value is (width / height), it is a mandatory attribute.
 
 ## License
 

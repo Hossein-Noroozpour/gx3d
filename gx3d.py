@@ -42,12 +42,14 @@ RUST_FILE = None
 
 DEBUG_MODE = True
 
+
 def terminate(*msgs):
     msg = ""
     for m in msgs:
         msg += str(m) + " "
     print("Error: " + msg)
     raise Exception(msg)
+
 
 def log_info(*msgs):
     if DEBUG_MODE:
@@ -56,14 +58,22 @@ def log_info(*msgs):
             msg += str(m) + " "
         print("Info: " + msg)
 
+
 def write_instances_ids(inss):
     GX3D_FILE.write(TYPE_U64(len(inss)))
     for ins in inss:
         GX3D_FILE.write(TYPE_U64(ins.my_id))
 
+
 def write_vector(v, element_count=3):
     for i in range(element_count):
         GX3D_FILE.write(TYPE_FLOAT(v[i]))
+
+
+def write_matrix(matrix):
+    for i in range(0, 4):
+        for j in range(0, 4):
+            GX3D_FILE.write(TYPE_FLOAT(matrix[j][i]))
 
 
 class RenderObject:
@@ -94,9 +104,6 @@ class RenderObject:
         self.name = bobj.name
         if not self.name.startswith(self.PREFIX):
             terminate("Unexpected name in ", self.DESC)
-        if self.name in self.ITEMS:
-            terminate("Unexpected instance of ", self.DESC,
-                      " already imported")
         self.ITEMS[self.name] = self
 
     def write(self):
@@ -115,6 +122,8 @@ class RenderObject:
     def read(cls, bobj):
         if not bobj.name.startswith(cls.PREFIX):
             return None
+        if bobj.name in cls.ITEMS:
+            return None
         cc = None
         for c in cls.CHILDREN:
             if bobj.name.startswith(c.PREFIX):
@@ -122,7 +131,7 @@ class RenderObject:
                 break
         if cc is None:
             terminate("Type not found. ", cls.DESC, ":", bobj.name)
-        return sc(bobj)
+        return cc(bobj)
 
 
 class Constraint:
@@ -313,7 +322,107 @@ class MeshCollider:
 Collider.CHILDREN = [GhostCollider, MeshCollider]
 
 
+class Mesh(RenderObject):
+    PREFIX = 'mesh-'
+    LAST_ID = 0
+    ITEMS = dict()  # name: instance
+    DESC = "Mesh"
+    CHILDREN = []
+    MY_TYPE = 0
+    TYPE_BASIC = 1
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
+        self.shd = Shading(bobj.material_slots[0].material)
+        origin_bobj = bpy.data.objects[origin_name]
+        orgshd = Shading(origin_bobj.material_slots[0].material)
+        if self.shd.is_same(orgshd):
+            terminate("Mesh origin does not have same attributes: " + bobj.name)
+
+    def write(self):
+        super().write()
+
+    @classmethod
+    def read(cls, bobj):
+        if not bobj.name.startswith(cls.PREFIX):
+            return None
+        origin_name = bobj.name.strip().split('.')
+        if len(origin_name) != 2:
+            terminate("Wrong name in:", bobj.name)
+        try:
+            int(origin_name[1])
+        except:
+            terminate("Wrong name in:", bobj.name)
+        origin_name = origin_name[0]
+        super().read(bobj[origin_name])
+        return cls(bobj)
+
+
+class Occlusion:
+    PREFIX = 'occlusion-'
+
+    def __init__(self, bobj):
+        if bobj.empty_draw_type != 'SPHERE':
+            terminate("The only acceptable shape for an occlusion is " +
+                      "sphere. in: " + bobj.name)
+        center = bobj.matrix_world * mathutils.Vector((0.0, 0.0, 0.0))
+        radius = bobj.empty_draw_size
+        radius = mathutils.Vector((radius, radius, radius))
+        radius = bobj.matrix_world * radius
+        self.radius -= center
+        self.center = bobj.parent.matrix_world.inverted() * center
+
+    @classmethod
+    def read(cls, bobj):
+        for c in bobj.children:
+            if bobj.name.startswith(cls.PREFIX):
+                return cls(bobj)
+        terminate("Occlusion not found in: ", bobj.name)
+
+
 class Model(RenderObject):
+    PREFIX = 'model-'
+    LAST_ID = 0
+    ITEMS = dict()  # name: instance
+    DESC = "Model"
+    CHILDREN = []
+    MY_TYPE = 0
+    TYPE_BASIC = 1
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
+        self.matrix = bobj.matrix_world
+        self.occlusion = Occlusion.read(bobj)
+        self.meshes = []
+        self.model_children = []
+        self.collider = Collider.read(bobj)
+        for c in bobj.children:
+            ins = Mesh.read(c)
+            if ins is not None:
+                self.meshes.append(ins)
+                continue
+            ins = Model.read(c)
+            if ins is not None:
+                self.model_children.append(ins)
+                continue
+
+    def write(self):
+        super().write()
+        self.occlusion.write()
+        self.collider.write()
+        write_instances_ids(self.model_children)
+        write_instances_ids(self.meshes)
+        for mesh in self.meshes:
+            mesh.shd.write()
+
+
+class BasicModel:
+    PREFIX = Model.PREFIX + 'basic-'
+    DESC = "Basic model"
+    MY_TYPE = Model.TYPE_BASIC
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
 
 
 class Scene(RenderObject):
@@ -369,7 +478,7 @@ class Scene(RenderObject):
     @classmethod
     def read_all(cls):
         for s in bpy.data.scenes:
-            if super().read(s):
+            if super().read(s) in not None:
                 continue
             else:
                 terminate("Unexpected scene", s.name)
@@ -1105,12 +1214,6 @@ class Gearoenix:
         cls.out.write(TYPE_BOOLEAN(data))
 
     @classmethod
-    def write_matrix(cls, matrix):
-        for i in range(0, 4):
-            for j in range(0, 4):
-                cls.out.write(TYPE_FLOAT(matrix[j][i]))
-
-    @classmethod
     def write_u64_array(cls, arr):
         cls.out.write(TYPE_U64(len(arr)))
         for o in arr:
@@ -1447,17 +1550,6 @@ class Gearoenix:
         collider.write()
 
     @classmethod
-    def write_models(cls):
-        items = [i for i in range(len(cls.models))]
-        for name, (offset, iid) in cls.models.items():
-            items[iid] = name
-        for name in items:
-            cls.models[name][0] = cls.out.tell()
-            cls.log("model with name:", name, " and offset:",
-                    cls.models[name][0])
-            cls.write_model(name)
-
-    @classmethod
     def write_all_instances(cls, clsobj):
         items = [i for i in range(len(clsobj.ITEMS))]
         for item in clsobj.ITEMS.values():
@@ -1558,19 +1650,6 @@ class Gearoenix:
             cls.shaders[sid] = [0, s]
         else:
             cls.show("Unexpected number of materials in mesh " + m.name)
-
-    @classmethod
-    def read_model(cls, m):
-        if m.type != 'MESH':
-            return
-        if not m.name.startswith(cls.STRING_MODEL + "-"):
-            return
-        if m.name in cls.models:
-            return
-        if len(m.children) == 0:
-            cls.show("Model can not have no children: " + m.name)
-        cls.models[m.name] = [0, cls.last_model_id]
-        cls.last_model_id += 1
 
     @classmethod
     def read_light(cls, o):
