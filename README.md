@@ -15,6 +15,11 @@ Blender plug-in for Gearoenix 3D file format.
   - It should not have not applied modifier.
   - All of its face must be triangle.
   - It should not have neither parent nor child.
+  - It has following types:
+
+    - Basic:
+
+      - It name starts with `mesh-basic-`.
 
 - Model
 
