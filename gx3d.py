@@ -434,6 +434,18 @@ Collider.CHILDREN = [GhostCollider, MeshCollider]
 
 
 class Texture(RenderObject):
+    PREFIX = 'txt-'
+    LAST_ID = 0
+    ITEMS = dict()  # name: instance
+    DESC = "Texture"
+    CHILDREN = []
+    MY_TYPE = 0
+    TYPE_2D = 1
+    TYPE_3D = 2
+    TYPE_CUBE = 3
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
 
     @staticmethod
     def get_name_from_bobj(bobj):
