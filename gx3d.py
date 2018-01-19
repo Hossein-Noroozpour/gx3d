@@ -138,6 +138,15 @@ def const_string(s):
     return s.replace("-", "_").replace('/', '_').replace('.', '_').upper()
 
 
+def read_file(f):
+    return open(f, "rb").read()
+
+
+def write_file(f):
+    write_u64(len(f))
+    GX3D_FILE.write(f)
+
+
 class RenderObject:
     # each instance of this class must define:
     #     MY_TYPE    int
@@ -446,6 +455,11 @@ class Texture(RenderObject):
 
     def __init__(self, bobj):
         super().__init__(bobj)
+        self.file = read_file(self.name)
+
+    def write(self):
+        super().write()
+        write_file(self.file)
 
     @staticmethod
     def get_name_from_bobj(bobj):
@@ -460,6 +474,40 @@ class Texture(RenderObject):
         if not filepath.endswith(".png"):
             terminate("Use PNG image instead of ", filepath)
         return filepath
+
+
+class D2Texture(Texture):
+    PREFIX = Texture.PREFIX + '2d-'
+    DESC = "2D texture"
+    MY_TYPE = Mesh.TYPE_2D
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
+
+
+class CubeTexture(Texture):
+    PREFIX = Texture.PREFIX + 'cube-'
+    DESC = "Cube texture"
+    MY_TYPE = Mesh.TYPE_CUBE
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
+        if not self.name.startswith('-up.png'):
+            terminate('Incorrect cube texture:', bobj.name)
+        base_name = self.name[:len(self.name) - len('-up.png')]
+        self.img_down = read_file(base_name + '-down.png')
+        self.img_left = read_file(base_name + '-left.png')
+        self.img_right = read_file(base_name + '-right.png')
+        self.img_front = read_file(base_name + '-front.png')
+        self.img_back = read_file(base_name + '-back.png')
+
+    def write(self):
+        super().write()
+        write_file(self.img_down)
+        write_file(self.img_left)
+        write_file(self.img_right)
+        write_file(self.img_front)
+        write_file(self.img_back)
 
 
 class Shading:
@@ -1533,45 +1581,6 @@ class Gearoenix:
         cls.out.write(TYPE_U64(len(f)))
         cls.out.write(f)
 
-    @classmethod
-    def write_textures(cls):
-        items = [i for i in range(len(cls.textures))]
-        for name, offset_id_type in cls.textures.items():
-            offset, iid, ttype = offset_id_type
-            items[iid] = [name, ttype]
-        for name, ttype in items:
-            cls.textures[name][0] = cls.out.tell()
-            cls.out.write(TYPE_U64(ttype))
-            if ttype == cls.TEXTURE_TYPE_2D:
-                cls.log("txt2-----------------------", cls.out.tell())
-                cls.write_binary_file(name)
-            elif ttype == cls.TEXTURE_TYPE_CUBE:
-                off_offs = cls.out.tell()
-                img_offs = [0, 0, 0, 0, 0]
-                for o in img_offs:
-                    cls.out.write(TYPE_U64(o))
-                name = name.strip()
-                raw_name = name[:len(name) - len("-up.png")]
-                cls.write_binary_file(raw_name + "-up.png")
-                img_offs[0] = cls.out.tell()
-                cls.write_binary_file(raw_name + "-down.png")
-                img_offs[1] = cls.out.tell()
-                cls.write_binary_file(raw_name + "-left.png")
-                img_offs[2] = cls.out.tell()
-                cls.write_binary_file(raw_name + "-right.png")
-                img_offs[3] = cls.out.tell()
-                cls.write_binary_file(raw_name + "-front.png")
-                img_offs[4] = cls.out.tell()
-                cls.write_binary_file(raw_name + "-back.png")
-                off_end = cls.out.tell()
-                cls.out.seek(off_offs)
-                for o in img_offs:
-                    cls.out.write(TYPE_U64(o))
-                cls.out.seek(off_end)
-
-            else:
-                cls.show("Unexpected texture type:", ttype)
-
     @staticmethod
     def check_uint(s):
         try:
@@ -1589,47 +1598,6 @@ class Gearoenix:
         for item in items:
             item.offset = cls.out.tell()
             item.write()
-
-    @classmethod
-    def read_texture_cube(cls, slots, tname):
-        """It checks the correctness of a 2d texture and add its
-        up face to the textures and returns id"""
-        t = slots[tname + '-' + cls.STRING_CUBE_FACES[0]].texture
-        filepath = cls.read_texture(t)
-        for i in range(1, 6):
-            cls.read_texture(
-                slots[tname + '-' + cls.STRING_CUBE_FACES[i]].texture)
-        if filepath in cls.textures:
-            if cls.textures[filepath][2] != cls.TEXTURE_TYPE_CUBE:
-                cls.show("You have used a same image in two " +
-                         "defferent texture type in " + t.name)
-            else:
-                return cls.textures[filepath][1]
-        else:
-            cls.textures[filepath] = [
-                0, cls.last_texture_id, cls.TEXTURE_TYPE_CUBE
-            ]
-            tid = cls.last_texture_id
-            cls.last_texture_id += 1
-            return tid
-
-    @classmethod
-    def read_texture_2d(cls, t):
-        """It checks the correctness of a 2d texture and add it
-        to the textures and returns id"""
-        filepath = cls.read_texture(t)
-        if filepath in cls.textures:
-            if cls.textures[filepath][2] != cls.TEXTURE_TYPE_2D:
-                cls.show("You have used a same image in two defferent " +
-                         "texture type in " + t.name)
-            else:
-                return cls.textures[filepath][1]
-        else:
-            cls.textures[filepath] = \
-                [0, cls.last_texture_id, cls.TEXTURE_TYPE_2D]
-            tid = cls.last_texture_id
-            cls.last_texture_id += 1
-            return tid
 
     @classmethod
     def read_materials(cls, m):
