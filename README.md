@@ -4,7 +4,31 @@ Blender plug-in for Gearoenix 3D file format.
 
 ## Rules:
 
-- Mesh
+- Scene:
+
+  - Its name starts with `scene-`.
+  - It have following fields:
+
+    - Models
+    - Cameras
+    - Lights
+    - Audios
+    - Constraints
+
+  - It has following types:
+
+    - Game:
+
+      - Its name starts with `scene-game-`.
+
+    - UI:
+
+      - Its name starts with `scene-gui-`.
+      - It have following fields more than ordinary scene:
+
+        - Widgets
+
+- Mesh:
 
   - It is an object.
   - Its name starts with `mesh-` and it should not have tailing number at its name.
