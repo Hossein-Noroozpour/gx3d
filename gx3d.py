@@ -46,7 +46,9 @@ EXPORT_METAL = False
 
 GX3D_FILE = None
 CPP_FILE = None
+CPP_ENUM_FILE = None
 RUST_FILE = None
+
 
 DEBUG_MODE = True
 
@@ -68,6 +70,11 @@ def log_info(*msgs):
             msg += str(m) + " "
         print("Info: " + msg)
 
+def write_cpp_enum(*msgs):
+    msg = ""
+    for m in msgs:
+        msg += str(m) + " "
+    CPP_ENUM_FILE.write(msg + '\n')
 
 def write_instances_ids(inss):
     GX3D_FILE.write(TYPE_U64(len(inss)))
@@ -156,7 +163,7 @@ def has_transformation(bobj):
     m = bobj.matrix_world
     if bobj.parent is not None:
         m = bobj.parent.matrix_world.inverted() * m
-    for i in range(4)
+    for i in range(4):
         for j in range(4):
             if i == j:
                 if not is_zero(m[i][j] - 1.0):
@@ -477,12 +484,17 @@ class OrthographicCamera(Camera):
 Camera.CHILDREN.append(OrthographicCamera)
 
 
-class Constraint:
-
-    PLACER = TYPE_U64(1)
-    TRACKER = TYPE_U64(2)
-    SPRING = TYPE_U64(3)
-    SPRING_JOINT = TYPE_U64(4)
+class Constraint(RenderObject):
+    PREFIX = 'constraint-'
+    LAST_ID = 0
+    ITEMS = dict()  # name: instance
+    DESC = "Constraint"
+    CHILDREN = []
+    MY_TYPE = 0
+    TYPE_PLACER = 1
+    TYPE_TRACKER = 2
+    TYPE_SPRING = 3
+    TYPE_SPRING_JOINT = 4
 
 
 class Placer:
@@ -707,7 +719,7 @@ class Texture(RenderObject):
 class D2Texture(Texture):
     PREFIX = Texture.PREFIX + '2d-'
     DESC = "2D texture"
-    MY_TYPE = Mesh.TYPE_2D
+    MY_TYPE = Texture.TYPE_2D
 
     def __init__(self, bobj):
         super().__init__(bobj)
@@ -719,7 +731,7 @@ Texture.CHILDREN.append(D2Texture)
 class CubeTexture(Texture):
     PREFIX = Texture.PREFIX + 'cube-'
     DESC = "Cube texture"
-    MY_TYPE = Mesh.TYPE_CUBE
+    MY_TYPE = Texture.TYPE_CUBE
 
     def __init__(self, bobj):
         super().__init__(bobj)
@@ -747,7 +759,7 @@ Texture.CHILDREN.append(CubeTexture)
 class BackedEnvironmentTexture(CubeTexture):
     PREFIX = Texture.PREFIX + 'bkenv-'
     DESC = "Backed environment texture"
-    MY_TYPE = Mesh.TYPE_BACKED_ENVIRONMENT
+    MY_TYPE = Texture.TYPE_BACKED_ENVIRONMENT
 
     def __init__(self, bobj):
         super().__init__(bobj)
@@ -1281,11 +1293,11 @@ class Shading:
         for e in self.Reserved:
             self.reserved = e
             all_enums[self.get_enum_name()] = self.to_int()
-        self.parent.log("ALL ENUMS")
+        log_info("ALL ENUMS")
         for k in sorted(all_enums):
             if 'MAX' not in k:
-                self.parent.log(k, "=", all_enums[k], ",")
-        self.parent.log("END OF ALL ENUMS")
+                write_cpp_enum(k, "=", all_enums[k], ",")
+        log_info("END OF ALL ENUMS")
 
     def get_enum_name(self):
         result = ""
@@ -1295,13 +1307,13 @@ class Shading:
             for e in self.shading_data:
                 result += e.name + '_'
         result = result[0:len(result) - 1]
-        self.parent.log(result, ' = ', self.to_int())
+        log_info(result, ' = ', self.to_int())
         return result
 
     def get_file_name(self):
         result = self.get_enum_name()
         result = result.lower().replace('_', '-')
-        self.parent.log(result, ' = ', self.to_int())
+        log_info(result, ' = ', self.to_int())
         return result
 
     def needs_normal(self):
@@ -1355,7 +1367,7 @@ class Mesh(UniRenderObject):
         if len(bobj.children) != 0:
             terminate("Mesh can not have children:", bobj.name)
         self.shd = Shading(bobj.material_slots[0].material)
-        if self.origin_instance in not None:
+        if self.origin_instance is not None:
             if not self.shd.is_same(self.origin_instance.shd):
                 terminate("Different mesh attributes, in: " + bobj.name)
             return
@@ -1731,7 +1743,7 @@ def write_tables(cls):
     Scene.write_table()
 
 
-def initialize_shaders(cls):
+def initialize_shaders():
     Shader.init()
     s = Shading()
     s.print_all_enums()
@@ -1755,7 +1767,7 @@ def write_file():
     Light.init()
     Camera.init()
     Texture.init()
-    Meshe.init()
+    Mesh.init()
     Model.init()
     Constraint.init()
     Scene.init()
@@ -1814,6 +1826,7 @@ class GearoenixExporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
         GX3D_FILE = open(self.filepath, mode='wb')
         RUST_FILE = open(self.filepath + ".rs", mode='w')
         CPP_FILE = open(self.filepath + ".hpp", mode='w')
+        CPP_ENUM_FILE = open(self.filepath + "-enum.hpp", mode='w')
         write_file()
         return {'FINISHED'}
 
