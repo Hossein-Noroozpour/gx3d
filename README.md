@@ -2,12 +2,18 @@
 
 Blender plug-in for Gearoenix 3D file format.
 
+## License
+
+- Do not use it! :D
+- Do not even look at/in it! :|-
+- Unless your a recruiter or you want to assess me for a job.
+
 ## Rules:
 
 - Scene:
 
   - Its name starts with `scene-`.
-  - It have following fields:
+  - It has following fields:
 
     - Models
     - Cameras
@@ -24,9 +30,7 @@ Blender plug-in for Gearoenix 3D file format.
     - UI:
 
       - Its name starts with `scene-gui-`.
-      - It have following fields more than ordinary scene:
-
-        - Widgets
+      - Its difference with game scene is game scene does not propagate any user event on its models, but ui scene do that.
 
 - Mesh:
 
@@ -45,19 +49,29 @@ Blender plug-in for Gearoenix 3D file format.
 
       - It name starts with `mesh-basic-`.
 
-- Model
+- Model:
 
   - It is an object.
   - Its name must start with `model-`.
   - Its blender mesh data will be ignored.
   - It must have at least 1 mesh or 1 model as its child.
   - It must have an occlusion bounding sphere in its child with name `occlusion`.
-  - Its mesh child specifies with `mesh-[name].xxx` pattern.
+  - Its mesh child specifies with `mesh-[type]-[name].xxx` pattern.
   - Its mesh child can not have different material that require different vertex attributes with its origin mesh.
   - It can not have a several children from one mesh, It can only have one mesh from one origin.
   - Each model can have one collider at max.
   - If it is a solid model with no physical attributes, it does not need to have collider as its child.
   - If a model has a collider it must have a symmetric scale.
+  - It has following type:
+
+    - Basic:
+
+      - It name starts with `model-basic-`.
+
+    - Widget:
+
+      - It name starts with `model-widget-`.
+      - Its difference with basic model is, it can receive events and do some action.
 
 - Material
 
@@ -65,17 +79,43 @@ Blender plug-in for Gearoenix 3D file format.
 
 - Texture
 
-  - If material has a 2D texture, it must have one texture in its texture slots with name pattern `[texture-name]-2d`.
-  - For 3D texture, `[texture-name]-3d`.
-  - For cube, it must have 6 textures in its texture slots with name pattern `[texture-name]-cube-(up/down/front/back/right/left)`.
-  - For speculating texture, `[texture-name]-spectxt`.
-  - For normal-map texture, `[texture-name]-normal`.
-  - If a material has a baked environment-mapping cube texture, it must have 6 textures in its texture slots with name pattern `[texture-name]-baked-(up/down/front/back/right/left)`.
-  - Note: 3D texture is not supported right now.
+  - Its name starts with `txt-` in texture slots.
+  - Texture must have a image with format of `PNG`.
+  - It has following types:
+
+    - 2D:
+
+      - Its name starts with `txt-2d-`.
+
+    - 3D:
+
+      - Its name starts with `txt-3d-`.
+
+    - Cube:
+
+      - Its name starts with `txt-cube-`.
+      - Its image file name must end with `-up.png`.
+      - All of its faces image files must be in the same location.
+      - So, its faces image files names are like `[texture-name]-(up/down/front/back/right/left).png`.
+
+    - Specular:
+
+      - Is name starts with `txt-spec-`.
+
+    - Normal map:
+
+      - Is name starts with `txt-nrm-`.
+
+    - Backed Environment:
+
+      - Is name starts with `txt-bkenv-`.
+      - It is like cube.
+
+  - Note: 3D, Specular and Normal map texture is not supported right now.
 
 - Collider
 
-  - Its name start with `collider-[collider-type]-[name]`.
+  - Its name start with `collider-`.
   - Currently only one collider can exist in one object.
   - There are these types of collider:
 
@@ -132,8 +172,3 @@ Blender plug-in for Gearoenix 3D file format.
       - y-down: place the object with a specified distance from bottom border.
       - y-up: (todo: will be added, whenever needed)
       - ratio: Its value is (width / height), it is a mandatory attribute.
-
-## License
-
-- Do not use it!
-- Do not even look at/in it!

@@ -36,6 +36,9 @@ TYPE_BYTE = ctypes.c_uint8
 TYPE_FLOAT = ctypes.c_float
 TYPE_U32 = ctypes.c_uint32
 
+EXPORT_VULKAN = False
+EXPORT_METAL = False
+
 GX3D_FILE = None
 CPP_FILE = None
 RUST_FILE = None
@@ -169,6 +172,7 @@ class RenderObject:
     #     MY_TYPE
 
     def __init__(self, bobj):
+        self.offset = 0
         self.bobj = bobj
         self.my_id = self.LAST_ID
         self.LAST_ID += 1
@@ -191,6 +195,14 @@ class RenderObject:
             item.offset = GX3D_FILE.tell()
             item.write()
 
+    @classmethod
+    def write_table(cls):
+        items = [i for i in range(len(cls.ITEMS))]
+        for item in cls.ITEMS.values():
+            items[item.my_id] = item
+        for item in items:
+            write_u64(item.offset)
+
     @staticmethod
     def get_name_from_bobj(bobj):
         return bobj.name
@@ -210,6 +222,11 @@ class RenderObject:
         if cc is None:
             terminate("Type not found. ", cls.DESC, ":", bobj.name)
         return cc(bobj)
+
+    @classmethod
+    def init(cls):
+        cls.LAST_ID = 0
+        cls.ITEMS = dict()
 
 
 class UniRenderObject(RenderObject):
@@ -252,6 +269,183 @@ class UniRenderObject(RenderObject):
         if cc is None:
             terminate("Type not found. ", cls.DESC, ":", bobj.name)
         return cc(bobj)
+
+
+class ReferenceableObject(RenderObject):
+    # It is going to implement those objects:
+    #     Have a same data in all object
+
+    def __init__(self, bobj):
+        self.name = self.get_name_from_bobj(bobj)
+        if self.name not in self.ITEMS:
+            return super().__init__(bobj)
+        self.my_id = origin.my_id
+        self.offset = 0
+        self.bobj = bobj
+
+    @classmethod
+    def read(cls, bobj):
+        if not bobj.name.startswith(cls.PREFIX):
+            return None
+        name = self.get_name_from_bobj(bobj)
+        if self.name not in cls.ITEMS:
+            return super().read(bobj)
+        cc = None
+        for c in cls.CHILDREN:
+            if bobj.name.startswith(c.PREFIX):
+                cc = c
+                break
+        if cc is None:
+            terminate("Type not found. ", cls.DESC, ":", bobj.name)
+        return cc(bobj)
+
+
+class Audio(ReferenceableObject):
+    PREFIX = 'aud-'
+    LAST_ID = 0
+    ITEMS = dict()  # name: instance
+    DESC = "Audio"
+    CHILDREN = []
+    MY_TYPE = 0
+    TYPE_MUSIC = 1
+    TYPE_OBJECT = 2
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
+        self.file = read_file(self.name)
+
+    def write(self):
+        super().write()
+        write_file(self.file)
+
+    @staticmethod
+    def get_name_from_bobj(bobj):
+        if bobj.type != 'SPEAKER':
+            terminate("Audio must be speaker: ", bobj.name)
+        aud = bobj.data
+        if aud is None:
+            terminate("Audio is not set in speaker: ", bobj.name)
+        aud = aud.sound
+        if aud is None:
+            terminate("Sound is not set in speaker: ", bobj.name)
+        filepath = aud.filepath.strip()
+        if filepath is None or len(filepath) == 0:
+            terminate("Audio is not specified yet in speaker: ", bobj.name)
+        if not filepath.endswith(".ogg"):
+            terminate("Use OGG instead of ", filepath)
+        return filepath
+
+
+class MusicAudio(Audio):
+    PREFIX = Audio.PREFIX + 'music-'
+    DESC = "Music object"
+    MY_TYPE = Audio.TYPE_MUSIC
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
+
+
+Audio.CHILDREN.append(MusicAudio)
+
+
+class Light(RenderObject):
+    PREFIX = 'light-'
+    LAST_ID = 0
+    ITEMS = dict()  # name: instance
+    DESC = "Light"
+    CHILDREN = []
+    MY_TYPE = 0
+    TYPE_SUN = 1
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
+        if self.bobj.type != 'LAMP':
+            terminate('Light type is incorrect:', bobj.name)
+
+    def write(self):
+        super().write()
+        write_vector(self.bobj.location)
+        write_vector(self.bobj.rotation_euler)
+        write_vector(self.bobj.data.color)
+        write_float(self.bobj['near'])
+        write_float(self.bobj['far'])
+        write_float(self.bobj['size'])
+
+
+class SunLight(Light):
+    PREFIX = Light.PREFIX + 'sun-'
+    DESC = "Sun light"
+    MY_TYPE = Light.TYPE_SUN
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
+        if self.bobj.data.type != 'SUN':
+            terminate('Light type is incorrect:', bobj.name)
+
+
+Light.CHILDREN.append(SunLight)
+
+
+class Camera(RenderObject):
+    PREFIX = 'cam-'
+    LAST_ID = 0
+    ITEMS = dict()  # name: instance
+    DESC = "Camera"
+    CHILDREN = []
+    MY_TYPE = 0
+    TYPE_PERSPECTIVE = 1
+    TYPE_ORTHOGRAPHIC = 2
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
+        if self.bobj.type != 'CAMERA':
+            terminate('Camera type is incorrect:', bobj.name)
+
+    def write(self):
+        super().write()
+        cam = self.bobj.data
+        write_vector(self.bobj.location)
+        write_vector(self.bobj.rotation_euler)
+        write_float(cam.clip_start)
+        write_float(cam.clip_end)
+
+
+class PerspectiveCamera(Camera):
+    PREFIX = Camera.PREFIX + 'pers-'
+    DESC = "Perspective camera"
+    MY_TYPE = Camera.TYPE_PERSPECTIVE
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
+        if self.bobj.data.type != 'PERSP':
+            terminate('Camera type is incorrect:', bobj.name)
+
+    def write(self):
+        super().write()
+        cam = self.bobj.data
+        write_float(cam.angle_x / 2.0)
+
+
+Camera.CHILDREN.append(PerspectiveCamera)
+
+
+class OrthographicCamera(Camera):
+    PREFIX = Camera.PREFIX + 'ortho-'
+    DESC = "Orthographic camera"
+    MY_TYPE = Camera.TYPE_ORTHOGRAPHIC
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
+        if self.bobj.data.type != 'ORTHO':
+            terminate('Camera type is incorrect:', bobj.name)
+
+    def write(self):
+        super().write()
+        cam = self.bobj.data
+        write_float(cam.ortho_scale / 2.0)
+
+
+Camera.CHILDREN.append(OrthographicCamera)
 
 
 class Constraint:
@@ -452,6 +646,7 @@ class Texture(RenderObject):
     TYPE_2D = 1
     TYPE_3D = 2
     TYPE_CUBE = 3
+    TYPE_BACKED_ENVIRONMENT = 4
 
     def __init__(self, bobj):
         super().__init__(bobj)
@@ -508,6 +703,19 @@ class CubeTexture(Texture):
         write_file(self.img_right)
         write_file(self.img_front)
         write_file(self.img_back)
+
+
+class BackedEnvironmentTexture(CubeTexture):
+    PREFIX = Texture.PREFIX + 'bkenv-'
+    DESC = "Backed environment texture"
+    MY_TYPE = Mesh.TYPE_BACKED_ENVIRONMENT
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
+
+
+class Shader:
+    pass
 
 
 class Shading:
@@ -1195,6 +1403,7 @@ class Model(RenderObject):
     CHILDREN = []
     MY_TYPE = 0
     TYPE_BASIC = 1
+    TYPE_WIDGET = 1
 
     def __init__(self, bobj):
         super().__init__(bobj)
@@ -1212,6 +1421,8 @@ class Model(RenderObject):
             if ins is not None:
                 self.model_children.append(ins)
                 continue
+        if len(self.model_children) + len(self.meshes) < 1:
+            terminate('Waste model', bobj.name)
 
     def write(self):
         super().write()
@@ -1223,10 +1434,19 @@ class Model(RenderObject):
             mesh.shd.write()
 
 
-class BasicModel:
+class BasicModel(Model):
     PREFIX = Model.PREFIX + 'basic-'
     DESC = "Basic model"
     MY_TYPE = Model.TYPE_BASIC
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
+
+
+class WidgetModel(Model):
+    PREFIX = Model.PREFIX + 'widget-'
+    DESC = "Widget model"
+    MY_TYPE = Model.TYPE_WIDGET
 
     def __init__(self, bobj):
         super().__init__(bobj)
@@ -1299,9 +1519,6 @@ class GameScene(Scene):
     def __init__(self, bobj):
         super().__init__(bobj)
 
-    def write(self):
-        super().write()
-
 
 Scene.CHILDREN.append(GameScene)
 
@@ -1313,11 +1530,6 @@ class UiScene(Scene):
 
     def __init__(self, bobj):
         super().__init__(bobj)
-        # todo add widget class for ui
-
-    def write(self):
-        super().write()
-        # todo add widget class for ui
 
 
 Scene.CHILDREN.append(UiScene)
@@ -1466,34 +1678,6 @@ class Gearoenix:
         return offsets
 
     @classmethod
-    def gather_cameras_offsets(cls):
-        cls.cameras_offsets = cls.items_offsets(cls.cameras, "camera")
-
-    @classmethod
-    def gather_speakers_offsets(cls):
-        cls.speakers_offsets = cls.items_offsets(cls.speakers, "speaker")
-
-    @classmethod
-    def gather_lights_offsets(cls):
-        cls.lights_offsets = cls.items_offsets(cls.lights, "light")
-
-    @classmethod
-    def gather_textures_offsets(cls):
-        cls.textures_offsets = cls.items_offsets(cls.textures, "texture")
-
-    @classmethod
-    def gather_meshes_offsets(cls):
-        cls.meshes_offsets = cls.items_offsets(cls.meshes, "mesh")
-
-    @classmethod
-    def gather_models_offsets(cls):
-        cls.models_offsets = cls.items_offsets(cls.models, "model")
-
-    @classmethod
-    def gather_scenes_offsets(cls):
-        cls.scenes_offsets = cls.items_offsets(cls.scenes, "scene")
-
-    @classmethod
     def write_shaders(cls):
         for shader_id in cls.shaders.keys():
             file_name = cls.shaders[shader_id][1].get_file_name()
@@ -1510,76 +1694,6 @@ class Gearoenix:
                 file_name = cls.PATH_SHADERS_DIR + file_name
                 cls.compile_shader('vert', file_name % 'vert')
                 cls.compile_shader('frag', file_name % 'frag')
-
-    @classmethod
-    def write_cameras(cls):
-        items = [i for i in range(len(cls.cameras))]
-        for name, offset_id in cls.cameras.items():
-            offset, iid = offset_id
-            items[iid] = name
-        for name in items:
-            obj = bpy.data.objects[name]
-            cam = obj.data
-            cls.cameras[name][0] = cls.out.tell()
-            if cam.type == 'PERSP':
-                cls.out.write(TYPE_U64(1))
-            elif cam.type == 'ORTHO':
-                cls.out.write(TYPE_U64(2))
-            else:
-                cls.show("Camera with type '" + cam.type +
-                         "' is not supported yet.")
-            cls.out.write(TYPE_FLOAT(obj.location[0]))
-            cls.out.write(TYPE_FLOAT(obj.location[1]))
-            cls.out.write(TYPE_FLOAT(obj.location[2]))
-            cls.out.write(TYPE_FLOAT(obj.rotation_euler[0]))
-            cls.out.write(TYPE_FLOAT(obj.rotation_euler[1]))
-            cls.out.write(TYPE_FLOAT(obj.rotation_euler[2]))
-            cls.out.write(TYPE_FLOAT(cam.clip_start))
-            cls.out.write(TYPE_FLOAT(cam.clip_end))
-            if cam.type == 'PERSP':
-                cls.out.write(TYPE_FLOAT(cam.angle_x / 2.0))
-            elif cam.type == 'ORTHO':
-                cls.out.write(TYPE_FLOAT(cam.ortho_scale / 2.0))
-
-    @classmethod
-    def write_speakers(cls):
-        items = [i for i in range(len(cls.speakers))]
-        for name, offset_id in cls.speakers.items():
-            offset, iid, ttype = offset_id_type
-            items[iid] = (name, ttype)
-        for name, ttype in items:
-            cls.speakers[name][0] = cls.out.tell()
-            cls.out.write(TYPE_U64(ttype))
-            cls.write_binary_file(name)
-
-    @classmethod
-    def write_lights(cls):
-        items = [i for i in range(len(cls.lights))]
-        for name, offset_id in cls.lights.items():
-            offset, iid = offset_id
-            items[iid] = name
-        for name in items:
-            sun = bpy.data.objects[name]
-            cls.lights[name][0] = cls.out.tell()
-            # This is temporary, only for keeping the design
-            cls.out.write(TYPE_U64(10))
-            cls.out.write(TYPE_FLOAT(sun.location[0]))
-            cls.out.write(TYPE_FLOAT(sun.location[1]))
-            cls.out.write(TYPE_FLOAT(sun.location[2]))
-            cls.out.write(TYPE_FLOAT(sun.rotation_euler[0]))
-            cls.out.write(TYPE_FLOAT(sun.rotation_euler[1]))
-            cls.out.write(TYPE_FLOAT(sun.rotation_euler[2]))
-            cls.out.write(TYPE_FLOAT(sun['near']))
-            cls.out.write(TYPE_FLOAT(sun['far']))
-            cls.out.write(TYPE_FLOAT(sun['size']))
-            cls.write_vector(sun.data.color)
-
-    @classmethod
-    def write_binary_file(cls, name):
-        f = open(name, "rb")
-        f = f.read()
-        cls.out.write(TYPE_U64(len(f)))
-        cls.out.write(f)
 
     @staticmethod
     def check_uint(s):
@@ -1614,160 +1728,6 @@ class Gearoenix:
             cls.show("Unexpected number of materials in mesh " + m.name)
 
     @classmethod
-    def read_light(cls, o):
-        l = o.data
-        if l.type != 'SUN':
-            cls.show("Only sun light is supported, change " + l.name)
-        if l.name not in cls.lights:
-            cls.lights[l.name] = [0, cls.last_light_id]
-            cls.last_light_id += 1
-
-    @classmethod
-    def read_camera(cls, c):
-        if c.name not in cls.cameras:
-            cls.cameras[c.name] = [0, cls.last_camera_id]
-            cls.last_camera_id += 1
-
-    @classmethod
-    def read_speaker(cls, s):
-        speaker_type = cls.SPEAKER_TYPE_OBJECT
-        if s.parent is None:
-            speaker_type = cls.SPEAKER_TYPE_MUSIC
-        name = bpy.path.abspath(s.data.sound.filepath)
-        if name in cls.speakers:
-            if cls.speakers[name][2] != speaker_type:
-                cls.show("Same file for two different speaker, file: " + name)
-        else:
-            cls.speakers[name] = [0, cls.last_speaker_id, speaker_type]
-            cls.last_speaker_id += 1
-
-    @classmethod
-    def write_tables(cls):
-        cls.write_shaders_table()
-        cls.gather_cameras_offsets()
-        cls.gather_speakers_offsets()
-        cls.gather_lights_offsets()
-        cls.gather_textures_offsets()
-        cls.gather_meshes_offsets()
-        cls.gather_models_offsets()
-        cls.gather_scenes_offsets()
-        cls.write_u64_array(cls.cameras_offsets)
-        cls.write_u64_array(cls.speakers_offsets)
-        cls.write_u64_array(cls.lights_offsets)
-        cls.write_u64_array(cls.textures_offsets)
-        cls.write_u64_array(cls.meshes_offsets)
-        cls.write_u64_array(cls.models_offsets)
-        cls.write_instances_offsets(Placer)
-        cls.write_u64_array(cls.scenes_offsets)
-
-    @classmethod
-    def initialize_shaders(cls):
-        s = cls.Shading(cls)
-        s.print_all_enums()
-        cls.shaders = dict()  # Id<discret>: [offset, obj]
-        s = cls.Shading(cls)
-        s.set_reserved(cls.Shading.Reserved.DEPTH_POS)
-        cls.shaders[s.to_int()] = [0, s]
-        s = cls.Shading(cls)
-        s.set_reserved(cls.Shading.Reserved.DEPTH_POS_NRM)
-        cls.shaders[s.to_int()] = [0, s]
-        s = cls.Shading(cls)
-        s.set_reserved(cls.Shading.Reserved.DEPTH_POS_UV)
-        cls.shaders[s.to_int()] = [0, s]
-        s = cls.Shading(cls)
-        s.set_reserved(cls.Shading.Reserved.DEPTH_POS_NRM_UV)
-        cls.shaders[s.to_int()] = [0, s]
-
-    @classmethod
-    def write_file(cls):
-        cls.initialize_shaders()
-        cls.textures = dict()  # filepath: [offest, id<con>, type]
-        cls.last_texture_id = 0
-        cls.scenes = dict()  # name: [offset, id<con>]
-        cls.last_scene_id = 0
-        cls.meshes = dict()  # name: [offset, id<con>]
-        cls.last_mesh_id = 0
-        cls.models = dict()  # name: [offset, id<con>]
-        cls.last_model_id = 0
-        cls.cameras = dict()  # name: [offset, id<con>]
-        cls.last_camera_id = 0
-        cls.lights = dict()  # name: [offset, id<con>]
-        cls.last_light_id = 0
-        cls.speakers = dict()  # name: [offset, id<con>, type]
-        cls.last_speaker_id = 0
-        Placer.init()
-        cls.read_scenes()
-        cls.write_bool(sys.byteorder == 'little')
-        tables_offset = cls.out.tell()
-        cls.write_tables()
-        cls.write_shaders()
-        cls.write_cameras()
-        cls.write_speakers()
-        cls.write_lights()
-        cls.write_textures()
-        cls.write_meshes()
-        cls.write_models()
-        cls.write_all_instances(Placer)
-        cls.write_scenes()
-        cls.out.flush()
-        cls.out.seek(tables_offset)
-        cls.rust_code.seek(0)
-        cls.cpp_code.seek(0)
-        cls.write_tables()
-        cls.out.flush()
-        cls.out.close()
-        cls.rust_code.flush()
-        cls.rust_code.close()
-        cls.cpp_code.flush()
-        cls.cpp_code.close()
-
-    class Exporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
-        """This is a plug in for Gearoenix 3D file format"""
-        bl_idname = "gearoenix_exporter.data_structure"
-        bl_label = "Export Gearoenix 3D"
-        filename_ext = ".gx3d"
-        filter_glob = bpy.props.StringProperty(
-            default="*.gx3d",
-            options={'HIDDEN'}, )
-        export_vulkan = bpy.props.BoolProperty(
-            name="Enable Vulkan",
-            description="This item enables data exporting for Vulkan engine.",
-            default=False,
-            options={'ANIMATABLE'},
-            subtype='NONE',
-            update=None)
-        export_metal = bpy.props.BoolProperty(
-            name="Enable Metal",
-            description="This item enables data exporting for Metal engine.",
-            default=False,
-            options={'ANIMATABLE'},
-            subtype='NONE',
-            update=None)
-
-        def execute(self, context):
-            if self.export_vulkan or self.export_metal:
-                Gearoenix.check_env()
-            try:
-                Gearoenix.export_vulkan = bool(self.export_vulkan)
-                Gearoenix.export_metal = bool(self.export_metal)
-                Gearoenix.out = open(self.filepath, mode='wb')
-                Gearoenix.rust_code = open(self.filepath + ".rs", mode='w')
-                Gearoenix.cpp_code = open(self.filepath + ".hpp", mode='w')
-            except:
-                cls.show('file %s can not be opened!' % self.filepath)
-            Gearoenix.write_file()
-            return {'FINISHED'}
-
-    def menu_func_export(self, context):
-        self.layout.operator(
-            Gearoenix.Exporter.bl_idname, text="Gearoenix 3D Exporter (.gx3d)")
-
-    @classmethod
-    def register(cls):
-        bpy.utils.register_class(cls.ErrorMsgBox)
-        bpy.utils.register_class(cls.Exporter)
-        bpy.types.INFO_MT_file_export.append(cls.menu_func_export)
-
     class TmpFile:
         def __init__(self):
             tmpfile = tempfile.NamedTemporaryFile(delete=False)
@@ -1782,6 +1742,119 @@ class Gearoenix:
             d = f.read()
             f.close()
             return d
+
+
+def write_tables(cls):
+    Shader.write_table()
+    Camera.write_table()
+    Audio.write_table()
+    Light.write_table()
+    Texture.write_table()
+    Mesh.write_table()
+    Model.write_table()
+    Constraint.write_table()
+    Scene.write_table()
+
+
+def initialize_shaders(cls):
+    Shader.init()
+    s = Shading()
+    s.print_all_enums()
+    s = Shading()
+    s.set_reserved(Shading.Reserved.DEPTH_POS)
+    Shader.read(s)
+    s = Shading()
+    s.set_reserved(Shading.Reserved.DEPTH_POS_NRM)
+    Shader.read(s)
+    s = Shading()
+    s.set_reserved(Shading.Reserved.DEPTH_POS_UV)
+    Shader.read(s)
+    s = Shading()
+    s.set_reserved(Shading.Reserved.DEPTH_POS_NRM_UV)
+    Shader.read(s)
+
+
+def write_file():
+    initialize_shaders()
+    Audio.init()
+    Light.init()
+    Camera.init()
+    Texture.init()
+    Meshe.init()
+    Model.init()
+    Constraint.init()
+    Scene.init()
+    Scene.read_all()
+    write_bool(sys.byteorder == 'little')
+    tables_offset = GX3D_FILE.tell()
+    write_tables()
+    Shader.write_all()
+    Camera.write_all()
+    Audio.write_all()
+    Light.write_all()
+    Texture.write_all()
+    Mesh.write_all()
+    Model.write_all()
+    Constraint.write_all()
+    Scene.write_all()
+    GX3D_FILE.flush()
+    GX3D_FILE.seek(tables_offset)
+    RUST_FILE.seek(0)
+    CPP_FILE.seek(0)
+    write_tables()
+    GX3D_FILE.flush()
+    GX3D_FILE.close()
+    RUST_FILE.flush()
+    RUST_FILE.close()
+    CPP_FILE.flush()
+    CPP_FILE.close()
+
+
+def menu_func_export(self, context):
+    self.layout.operator(
+        GearoenixExporter.bl_idname,
+        text="Gearoenix 3D Exporter (.gx3d)")
+
+
+class GearoenixExporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
+    """This is a plug in for Gearoenix 3D file format"""
+    bl_idname = "gearoenix_exporter.data_structure"
+    bl_label = "Export Gearoenix 3D"
+    filename_ext = ".gx3d"
+    filter_glob = bpy.props.StringProperty(
+        default="*.gx3d",
+        options={'HIDDEN'}, )
+    export_vulkan = bpy.props.BoolProperty(
+        name="Enable Vulkan",
+        description="This item enables data exporting for Vulkan engine.",
+        default=False,
+        options={'ANIMATABLE'},
+        subtype='NONE',
+        update=None)
+    export_metal = bpy.props.BoolProperty(
+        name="Enable Metal",
+        description="This item enables data exporting for Metal engine.",
+        default=False,
+        options={'ANIMATABLE'},
+        subtype='NONE',
+        update=None)
+
+    def execute(self, context):
+        try:
+            Gearoenix.export_vulkan = bool(self.export_vulkan)
+            Gearoenix.export_metal = bool(self.export_metal)
+            GX3D_FILE = open(self.filepath, mode='wb')
+            RUST_FILE = open(self.filepath + ".rs", mode='w')
+            CPP_FILE = open(self.filepath + ".hpp", mode='w')
+        except:
+            terminate('file %s can not be opened!' % self.filepath)
+        write_file()
+        return {'FINISHED'}
+
+
+def register_plugin():
+    bpy.utils.register_class(cls.Exporter)
+    bpy.types.INFO_MT_file_export.append(menu_func_export)
 
 
 if __name__ == "__main__":
