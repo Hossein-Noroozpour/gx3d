@@ -36,6 +36,11 @@ TYPE_BYTE = ctypes.c_uint8
 TYPE_FLOAT = ctypes.c_float
 TYPE_U32 = ctypes.c_uint32
 
+PATH_ENGINE_SDK = None
+PATH_GEAROENIX_SDK = None
+PATH_SHADERS_DIR = None
+PATH_SHADER_COMPILER = None
+
 EXPORT_VULKAN = False
 EXPORT_METAL = False
 
@@ -103,6 +108,30 @@ def write_u64_array(arr):
 
 def write_float(f):
     gx3GX3D_FILE.write(TYPE_FLOAT(f))
+
+
+def write_bool(b):
+    data = 0
+    if b:
+        data = 1
+    GX3D_FILE.write(TYPE_BOOLEAN(data))
+
+
+def limit_check(val, maxval=1.0, minval=0.0, obj=None):
+    if val > maxval or val < minval:
+        msg = "Out of range value"
+        if obj is not None:
+            msg += ", in object: " + obj.name
+        terminate(msg)
+
+
+def uint_check(s):
+    try:
+        if int(s) >= 0:
+            return True
+    except ValueError:
+        terminate("Type error")
+    terminate("Type error")
 
 
 def get_origin_name(bobj):
@@ -560,6 +589,7 @@ class Collider:
     GHOST = TYPE_U64(1)
     MESH = TYPE_U64(2)
     PREFIX = 'collider-'
+    CHILDREN = []
 
     def __init__(self, obj, gear):
         if not obj.name.startswith(self.PREFIX):
@@ -599,6 +629,9 @@ class GhostCollider:
         self.gear.out.write(Collider.GHOST)
 
 
+Collider.CHILDREN.append(GhostCollider)
+
+
 class MeshCollider:
     PARENT = Collider
     PREFIX = 'collider-mesh-'
@@ -633,7 +666,7 @@ class MeshCollider:
                 self.gear.write_vector(pos)
 
 
-Collider.CHILDREN = [GhostCollider, MeshCollider]
+Collider.CHILDREN.append(MeshCollider)
 
 
 class Texture(RenderObject):
@@ -680,6 +713,9 @@ class D2Texture(Texture):
         super().__init__(bobj)
 
 
+Texture.CHILDREN.append(D2Texture)
+
+
 class CubeTexture(Texture):
     PREFIX = Texture.PREFIX + 'cube-'
     DESC = "Cube texture"
@@ -705,6 +741,9 @@ class CubeTexture(Texture):
         write_file(self.img_back)
 
 
+Texture.CHILDREN.append(CubeTexture)
+
+
 class BackedEnvironmentTexture(CubeTexture):
     PREFIX = Texture.PREFIX + 'bkenv-'
     DESC = "Backed environment texture"
@@ -714,8 +753,22 @@ class BackedEnvironmentTexture(CubeTexture):
         super().__init__(bobj)
 
 
+Texture.CHILDREN.append(BackedEnvironmentTexture)
+
+
 class Shader:
-    pass
+    ITEMS = dict()  # int -> instance
+
+    @classmethod
+    def init(cls):
+        cls.ITEMS = dict()
+
+    @classmethod
+    def read(cls, shd):
+        my_id = shd.to_int()
+        if my_id in cls.ITEMS:
+            return None
+        cls.ITEMS[my_id] = shd
 
 
 class Shading:
@@ -1100,8 +1153,7 @@ class Shading:
             if self == self.TRANSPARENT or self == self.CUTOFF:
                 shd.parent.out.write(TYPE_FLOAT(shd.transparency))
 
-    def __init__(self, parent, bmat=None):
-        self.parent = parent
+    def __init__(self, bmat=None):
         self.shading_data = [
             self.Lighting.SHADELESS,
             self.Texturing.COLORED,
@@ -1192,7 +1244,7 @@ class Shading:
 
     def set_reserved(self, e):
         if not isinstance(e, self.Reserved) or e.MAX == e:
-            self.parent.show("Unexpected ", e)
+            terminate("Unexpected ", e)
         self.shading_data[0] = self.Lighting.RESERVED
         self.reserved = e
 
@@ -1443,6 +1495,9 @@ class BasicModel(Model):
         super().__init__(bobj)
 
 
+Model.CHILDREN.append(BasicModel)
+
+
 class WidgetModel(Model):
     PREFIX = Model.PREFIX + 'widget-'
     DESC = "Widget model"
@@ -1450,6 +1505,9 @@ class WidgetModel(Model):
 
     def __init__(self, bobj):
         super().__init__(bobj)
+
+
+Model.CHILDREN.append(WidgetModel)
 
 
 class Scene(RenderObject):
@@ -1505,10 +1563,7 @@ class Scene(RenderObject):
     @classmethod
     def read_all(cls):
         for s in bpy.data.scenes:
-            if super().read(s) in not None:
-                continue
-            else:
-                terminate("Unexpected scene", s.name)
+            super().read(s)
 
 
 class GameScene(Scene):
@@ -1536,43 +1591,6 @@ Scene.CHILDREN.append(UiScene)
 
 
 class Gearoenix:
-
-    TEXTURE_TYPE_2D = 10
-    TEXTURE_TYPE_CUBE = 20
-
-    SPEAKER_TYPE_MUSIC = 10
-    SPEAKER_TYPE_OBJECT = 20
-
-    STRING_DYNAMIC_PART = 'dynamic-part'
-    STRING_DYNAMIC_PARTED = 'dynamic-parted'
-    STRING_CUTOFF = "cutoff"
-    STRING_OCCLUSION = "occlusion"
-    STRING_TRANSPARENT = "transparent"
-    STRING_MESH = "mesh"
-    STRING_MODEL = "model"
-    STRING_ENGINE_SDK_VAR_NAME = 'GEAROENIX_SDK'
-    STRING_VULKAN_SDK_VAR_NAME = 'VULKAN_SDK'
-    STRING_COPY_POSTFIX_FORMAT = '.NNN'
-    STRING_2D_TEXTURE = '2d'
-    STRING_3D_TEXTURE = '3d'
-    STRING_CUBE_TEXTURE = 'cube'
-    STRING_NRM_TEXTURE = 'normal'
-    STRING_SPEC_TEXTURE = 'spectxt'
-    STRING_BAKED_ENV_TEXTURE = 'baked'
-    STRING_CUBE_FACES = ["up", "down", "left", "right", "front", "back"]
-
-    PATH_ENGINE_SDK = None
-    PATH_GEAROENIX_SDK = None
-    PATH_SHADERS_DIR = None
-    PATH_SHADER_COMPILER = None
-
-    @classmethod
-    def limit_check(cls, val, maxval=1.0, minval=0.0, obj=None):
-        if val > maxval or val < minval:
-            msg = "Out of range value"
-            if obj is not None:
-                msg += " in object: " + obj.name
-            cls.show(msg)
 
     @classmethod
     def check_env(cls):
@@ -1626,22 +1644,6 @@ class Gearoenix:
         cls.out.write(tmp)
 
     @classmethod
-    def write_bool(cls, b):
-        data = 0
-        if b:
-            data = 1
-        cls.out.write(TYPE_BOOLEAN(data))
-
-    @classmethod
-    def write_shaders_table(cls):
-        cls.out.write(TYPE_U64(len(cls.shaders)))
-        for shader_id, offset_obj in cls.shaders.items():
-            offset, obj = offset_obj
-            cls.out.write(TYPE_U64(shader_id))
-            cls.out.write(TYPE_U64(offset))
-            cls.log("Shader with id:", shader_id, "and offset:", offset)
-
-    @classmethod
     def write_instances_offsets(cls, clsobj):
         offsets = [i for i in range(len(clsobj.ITEMS))]
         mod_name = clsobj.__name__
@@ -1676,33 +1678,6 @@ class Gearoenix:
         cls.rust_code.write("}\n")
         cls.cpp_code.write("}\n")
         return offsets
-
-    @classmethod
-    def write_shaders(cls):
-        for shader_id in cls.shaders.keys():
-            file_name = cls.shaders[shader_id][1].get_file_name()
-            cls.shaders[shader_id][0] = cls.out.tell()
-            if cls.export_metal:
-                cls.show("TODO implementation changed")
-                file_name = 'metal/' + file_name + '-%s.metal'
-                file_name = cls.PATH_SHADERS_DIR + file_name
-                cls.compile_shader('vert', file_name % 'vert')
-                cls.compile_shader('frag', file_name % 'frag')
-            elif cls.export_vulkan:
-                cls.show("TODO implementation changed")
-                file_name = 'vulkan/' + file_name + '.%s'
-                file_name = cls.PATH_SHADERS_DIR + file_name
-                cls.compile_shader('vert', file_name % 'vert')
-                cls.compile_shader('frag', file_name % 'frag')
-
-    @staticmethod
-    def check_uint(s):
-        try:
-            if int(s) >= 0:
-                return True
-        except ValueError:
-            return False
-        return False
 
     @classmethod
     def write_all_instances(cls, clsobj):
@@ -1810,12 +1785,6 @@ def write_file():
     CPP_FILE.close()
 
 
-def menu_func_export(self, context):
-    self.layout.operator(
-        GearoenixExporter.bl_idname,
-        text="Gearoenix 3D Exporter (.gx3d)")
-
-
 class GearoenixExporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
     """This is a plug in for Gearoenix 3D file format"""
     bl_idname = "gearoenix_exporter.data_structure"
@@ -1840,22 +1809,25 @@ class GearoenixExporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
         update=None)
 
     def execute(self, context):
-        try:
-            Gearoenix.export_vulkan = bool(self.export_vulkan)
-            Gearoenix.export_metal = bool(self.export_metal)
-            GX3D_FILE = open(self.filepath, mode='wb')
-            RUST_FILE = open(self.filepath + ".rs", mode='w')
-            CPP_FILE = open(self.filepath + ".hpp", mode='w')
-        except:
-            terminate('file %s can not be opened!' % self.filepath)
+        Gearoenix.export_vulkan = bool(self.export_vulkan)
+        Gearoenix.export_metal = bool(self.export_metal)
+        GX3D_FILE = open(self.filepath, mode='wb')
+        RUST_FILE = open(self.filepath + ".rs", mode='w')
+        CPP_FILE = open(self.filepath + ".hpp", mode='w')
         write_file()
         return {'FINISHED'}
 
 
+def menu_func_export(self, context):
+    self.layout.operator(
+        GearoenixExporter.bl_idname,
+        text="Gearoenix 3D Exporter (.gx3d)")
+
+
 def register_plugin():
-    bpy.utils.register_class(cls.Exporter)
+    bpy.utils.register_class(GearoenixExporter)
     bpy.types.INFO_MT_file_export.append(menu_func_export)
 
 
 if __name__ == "__main__":
-    Gearoenix.register()
+    register_plugin()
