@@ -503,11 +503,14 @@ class Constraint(RenderObject):
     TYPE_SPRING = 3
     TYPE_SPRING_JOINT = 4
 
+    def __init__(self, bobj):
+        super().__init__(bobj)
+
 
 class Placer:
-    PARENT = Constraint
-    PREFIX = "placer-"
-    DESC = "Placer object"
+    PREFIX = Constraint.PREFIX + "placer-"
+    DESC = "Placer constraint"
+    MY_TYPE = Constraint.TYPE_PLACER
     BTYPE = "EMPTY"
     ATT_X_MIDDLE = 'x-middle'  # 0
     ATT_Y_MIDDLE = 'y-middle'  # 1
@@ -516,89 +519,68 @@ class Placer:
     ATT_Y_UP = 'y-up'  # 4
     ATT_Y_DOWN = 'y-down'  # 5
     ATT_RATIO = 'ratio'
-    LAST_ID = 0
-    ITEMS = dict()  # name: instance
 
-    def __init__(self, obj, gear):
-        if not obj.name.startswith(self.PREFIX):
-            terminate(self.DESC + " name didn't start with " + self.PREFIX +
-                      " in object: " + obj.name)
-        if obj.type != self.BTYPE:
+    def __init__(self, bobj):
+        super().__init__(bobj)
+        if bobj.type != self.BTYPE:
             terminate(self.DESC + " type must be " + self.BTYPE +
-                      " in object: " + obj.name)
-        if has_transformation(obj):
+                      " in object: " + bobj.name)
+        if has_transformation(bobj):
             terminate(self.DESC + " should not have any transformation, " +
-                      "in object: " + obj.name)
-        if len(obj.children) < 1:
+                      "in object: " + bobj.name)
+        if len(bobj.children) < 1:
             terminate(self.DESC + " must have more than 0 children, " +
-                      "in object: " + obj.name)
-        for c in obj.children:
-            if not c.name.startswith(Model.PREFIX):
+                      "in object: " + bobj.name)
+        self.model_children = []
+        for c in bobj.children:
+            ins = Model.read(c)
+            if ins is None:
                 terminate(self.DESC + " can only have model as its " +
-                          "child, in object: " + obj.name)
+                          "child, in object: " + bobj.name)
+            self.model_children.append(ins)
         self.attrs = [None for i in range(6)]
-        if self.ATT_X_MIDDLE in obj:
-            self.attrs[0] = obj[self.ATT_X_MIDDLE]
-            limit_check(self.attrs[0], 0.8, 0.0, obj)
-        if self.ATT_Y_MIDDLE in obj:
-            terminate("Not implemented, in object: " + obj.name)
-        if self.ATT_X_LEFT in obj:
-            terminate("Not implemented, in object: " + obj.name)
-        if self.ATT_X_RIGHT in obj:
-            terminate("Not implemented, in object: " + obj.name)
-        if self.ATT_Y_UP in obj:
-            terminate("Not implemented, in object: " + obj.name)
-        if self.ATT_Y_DOWN in obj:
-            self.attrs[5] = obj[self.ATT_Y_DOWN]
-            limit_check(self.attrs[5], 0.8, 0.0, obj)
-        if self.ATT_RATIO in obj:
-            self.ratio = obj[self.ATT_RATIO]
+        if self.ATT_X_MIDDLE in bobj:
+            self.attrs[0] = bobj[self.ATT_X_MIDDLE]
+            limit_check(self.attrs[0], 0.8, 0.0, bobj)
+        if self.ATT_Y_MIDDLE in bobj:
+            terminate("Not implemented, in object: " + bobj.name)
+        if self.ATT_X_LEFT in bobj:
+            terminate("Not implemented, in object: " + bobj.name)
+        if self.ATT_X_RIGHT in bobj:
+            terminate("Not implemented, in object: " + bobj.name)
+        if self.ATT_Y_UP in bobj:
+            terminate("Not implemented, in object: " + bobj.name)
+        if self.ATT_Y_DOWN in bobj:
+            self.attrs[5] = bobj[self.ATT_Y_DOWN]
+            limit_check(self.attrs[5], 0.8, 0.0, bobj)
+        if self.ATT_RATIO in bobj:
+            self.ratio = bobj[self.ATT_RATIO]
         else:
             terminate(self.DESC + " must have " + self.ATT_RATIO +
-                      " properties, in object: " + obj.name)
+                      " properties, in object: " + bobj.name)
         self.type_id = 0
         for i in range(len(self.attrs)):
             if self.attrs[i] is not None:
                 self.type_id |= (1 << i)
-        print(self.type_id)
         if self.type_id not in {33, }:
             terminate(self.DESC + " must have meaningful combination, " +
-                      "in object: " + obj.name)
-        self.obj = obj
-        self.my_id = self.LAST_ID
-        self.offset = 0
-        self.LAST_ID += 1
-        self.gear = gear
+                      "in object: " + bobj.name)
 
     def write(self):
-        log_info(self.DESC + " is being written with offset: " + str(
-            self.offset))
-        self.gear.out.write(Constraint.PLACER)
-        self.gear.out.write(TYPE_U64(self.type_id))
-        self.gear.out.write(TYPE_FLOAT(self.ratio))
+        super().write()
+        log_info(self.DESC, "is being written with offset:", str(self.offset))
+        write_u64(self.type_id)
+        write_float(self.ratio)
         if self.type_id == 33:
-            self.gear.out.write(TYPE_FLOAT(self.attrs[0]))
-            self.gear.out.write(TYPE_FLOAT(self.attrs[5]))
+            write_float(self.attrs[0])
+            write_float(self.attrs[5])
         else:
-            self.show("It is not implemented, in object: " + obj.name)
+            terminate("It is not implemented, in object: " + bobj.name)
         childrenids = []
-        for c in self.obj.children:
-            childrenids.append(self.gear.models[c.name][1])
+        for c in self.model_children:
+            childrenids.append(c.my_id)
         childrenids.sort()
-        self.gear.write_u64_array(childrenids)
-
-    @classmethod
-    def read(cls, obj, gear):
-        if not obj.name.startswith(cls.PREFIX):
-            return
-        if obj.name in cls.ITEMS:
-            return
-        cls.ITEMS[obj.name] = Placer(obj, gear)
-
-    @classmethod
-    def init(cls):
-        cls.LAST_ID = 0
-        cls.ITEMS = dict()  # name: instance
+        write_u64_array(childrenids)
 
 
 Constraint.CHILDREN = [Placer]
@@ -610,17 +592,16 @@ class Collider:
     PREFIX = 'collider-'
     CHILDREN = []
 
-    def __init__(self, obj, gear):
-        if not obj.name.startswith(self.PREFIX):
-            terminate("Collider object name is wrong. In: " + obj.name)
-        self.obj = obj
-        self.gear = gear
+    def __init__(self, bobj):
+        if not bobj.name.startswith(self.PREFIX):
+            terminate("Collider object name is wrong. In: " + bobj.name)
+        self.bobj = bobj
 
     def write(self):
         pass
 
     @classmethod
-    def read(cls, pobj, gear):
+    def read(cls, pobj):
         collider_object = None
         found = 0
         for c in pobj.children:
@@ -631,21 +612,20 @@ class Collider:
             cls.show("More than one collider is acceptable. " + "In model: " +
                      pobj.name)
         if found == 0:
-            return GhostCollider(gear)
+            return GhostCollider()
         if collider_object.name.startswith(MeshCollider.PREFIX):
-            return MeshCollider(collider_object, gear)
+            return MeshCollider(collider_object)
         terminate("Collider type not recognized in model: " + pobj.name)
 
 
 class GhostCollider:
     PARENT = Collider
 
-    def __init__(self, gear):
-        self.gear = gear
+    def __init__(self):
         pass
 
     def write(self):
-        self.gear.out.write(Collider.GHOST)
+        write_u64(Collider.GHOST)
 
 
 Collider.CHILDREN.append(GhostCollider)
@@ -655,9 +635,8 @@ class MeshCollider:
     PARENT = Collider
     PREFIX = 'collider-mesh-'
 
-    def __init__(self, obj, gear):
+    def __init__(self, obj):
         self.obj = obj
-        self.gear = gear
         if not obj.name.startswith(self.PREFIX):
             terminate("Collider object name is wrong. In: " + obj.name)
         if obj.type != 'MESH':
@@ -678,11 +657,11 @@ class MeshCollider:
             self.triangles.append(triangle)
 
     def write(self):
-        self.gear.out.write(Collider.MESH)
-        self.gear.out.write(TYPE_U64(len(self.triangles)))
+        write_u64(Collider.MESH)
+        write_u64(len(self.triangles))
         for t in self.triangles:
             for pos in t:
-                self.gear.write_vector(pos)
+                write_vector(pos)
 
 
 Collider.CHILDREN.append(MeshCollider)
@@ -699,6 +678,7 @@ class Texture(RenderObject):
     TYPE_3D = 2
     TYPE_CUBE = 3
     TYPE_BACKED_ENVIRONMENT = 4
+    TYPE_NORMALMAP = 5
 
     def __init__(self, bobj):
         super().__init__(bobj)
@@ -733,6 +713,30 @@ class D2Texture(Texture):
 
 
 Texture.CHILDREN.append(D2Texture)
+
+
+class NormalmapTexture(D2Texture):
+    PREFIX = D2Texture.PREFIX + 'nrm-'
+    DESC = "Normal map texture"
+    MY_TYPE = Texture.TYPE_NORMALMAP
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
+
+
+Texture.CHILDREN.append(NormalmapTexture)
+
+
+class D3Texture(Texture):
+    PREFIX = Texture.PREFIX + '3d-'
+    DESC = "3D texture"
+    MY_TYPE = Texture.TYPE_3D
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
+
+
+Texture.CHILDREN.append(D3Texture)
 
 
 class CubeTexture(Texture):
@@ -844,11 +848,11 @@ class Shading:
                 raise Exception('UNEXPECTED')
             return self == self.NORMALMAPPED
 
-        def translate(self, gear, bmat, shd):
+        def translate(self, bmat, shd):
             found = 0
             nrm_txt = None
             for k in bmat.texture_slots.keys():
-                if k.endswith('-' + gear.STRING_NRM_TEXTURE):
+                if k.startswith(NormalmapTexture.PREFIX):
                     found += 1
                     nrm_txt = bmat.texture_slots[k].texture
             normal_found = False
@@ -865,7 +869,9 @@ class Shading:
                 return self.SHADELESS
             if not normal_found:
                 return self.DIRECTIONAL
-            shd.normalmap = gear.read_texture_2d(nrm_txt)
+            shd.normalmap = NormalmapTexture.read(nrm_txt)
+            if shd.normalmap is None:
+                log_info('Incorrect normal map in:', bmat.name)
             return self.NORMALMAPPED
 
         def write(self, shd):
@@ -894,7 +900,7 @@ class Shading:
                 raise Exception('UNEXPECTED')
             return False
 
-        def translate(self, gear, bmat, shd):
+        def translate(self, bmat, shd):
             d2_found = 0
             d2txt = None
             d3_found = 0
@@ -902,10 +908,10 @@ class Shading:
             cube_found = [0 for i in range(6)]
             cubetxt = None
             for k in bmat.texture_slots.keys():
-                if k.endswith('-' + gear.STRING_2D_TEXTURE):
+                if k.startswith(D2Texture.PREFIX):
                     d2_found += 1
                     d2txt = bmat.texture_slots[k].texture
-                elif k.endswith('-' + gear.STRING_3D_TEXTURE):
+                elif k.startswith(D3Texture.PREFIX):
                     d3_found += 1
                     d3txt = bmat.texture_slots[k].texture
                 else:
