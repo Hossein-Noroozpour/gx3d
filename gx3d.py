@@ -36,23 +36,24 @@ TYPE_BYTE = ctypes.c_uint8
 TYPE_FLOAT = ctypes.c_float
 TYPE_U32 = ctypes.c_uint32
 
-PATH_ENGINE_SDK = None
-PATH_GEAROENIX_SDK = None
-PATH_SHADERS_DIR = None
-PATH_SHADER_COMPILER = None
-
-EXPORT_VULKAN = False
-EXPORT_METAL = False
-
-GX3D_FILE = None
-CPP_FILE = None
-CPP_ENUM_FILE = None
-RUST_FILE = None
-
-
 DEBUG_MODE = True
 
 EPSILON = 0.0001
+
+
+class GearoenixInfo:
+    EXPORT_VULKAN = False
+    EXPORT_METAL = False
+
+    GX3D_FILE = None
+    CPP_FILE = None
+    CPP_ENUM_FILE = None
+    RUST_FILE = None
+
+    PATH_ENGINE_SDK = None
+    PATH_GEAROENIX_SDK = None
+    PATH_SHADERS_DIR = None
+    PATH_SHADER_COMPILER = None
 
 
 def terminate(*msgs):
@@ -70,35 +71,41 @@ def log_info(*msgs):
             msg += str(m) + " "
         print("Info: " + msg)
 
+
 def write_cpp_enum(*msgs):
     msg = ""
     for m in msgs:
         msg += str(m) + " "
-    CPP_ENUM_FILE.write(msg + '\n')
+    GearoenixInfo.CPP_ENUM_FILE.write(msg + '\n')
+
+
+def write_float(f):
+    GearoenixInfo.GX3D_FILE.write(TYPE_FLOAT(f))
+
+
+def write_u64(n):
+    GearoenixInfo.GX3D_FILE.write(TYPE_U64(n))
+
+
+def write_u32(n):
+    GearoenixInfo.GX3D_FILE.write(TYPE_U32(n))
+
 
 def write_instances_ids(inss):
-    GX3D_FILE.write(TYPE_U64(len(inss)))
+    write_u64(len(inss))
     for ins in inss:
-        GX3D_FILE.write(TYPE_U64(ins.my_id))
+        write_u64(ins.my_id)
 
 
 def write_vector(v, element_count=3):
     for i in range(element_count):
-        GX3D_FILE.write(TYPE_FLOAT(v[i]))
+        write_float(v[i])
 
 
 def write_matrix(matrix):
     for i in range(0, 4):
         for j in range(0, 4):
-            GX3D_FILE.write(TYPE_FLOAT(matrix[j][i]))
-
-
-def write_u64(n):
-    GX3D_FILE.write(TYPE_U64(n))
-
-
-def write_u32(n):
-    GX3D_FILE.write(TYPE_U32(n))
+            write_float(matrix[j][i])
 
 
 def write_u32_array(arr):
@@ -113,15 +120,15 @@ def write_u64_array(arr):
         write_u64(i)
 
 
-def write_float(f):
-    gx3GX3D_FILE.write(TYPE_FLOAT(f))
-
-
 def write_bool(b):
     data = 0
     if b:
         data = 1
-    GX3D_FILE.write(TYPE_BOOLEAN(data))
+    GearoenixInfo.GX3D_FILE.write(TYPE_BOOLEAN(data))
+
+
+def file_tell():
+    return GearoenixInfo.GX3D_FILE.tell()
 
 
 def limit_check(val, maxval=1.0, minval=0.0, obj=None):
@@ -183,7 +190,7 @@ def read_file(f):
 
 def write_file(f):
     write_u64(len(f))
-    GX3D_FILE.write(f)
+    GearoenixInfo.GX3D_FILE.write(f)
 
 
 class RenderObject:
@@ -246,13 +253,13 @@ class RenderObject:
     @classmethod
     def read(cls, bobj):
         name = cls.get_name_from_bobj(bobj)
-        if not name.startswith(cls.PREFIX):
+        if not bobj.name.startswith(cls.PREFIX):
             return None
         if name in cls.ITEMS:
             return None
         cc = None
         for c in cls.CHILDREN:
-            if name.startswith(c.PREFIX):
+            if bobj.name.startswith(c.PREFIX):
                 cc = c
                 break
         if cc is None:
@@ -514,40 +521,40 @@ class Placer:
 
     def __init__(self, obj, gear):
         if not obj.name.startswith(self.PREFIX):
-            gear.show(self.DESC + " name didn't start with " + self.PREFIX +
+            terminate(self.DESC + " name didn't start with " + self.PREFIX +
                       " in object: " + obj.name)
         if obj.type != self.BTYPE:
-            gear.show(self.DESC + " type must be " + self.BTYPE +
+            terminate(self.DESC + " type must be " + self.BTYPE +
                       " in object: " + obj.name)
-        if gear.has_transformation(obj):
-            gear.show(self.DESC + " should not have any transformation, " +
+        if has_transformation(obj):
+            terminate(self.DESC + " should not have any transformation, " +
                       "in object: " + obj.name)
         if len(obj.children) < 1:
-            gear.show(self.DESC + " must have more than 0 children, " +
+            terminate(self.DESC + " must have more than 0 children, " +
                       "in object: " + obj.name)
         for c in obj.children:
-            if not c.name.startswith(gear.STRING_MODEL + "-"):
-                gear.show(self.DESC + " can only have model as its " +
+            if not c.name.startswith(Model.PREFIX):
+                terminate(self.DESC + " can only have model as its " +
                           "child, in object: " + obj.name)
         self.attrs = [None for i in range(6)]
         if self.ATT_X_MIDDLE in obj:
             self.attrs[0] = obj[self.ATT_X_MIDDLE]
-            gear.limit_check(self.attrs[0], 0.8, 0.0, obj)
+            limit_check(self.attrs[0], 0.8, 0.0, obj)
         if self.ATT_Y_MIDDLE in obj:
-            gear.show("Not implemented, in object: " + obj.name)
+            terminate("Not implemented, in object: " + obj.name)
         if self.ATT_X_LEFT in obj:
-            gear.show("Not implemented, in object: " + obj.name)
+            terminate("Not implemented, in object: " + obj.name)
         if self.ATT_X_RIGHT in obj:
-            gear.show("Not implemented, in object: " + obj.name)
+            terminate("Not implemented, in object: " + obj.name)
         if self.ATT_Y_UP in obj:
-            gear.show("Not implemented, in object: " + obj.name)
+            terminate("Not implemented, in object: " + obj.name)
         if self.ATT_Y_DOWN in obj:
             self.attrs[5] = obj[self.ATT_Y_DOWN]
-            gear.limit_check(self.attrs[5], 0.8, 0.0, obj)
+            limit_check(self.attrs[5], 0.8, 0.0, obj)
         if self.ATT_RATIO in obj:
             self.ratio = obj[self.ATT_RATIO]
         else:
-            gear.show(self.DESC + " must have " + self.ATT_RATIO +
+            terminate(self.DESC + " must have " + self.ATT_RATIO +
                       " properties, in object: " + obj.name)
         self.type_id = 0
         for i in range(len(self.attrs)):
@@ -555,7 +562,7 @@ class Placer:
                 self.type_id |= (1 << i)
         print(self.type_id)
         if self.type_id not in {33, }:
-            gear.show(self.DESC + " must have meaningful combination, " +
+            terminate(self.DESC + " must have meaningful combination, " +
                       "in object: " + obj.name)
         self.obj = obj
         self.my_id = self.LAST_ID
@@ -564,7 +571,7 @@ class Placer:
         self.gear = gear
 
     def write(self):
-        self.gear.log(self.DESC + " is being written with offset: " + str(
+        log_info(self.DESC + " is being written with offset: " + str(
             self.offset))
         self.gear.out.write(Constraint.PLACER)
         self.gear.out.write(TYPE_U64(self.type_id))
@@ -605,7 +612,7 @@ class Collider:
 
     def __init__(self, obj, gear):
         if not obj.name.startswith(self.PREFIX):
-            gear.show("Collider object name is wrong. In: " + obj.name)
+            terminate("Collider object name is wrong. In: " + obj.name)
         self.obj = obj
         self.gear = gear
 
@@ -627,7 +634,7 @@ class Collider:
             return GhostCollider(gear)
         if collider_object.name.startswith(MeshCollider.PREFIX):
             return MeshCollider(collider_object, gear)
-        gear.show("Collider type not recognized in model: " + pobj.name)
+        terminate("Collider type not recognized in model: " + pobj.name)
 
 
 class GhostCollider:
@@ -652,13 +659,13 @@ class MeshCollider:
         self.obj = obj
         self.gear = gear
         if not obj.name.startswith(self.PREFIX):
-            gear.show("Collider object name is wrong. In: " + obj.name)
+            terminate("Collider object name is wrong. In: " + obj.name)
         if obj.type != 'MESH':
             cls.show('Mesh collider must have mesh object type' + 'In model: '
                      + obj.name)
         for i in range(3):
             if obj.location[i] != 0.0 or obj.rotation_euler[i] != 0.0:
-                gear.show('Mesh collider not have any transformation' +
+                terminate('Mesh collider not have any transformation' +
                           obj.name)
         msh = obj.data
         self.triangles = []
@@ -848,13 +855,12 @@ class Shading:
             if found == 1:
                 normal_found = True
             elif found > 1:
-                gear.show("Two normal found for material" + bmat.name)
+                terminate("Two normal found for material" + bmat.name)
             shadeless = bmat.use_shadeless
             if shadeless and normal_found:
-                gear.show(
-                    "One material can not have both normal-map texture " +
-                    "and have a shadeless lighting, error found in " +
-                    "material: " + bmat.name)
+                terminate("One material can not have both normal-map texture "
+                          + "and have a shadeless lighting, error found in " +
+                          "material: " + bmat.name)
             if shadeless:
                 return self.SHADELESS
             if not normal_found:
@@ -911,24 +917,22 @@ class Shading:
                             cubetxt = k[:len(k) - len(stxt)] + \
                                 '-' + gear.STRING_CUBE_TEXTURE
             if d2_found > 1:
-                gear.show(
-                    "Number of 2D texture is more than 1 in material: " +
-                    bmat.name)
+                terminate("Number of 2D texture is more than 1 in material: " +
+                          bmat.name)
             d2_found = d2_found == 1
             if d3_found > 1:
-                gear.show(
-                    "Number of 3D texture is more than 1 in material: " +
-                    bmat.name)
+                terminate("Number of 3D texture is more than 1 in material: " +
+                          bmat.name)
             d3_found = d3_found == 1
             for i in range(6):
                 if cube_found[i] > 1:
-                    gear.show("Number of " + gear.STRING_CUBE_FACES[i] +
+                    terminate("Number of " + gear.STRING_CUBE_FACES[i] +
                               " face for cube texture is " +
                               "more than 1 in material: " + bmat.name)
                 cube_found[i] = cube_found[i] == 1
             for i in range(1, 6):
                 if cube_found[0] != cube_found[i]:
-                    gear.show("Incomplete cube texture in material: " +
+                    terminate("Incomplete cube texture in material: " +
                               bmat.name)
             cube_found = cube_found[0]
             found = 0
@@ -949,9 +953,8 @@ class Shading:
                     shd.diffuse_color.append(1.0)
                 return self.COLORED
             if found > 1:
-                gear.show(
-                    "Each material only can have one of 2D, 3D or Cube " +
-                    "textures, Error in material: ", bmat.name)
+                terminate("Each material only can have one of 2D, 3D or Cube "
+                          + "textures, Error in material: ", bmat.name)
             if d2_found:
                 shd.d2 = gear.read_texture_2d(d2txt)
                 return self.D2
@@ -959,8 +962,7 @@ class Shading:
                 shd.d3 = gear.read_texture_3d(d3txt)
                 return self.D3
             if cube_found:
-                shd.cube = gear.read_texture_cube(bmat.texture_slots,
-                                                  cubetxt)
+                shd.cube = gear.read_texture_cube(bmat.texture_slots, cubetxt)
                 return self.CUBE
 
         def write(self, shd):
@@ -1003,9 +1005,8 @@ class Shading:
                     found += 1
                     txt = bmat.texture_slots[k].texture
             if found > 1:
-                gear.show(
-                    "Each material only can have one secular texture, " +
-                    "Error in material: ", bmat.name)
+                terminate("Each material only can have one secular texture, " +
+                          "Error in material: ", bmat.name)
             if found == 1:
                 shd.spectxt = gear.read_texture_2d(txt)
                 return self.SPECTXT
@@ -1058,22 +1059,21 @@ class Shading:
                             '-' + gear.STRING_BAKED_ENV_TEXTURE
             for i in range(6):
                 if baked_found[i] > 1:
-                    gear.show("Number of " + gear.STRING_CUBE_FACES[i] +
+                    terminate("Number of " + gear.STRING_CUBE_FACES[i] +
                               " face for baked texture is " +
                               "more than 1 in material: " + bmat.name)
                 baked_found[i] = baked_found[i] == 1
                 if baked_found[0] != baked_found[i]:
-                    gear.show("Incomplete cube texture in material: " +
+                    terminate("Incomplete cube texture in material: " +
                               bmat.name)
             baked_found = baked_found[0]
             reflective = bmat.raytrace_mirror is not None and \
                 bmat.raytrace_mirror.use and \
                 bmat.raytrace_mirror.reflect_factor > 0.001
             if baked_found and not reflective:
-                gear.show(
-                    "A material must set amount of reflectivity and " +
-                    "then have a baked-env texture. Error in material: " +
-                    bmat.name)
+                terminate("A material must set amount of reflectivity and " +
+                          "then have a baked-env texture. Error in material: "
+                          + bmat.name)
             if baked_found:
                 shd.reflect_factor = bmat.raytrace_mirror.reflect_factor
                 shd.bakedenv = gear.read_texture_cube(bmat.texture_slots,
@@ -1115,7 +1115,7 @@ class Shading:
             caster = bmat.use_cast_shadows
             receiver = bmat.use_shadows
             if not caster and receiver:
-                gear.show("A material can not be receiver but not " +
+                terminate("A material can not be receiver but not " +
                           "caster. Error in material: " + bmat.name)
             if not caster:
                 return self.SHADOWLESS
@@ -1151,7 +1151,7 @@ class Shading:
             trn = gear.STRING_TRANSPARENT in bmat
             ctf = gear.STRING_CUTOFF in bmat
             if trn and ctf:
-                gear.show("A material can not be transparent and cutoff " +
+                terminate("A material can not be transparent and cutoff " +
                           "in same time. Error in material: " + bmat.name)
             if trn:
                 shd.transparency = bmat[gear.STRING_TRANSPARENT]
@@ -1448,14 +1448,15 @@ class Occlusion:
         radius = bobj.empty_draw_size
         radius = mathutils.Vector((radius, radius, radius))
         radius = bobj.matrix_world * radius
-        self.radius -= center
+        radius -= center
+        self.radius = radius
         self.center = bobj.parent.matrix_world.inverted() * center
 
     @classmethod
     def read(cls, bobj):
         for c in bobj.children:
-            if bobj.name.startswith(cls.PREFIX):
-                return cls(bobj)
+            if c.name.startswith(cls.PREFIX):
+                return cls(c)
         terminate("Occlusion not found in: ", bobj.name)
 
 
@@ -1603,7 +1604,6 @@ Scene.CHILDREN.append(UiScene)
 
 
 class Gearoenix:
-
     @classmethod
     def check_env(cls):
         cls.PATH_ENGINE_SDK = os.environ.get(cls.STRING_ENGINE_SDK_VAR_NAME)
@@ -1731,7 +1731,7 @@ class Gearoenix:
             return d
 
 
-def write_tables(cls):
+def write_tables():
     Shader.write_table()
     Camera.write_table()
     Audio.write_table()
@@ -1761,7 +1761,11 @@ def initialize_shaders():
     Shader.read(s)
 
 
-def write_file():
+def write_file(filepath):
+    GearoenixInfo.GX3D_FILE = open(filepath, mode='wb')
+    GearoenixInfo.RUST_FILE = open(filepath + ".rs", mode='w')
+    GearoenixInfo.CPP_FILE = open(filepath + ".hpp", mode='w')
+    GearoenixInfo.CPP_ENUM_FILE = open(filepath + "-enum.hpp", mode='w')
     initialize_shaders()
     Audio.init()
     Light.init()
@@ -1773,7 +1777,7 @@ def write_file():
     Scene.init()
     Scene.read_all()
     write_bool(sys.byteorder == 'little')
-    tables_offset = GX3D_FILE.tell()
+    tables_offset = file_tell()
     write_tables()
     Shader.write_all()
     Camera.write_all()
@@ -1784,17 +1788,17 @@ def write_file():
     Model.write_all()
     Constraint.write_all()
     Scene.write_all()
-    GX3D_FILE.flush()
-    GX3D_FILE.seek(tables_offset)
-    RUST_FILE.seek(0)
-    CPP_FILE.seek(0)
+    GearoenixInfo.GX3D_FILE.flush()
+    GearoenixInfo.GX3D_FILE.seek(tables_offset)
+    GearoenixInfo.RUST_FILE.seek(0)
+    GearoenixInfo.CPP_FILE.seek(0)
     write_tables()
-    GX3D_FILE.flush()
-    GX3D_FILE.close()
-    RUST_FILE.flush()
-    RUST_FILE.close()
-    CPP_FILE.flush()
-    CPP_FILE.close()
+    GearoenixInfo.GX3D_FILE.flush()
+    GearoenixInfo.GX3D_FILE.close()
+    GearoenixInfo.RUST_FILE.flush()
+    GearoenixInfo.RUST_FILE.close()
+    GearoenixInfo.CPP_FILE.flush()
+    GearoenixInfo.CPP_FILE.close()
 
 
 class GearoenixExporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
@@ -1821,20 +1825,15 @@ class GearoenixExporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
         update=None)
 
     def execute(self, context):
-        Gearoenix.export_vulkan = bool(self.export_vulkan)
-        Gearoenix.export_metal = bool(self.export_metal)
-        GX3D_FILE = open(self.filepath, mode='wb')
-        RUST_FILE = open(self.filepath + ".rs", mode='w')
-        CPP_FILE = open(self.filepath + ".hpp", mode='w')
-        CPP_ENUM_FILE = open(self.filepath + "-enum.hpp", mode='w')
-        write_file()
+        GearoenixInfo.EXPORT_VULKAN = bool(self.export_vulkan)
+        GearoenixInfo.EXPORT_METAL = bool(self.export_metal)
+        write_file(self.filepath)
         return {'FINISHED'}
 
 
 def menu_func_export(self, context):
     self.layout.operator(
-        GearoenixExporter.bl_idname,
-        text="Gearoenix 3D Exporter (.gx3d)")
+        GearoenixExporter.bl_idname, text="Gearoenix 3D Exporter (.gx3d)")
 
 
 def register_plugin():
