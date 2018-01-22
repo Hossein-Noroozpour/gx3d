@@ -36,6 +36,9 @@ TYPE_BYTE = ctypes.c_uint8
 TYPE_FLOAT = ctypes.c_float
 TYPE_U32 = ctypes.c_uint32
 
+STRING_TRANSPARENT = 'transparency'
+STRING_CUTOFF = 'cutoff'
+
 DEBUG_MODE = True
 
 EPSILON = 0.0001
@@ -192,9 +195,11 @@ def write_file(f):
     write_u64(len(f))
     GearoenixInfo.GX3D_FILE.write(f)
 
+
 def enum_max_check(e):
     if e == e.MAX:
         terminate('UNEXPECTED')
+
 
 class RenderObject:
     # each instance of this class must define:
@@ -238,7 +243,7 @@ class RenderObject:
         for item in cls.ITEMS.values():
             items[item.my_id] = item
         for item in items:
-            item.offset = GX3D_FILE.tell()
+            item.offset = GearoenixInfo.GX3D_FILE.tell()
             item.write()
 
     @classmethod
@@ -274,6 +279,9 @@ class RenderObject:
         cls.LAST_ID = 0
         cls.ITEMS = dict()
 
+    def get_offset(self):
+        return self.offset
+
 
 class UniRenderObject(RenderObject):
     # It is going to implement those objects:
@@ -295,9 +303,9 @@ class UniRenderObject(RenderObject):
             self.bobj = bobj
 
     def write(self):
-        super().write()
         if self.origin_instance is not None:
-            GX3D_FILE.write(TYPE_U64(self.origin_instance.my_id))
+            terminate('This object must not written like this. in', self.name)
+        super().write()
 
     @classmethod
     def read(cls, bobj):
@@ -320,13 +328,16 @@ class UniRenderObject(RenderObject):
 class ReferenceableObject(RenderObject):
     # It is going to implement those objects:
     #     Have a same data in all object
+    # It adds following fields in addition to RenderObject fields:
+    #     origin_instance instance
 
     def __init__(self, bobj):
+        self.origin_instance = None
         self.name = self.get_name_from_bobj(bobj)
         if self.name not in self.ITEMS:
             return super().__init__(bobj)
-        self.my_id = origin.my_id
-        self.offset = 0
+        self.origin_instance = self.ITEMS[self.name]
+        self.my_id = self.origin_instance.my_id
         self.bobj = bobj
 
     @classmethod
@@ -344,6 +355,16 @@ class ReferenceableObject(RenderObject):
         if cc is None:
             terminate("Type not found. ", cls.DESC, ":", bobj.name)
         return cc(bobj)
+
+    def write(self):
+        if self.origin_instance is not None:
+            terminate('This object must not written like this. in', self.name)
+        super().write()
+
+    def get_offset(self):
+        if self.origin_instance is None:
+            return self.offset
+        return self.origin_instance.offset
 
 
 class Audio(ReferenceableObject):
@@ -510,7 +531,7 @@ class Constraint(RenderObject):
         super().__init__(bobj)
 
 
-class Placer:
+class Placer(Constraint):
     PREFIX = Constraint.PREFIX + "placer-"
     DESC = "Placer constraint"
     MY_TYPE = Constraint.TYPE_PLACER
@@ -590,77 +611,68 @@ Constraint.CHILDREN = [Placer]
 
 
 class Collider:
-    GHOST = TYPE_U64(1)
-    MESH = TYPE_U64(2)
+    GHOST = 1
+    MESH = 2
     PREFIX = 'collider-'
     CHILDREN = []
 
     def __init__(self, bobj):
         if not bobj.name.startswith(self.PREFIX):
-            terminate("Collider object name is wrong. In: " + bobj.name)
+            terminate("Collider object name is wrong. In:", bobj.name)
         self.bobj = bobj
 
     def write(self):
+        write_u64(self.MY_TYPE)
         pass
 
     @classmethod
-    def read(cls, pobj):
+    def read(cls, pbobj):
         collider_object = None
-        found = 0
-        for c in pobj.children:
-            if c.name.startswith(cls.PREFIX):
-                found += 1
-                collider_object = c
-        if found > 1:
-            cls.show("More than one collider is acceptable. " + "In model: " +
-                     pobj.name)
-        if found == 0:
+        for bobj in pbobj.children:
+            for c in cls.CHILDREN:
+                if bobj.name.startswith(c.PREFIX):
+                    if collider_object is not None:
+                        terminate("Only one collider is acceptable. In model:",
+                                  pbobj.name)
+                    collider_object = c(bobj)
+        if collider_object is None:
             return GhostCollider()
-        if collider_object.name.startswith(MeshCollider.PREFIX):
-            return MeshCollider(collider_object)
-        terminate("Collider type not recognized in model: " + pobj.name)
+        return collider_object
 
 
-class GhostCollider:
-    PARENT = Collider
-
-    def __init__(self):
-        pass
-
-    def write(self):
-        write_u64(Collider.GHOST)
+class GhostCollider(Collider):
+    MY_TYPE = Collider.GHOST
+    PREFIX = Collider.PREFIX + 'ghost-'
 
 
 Collider.CHILDREN.append(GhostCollider)
 
 
-class MeshCollider:
-    PARENT = Collider
-    PREFIX = 'collider-mesh-'
+class MeshCollider(Collider):
+    MY_TYPE = Collider.MESH
+    PREFIX = Collider.PREFIX + 'mesh-'
 
-    def __init__(self, obj):
-        self.obj = obj
-        if not obj.name.startswith(self.PREFIX):
-            terminate("Collider object name is wrong. In: " + obj.name)
-        if obj.type != 'MESH':
-            cls.show('Mesh collider must have mesh object type' + 'In model: '
-                     + obj.name)
-        for i in range(3):
-            if obj.location[i] != 0.0 or obj.rotation_euler[i] != 0.0:
-                terminate('Mesh collider not have any transformation' +
-                          obj.name)
-        msh = obj.data
+    def __init__(self, bobj):
+        super().__init__(bobj)
+        self.bobj = bobj
+        if bobj.type != 'MESH':
+            terminate('Mesh collider must have mesh object type, In model:',
+                      bobj.name)
+        if has_transformation(bobj):
+            terminate('Mesh collider can not have any transformation, in:',
+                      bobj.name)
+        msh = bobj.data
         self.triangles = []
         for p in msh.polygons:
             triangle = []
             if len(p.vertices) > 3:
-                cls.show("Object " + obj.name + " is not triangled!")
+                terminate("Object", bobj.name, "is not triangled!")
             for i, li in zip(p.vertices, p.loop_indices):
                 triangle.append(msh.vertices[i].co)
             self.triangles.append(triangle)
 
     def write(self):
-        write_u64(Collider.MESH)
+        super().write()
         write_u64(len(self.triangles))
         for t in self.triangles:
             for pos in t:
@@ -670,7 +682,7 @@ class MeshCollider:
 Collider.CHILDREN.append(MeshCollider)
 
 
-class Texture(RenderObject):
+class Texture(ReferenceableObject):
     PREFIX = 'txt-'
     LAST_ID = 0
     ITEMS = dict()  # name: instance
@@ -720,7 +732,7 @@ Texture.CHILDREN.append(D2Texture)
 
 
 class NormalmapTexture(D2Texture):
-    PREFIX = D2Texture.PREFIX + 'nrm-'
+    PREFIX = Texture.PREFIX + 'nrm-'
     DESC = "Normal map texture"
     MY_TYPE = Texture.TYPE_NORMALMAP
 
@@ -730,8 +742,9 @@ class NormalmapTexture(D2Texture):
 
 Texture.CHILDREN.append(NormalmapTexture)
 
+
 class SpeculareTexture(D2Texture):
-    PREFIX = SpeculareTexture.PREFIX + 'spec-'
+    PREFIX = Texture.PREFIX + 'spec-'
     DESC = "Speculare texture"
     MY_TYPE = Texture.TYPE_SPECULARE
 
@@ -761,7 +774,7 @@ class CubeTexture(Texture):
 
     def __init__(self, bobj):
         super().__init__(bobj)
-        if not self.name.startswith('-up.png'):
+        if not self.name.endswith('-up.png'):
             terminate('Incorrect cube texture:', bobj.name)
         base_name = self.name[:len(self.name) - len('-up.png')]
         self.img_down = read_file(base_name + '-down.png')
@@ -807,6 +820,15 @@ class Shader:
         if my_id in cls.ITEMS:
             return None
         cls.ITEMS[my_id] = shd
+
+    @classmethod
+    def write_table(cls):
+        for k in cls.ITEMS.keys():
+            write_u64(k)
+
+    @classmethod
+    def write_all(cls):
+        pass
 
 
 class Shading:
@@ -925,11 +947,13 @@ class Shading:
                     cubetxt = ins
                 elif ins.MY_TYPE == D2Texture.MY_TYPE:
                     if d2txt is not None:
-                        terminate("Only one 2d texture is expected:", bmat.name)
+                        terminate(
+                            "Only one 2d texture is expected:", bmat.name)
                     d2txt = ins
                 elif ins.MY_TYPE == D3Texture.MY_TYPE:
                     if d3txt is not None:
-                        terminate("Only one 3d texture is expected:", bmat.name)
+                        terminate(
+                            "Only one 3d texture is expected:", bmat.name)
                     d3txt = ins
             found = 0
             result = self.COLORED
@@ -1000,7 +1024,7 @@ class Shading:
                 if ins.MY_TYPE == SpeculareTexture.MY_TYPE:
                     if spectxt is not None:
                         terminate('Only one speculare texture is expected in:',
-                                   bmat.name)
+                                  bmat.name)
                     spectxt = ins
             if spectxt is not None:
                 shd.spectxt = spectxt
@@ -1039,35 +1063,30 @@ class Shading:
 
         def translate(self, bmat, shd):
             bakedtxt = None
-            for k in bmat.texture_slots.keys():
-                for i in range(6):
-                    stxt = '-' + gear.STRING_BAKED_ENV_TEXTURE + \
-                        '-' + gear.STRING_CUBE_FACES[i]
-                    if k.endswith(stxt):
-                        baked_found[i] += 1
-                        bakedtxt = k[:len(k) - len(stxt)] + \
-                            '-' + gear.STRING_BAKED_ENV_TEXTURE
-            for i in range(6):
-                if baked_found[i] > 1:
-                    terminate("Number of " + gear.STRING_CUBE_FACES[i] +
-                              " face for baked texture is " +
-                              "more than 1 in material: " + bmat.name)
-                baked_found[i] = baked_found[i] == 1
-                if baked_found[0] != baked_found[i]:
-                    terminate("Incomplete cube texture in material: " +
-                              bmat.name)
-            baked_found = baked_found[0]
+            for s in bmat.texture_slots:
+                if s is None:
+                    continue
+                txt = s.texture
+                if txt is None:
+                    continue
+                txt = Texture.read(txt)
+                if txt is None:
+                    continue
+                if txt.MY_TYPE == BackedEnvironmentTexture.MY_TYPE:
+                    if bakedtxt is not None:
+                        terminate('Only one baked environment is accepted in:',
+                                  bmat.name)
+                    bakedtxt = txt
             reflective = bmat.raytrace_mirror is not None and \
                 bmat.raytrace_mirror.use and \
-                bmat.raytrace_mirror.reflect_factor > 0.001
-            if baked_found and not reflective:
-                terminate("A material must set amount of reflectivity and " +
-                          "then have a baked-env texture. Error in material: "
-                          + bmat.name)
-            if baked_found:
+                not is_zero(bmat.raytrace_mirror.reflect_factor)
+            if bakedtxt is not None and not reflective:
+                terminate("A material must set amount of reflectivity and",
+                          "then have a baked-env texture. Error in material:",
+                          bmat.name)
+            if bakedtxt is not None:
                 shd.reflect_factor = bmat.raytrace_mirror.reflect_factor
-                shd.bakedenv = gear.read_texture_cube(bmat.texture_slots,
-                                                      bakedtxt)
+                shd.bakedenv = bakedtxt
                 return self.BAKED
             if reflective:
                 shd.reflect_factor = bmat.raytrace_mirror.reflect_factor
@@ -1076,9 +1095,9 @@ class Shading:
 
         def write(self, shd):
             if self == self.BAKED or self == self.REALTIME:
-                shd.parent.out.write(TYPE_FLOAT(shd.reflect_factor))
+                write_float(shd.reflect_factor)
             if self == self.BAKED:
-                shd.parent.out.write(TYPE_U64(shd.bakedenv))
+                write_u64(shd.bakedenv.my_id)
 
     class Shadowing(enum.Enum):
         SHADOWLESS = 0
@@ -1088,20 +1107,17 @@ class Shading:
 
         def needs_normal(self):
             enum_max_check(self)
-
             return self == self.FULL
 
         def needs_uv(self):
             enum_max_check(self)
-
             return False
 
         def needs_tangent(self):
             enum_max_check(self)
-
             return False
 
-        def translate(self, gear, bmat, shd):
+        def translate(self, bmat, shd):
             caster = bmat.use_cast_shadows
             receiver = bmat.use_shadows
             if not caster and receiver:
@@ -1124,36 +1140,33 @@ class Shading:
 
         def needs_normal(self):
             enum_max_check(self)
-
             return False
 
         def needs_uv(self):
             enum_max_check(self)
-
             return self == self.CUTOFF
 
         def needs_tangent(self):
             enum_max_check(self)
-
             return False
 
-        def translate(self, gear, bmat, shd):
-            trn = gear.STRING_TRANSPARENT in bmat
-            ctf = gear.STRING_CUTOFF in bmat
+        def translate(self, bmat, shd):
+            trn = STRING_TRANSPARENT in bmat
+            ctf = STRING_CUTOFF in bmat
             if trn and ctf:
-                terminate("A material can not be transparent and cutoff " +
-                          "in same time. Error in material: " + bmat.name)
+                terminate("A material can not be transparent and cutoff in",
+                          "same time. Error in material:", bmat.name)
             if trn:
-                shd.transparency = bmat[gear.STRING_TRANSPARENT]
+                shd.transparency = bmat[STRING_TRANSPARENT]
                 return self.TRANSPARENT
             if ctf:
-                shd.transparency = bmat[gear.STRING_CUTOFF]
+                shd.transparency = bmat[STRING_CUTOFF]
                 return self.CUTOFF
             return self.OPAQUE
 
         def write(self, shd):
             if self == self.TRANSPARENT or self == self.CUTOFF:
-                shd.parent.out.write(TYPE_FLOAT(shd.transparency))
+                write_float(shd.transparency)
 
     def __init__(self, bmat=None):
         self.shading_data = [
@@ -1181,12 +1194,12 @@ class Shading:
             self.set_reserved(self.Reserved.DEPTH_POS)
         else:
             for i in range(len(self.shading_data)):
-                self.shading_data[i] = self.shading_data[i].translate(
-                    parent, bmat, self)
+                e = self.shading_data[i].translate(bmat, self)
+                self.shading_data[i] = e
 
     def set_lighting(self, e):
         if not isinstance(e, self.Lighting) or e.MAX == e:
-            self.parent.show("Unexpected ", e)
+            terminate("Unexpected ", e, bmat.name)
         self.shading_data[0] = e
 
     def get_lighting(self):
@@ -1196,7 +1209,7 @@ class Shading:
 
     def set_texturing(self, e):
         if not isinstance(e, self.Texturing) or e.MAX == e:
-            self.parent.show("Unexpected ", e)
+            terminate("Unexpected ", e, bmat.name)
         self.shading_data[1] = e
 
     def get_texturing(self):
@@ -1206,7 +1219,7 @@ class Shading:
 
     def set_speculating(self, e):
         if not isinstance(e, self.Speculating) or e.MAX == e:
-            self.parent.show("Unexpected ", e)
+            terminate("Unexpected ", e, bmat.name)
         self.shading_data[2] = e
 
     def get_speculating(self):
@@ -1216,7 +1229,7 @@ class Shading:
 
     def set_environment_mapping(self, e):
         if not isinstance(e, self.EnvironmentMapping) or e.MAX == e:
-            self.parent.show("Unexpected ", e)
+            terminate("Unexpected ", e, bmat.name)
         self.shading_data[3] = e
 
     def get_environment_mapping(self):
@@ -1226,7 +1239,7 @@ class Shading:
 
     def set_shadowing(self, e):
         if not isinstance(e, self.Shadowing) or e.MAX == e:
-            self.parent.show("Unexpected ", e)
+            terminate("Unexpected ", e, bmat.name)
         self.shading_data[4] = e
 
     def get_shadowing(self):
@@ -1236,7 +1249,7 @@ class Shading:
 
     def set_transparency(self, e):
         if not isinstance(e, self.Transparency) or e.MAX == e:
-            self.parent.show("Unexpected ", e)
+            terminate("Unexpected ", e, bmat.name)
         self.shading_data[5] = e
 
     def get_transparency(self):
@@ -1246,7 +1259,7 @@ class Shading:
 
     def set_reserved(self, e):
         if not isinstance(e, self.Reserved) or e.MAX == e:
-            terminate("Unexpected ", e)
+            terminate("Unexpected ", e, bmat)
         self.shading_data[0] = self.Lighting.RESERVED
         self.reserved = e
 
@@ -1269,7 +1282,6 @@ class Shading:
         def sub_print(es, pre, shd):
             if len(es) == 0:
                 shd.shading_data = pre
-                # print(pre)
                 all_enums[shd.get_enum_name()] = shd.to_int()
             else:
                 for e in es[0]:
@@ -1283,11 +1295,11 @@ class Shading:
         for e in self.Reserved:
             self.reserved = e
             all_enums[self.get_enum_name()] = self.to_int()
-        log_info("ALL ENUMS")
+        log_info("Writing all enums")
         for k in sorted(all_enums):
             if 'MAX' not in k:
                 write_cpp_enum(k, "=", all_enums[k], ",")
-        log_info("END OF ALL ENUMS")
+        log_info("End of writing all enums")
 
     def get_enum_name(self):
         result = ""
@@ -1297,13 +1309,11 @@ class Shading:
             for e in self.shading_data:
                 result += e.name + '_'
         result = result[0:len(result) - 1]
-        log_info(result, ' = ', self.to_int())
         return result
 
     def get_file_name(self):
         result = self.get_enum_name()
         result = result.lower().replace('_', '-')
-        log_info(result, ' = ', self.to_int())
         return result
 
     def needs_normal(self):
@@ -1331,7 +1341,7 @@ class Shading:
         return False
 
     def write(self):
-        self.parent.out.write(TYPE_U64(self.to_int()))
+        write_u64(self.to_int())
         if self.shading_data[0] == self.Lighting.RESERVED:
             self.reserved.write(self)
             return
