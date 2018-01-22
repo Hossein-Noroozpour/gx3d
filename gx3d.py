@@ -1,4 +1,4 @@
-bl_info = {
+itemsbl_info = {
     "name": "Gearoenix Blender",
     "author": "Hossein Noroozpour",
     "version": (2, 0),
@@ -203,44 +203,36 @@ def enum_max_check(e):
 
 class RenderObject:
     # each instance of this class must define:
-    #     MY_TYPE    int
-    #     LAST_ID    int
-    #     ITEMS      dict[name] = instance
+    #     my_type    int
     #     DESC       str
-    #     CHILDREN   [subclass]
     #     PREFIX     str
     # it will add following fiels:
+    #     last_id    int
+    #     items      dict[name] = instance
     #     name       str
     #     my_id      int
     #     offset     int
     #     bobj       blender-object
-    # The immediate subclass must:
-    #     Be itself root of other type, like scene, model, mesh, ...
-    #     Must have at least one child
-    # Most of the times leaf classes only needs this:
-    #     PREFIX
-    #     DESC
-    #     MY_TYPE
 
     def __init__(self, bobj):
         self.offset = 0
         self.bobj = bobj
-        self.my_id = self.LAST_ID
-        self.LAST_ID += 1
-        self.name = self.get_name_from_bobj(bobj)
-        if not bobj.name.startswith(self.PREFIX):
-            terminate("Unexpected name in ", self.DESC)
-        if self.name in self.ITEMS:
+        self.my_id = self.__class__.last_id
+        self.__class__.last_id += 1
+        self.name = self.__class__.get_name_from_bobj(bobj)
+        if not bobj.name.startswith(self.__class__.PREFIX):
+            terminate("Unexpected name in ", self.__class__.DESC)
+        if self.name in self.__class__.items:
             terminate(self.name, "is already in items.")
-        self.ITEMS[self.name] = self
+        self.__class__.items[self.name] = self
 
     def write(self):
-        GX3D_FILE.write(TYPE_U64(self.MY_TYPE))
+        write_u64(self.my_type)
 
     @classmethod
     def write_all(cls):
-        items = [i for i in range(len(cls.ITEMS))]
-        for item in cls.ITEMS.values():
+        items = [i for i in range(len(cls.items))]
+        for item in cls.items.values():
             items[item.my_id] = item
         for item in items:
             item.offset = GearoenixInfo.GX3D_FILE.tell()
@@ -248,8 +240,9 @@ class RenderObject:
 
     @classmethod
     def write_table(cls):
-        items = [i for i in range(len(cls.ITEMS))]
-        for item in cls.ITEMS.values():
+        items = [i for i in range(len(cls.items))]
+        for item in cls.items.values():
+            print(item, ":", item.my_id)
             items[item.my_id] = item
         for item in items:
             write_u64(item.offset)
@@ -263,7 +256,7 @@ class RenderObject:
         name = cls.get_name_from_bobj(bobj)
         if not bobj.name.startswith(cls.PREFIX):
             return None
-        if name in cls.ITEMS:
+        if name in cls.items:
             return None
         cc = None
         for c in cls.CHILDREN:
@@ -276,8 +269,8 @@ class RenderObject:
 
     @classmethod
     def init(cls):
-        cls.LAST_ID = 0
-        cls.ITEMS = dict()
+        cls.last_id = 0
+        cls.items = dict()
 
     def get_offset(self):
         return self.offset
@@ -296,10 +289,9 @@ class UniRenderObject(RenderObject):
         if origin_name is None:
             super().__init__(bobj)
         else:
-            self.origin_instance = self.ITEMS[origin_name]
+            self.origin_instance = self.__class__.items[origin_name]
             self.name = bobj.name
-            self.my_id = origin.my_id
-            self.offset = 0
+            self.my_id = self.origin_instance.my_id
             self.bobj = bobj
 
     def write(self):
@@ -314,7 +306,7 @@ class UniRenderObject(RenderObject):
         origin_name = get_origin_name(bobj)
         if origin_name is None:
             return super().read(bobj)
-        super().read(bobj[origin_name])
+        super().read(bpy.data.objects[origin_name])
         cc = None
         for c in cls.CHILDREN:
             if bobj.name.startswith(c.PREFIX):
@@ -333,10 +325,10 @@ class ReferenceableObject(RenderObject):
 
     def __init__(self, bobj):
         self.origin_instance = None
-        self.name = self.get_name_from_bobj(bobj)
-        if self.name not in self.ITEMS:
+        self.name = self.__class__.get_name_from_bobj(bobj)
+        if self.name not in self.__class__.items:
             return super().__init__(bobj)
-        self.origin_instance = self.ITEMS[self.name]
+        self.origin_instance = self.__class__.items[self.name]
         self.my_id = self.origin_instance.my_id
         self.bobj = bobj
 
@@ -344,8 +336,8 @@ class ReferenceableObject(RenderObject):
     def read(cls, bobj):
         if not bobj.name.startswith(cls.PREFIX):
             return None
-        name = self.get_name_from_bobj(bobj)
-        if self.name not in cls.ITEMS:
+        name = cls.get_name_from_bobj(bobj)
+        if name not in cls.items:
             return super().read(bobj)
         cc = None
         for c in cls.CHILDREN:
@@ -368,12 +360,9 @@ class ReferenceableObject(RenderObject):
 
 
 class Audio(ReferenceableObject):
-    PREFIX = 'aud-'
-    LAST_ID = 0
-    ITEMS = dict()  # name: instance
-    DESC = "Audio"
+    PREFIX_MUSIC = 'aud-music-'
+    DESC = "Audio object"
     CHILDREN = []
-    MY_TYPE = 0
     TYPE_MUSIC = 1
     TYPE_OBJECT = 2
 
@@ -404,9 +393,6 @@ class Audio(ReferenceableObject):
 
 
 class MusicAudio(Audio):
-    PREFIX = Audio.PREFIX + 'music-'
-    DESC = "Music object"
-    MY_TYPE = Audio.TYPE_MUSIC
 
     def __init__(self, bobj):
         super().__init__(bobj)
@@ -417,11 +403,8 @@ Audio.CHILDREN.append(MusicAudio)
 
 class Light(RenderObject):
     PREFIX = 'light-'
-    LAST_ID = 0
-    ITEMS = dict()  # name: instance
     DESC = "Light"
     CHILDREN = []
-    MY_TYPE = 0
     TYPE_SUN = 1
 
     def __init__(self, bobj):
@@ -455,11 +438,8 @@ Light.CHILDREN.append(SunLight)
 
 class Camera(RenderObject):
     PREFIX = 'cam-'
-    LAST_ID = 0
-    ITEMS = dict()  # name: instance
     DESC = "Camera"
     CHILDREN = []
-    MY_TYPE = 0
     TYPE_PERSPECTIVE = 1
     TYPE_ORTHOGRAPHIC = 2
 
@@ -517,11 +497,8 @@ Camera.CHILDREN.append(OrthographicCamera)
 
 class Constraint(RenderObject):
     PREFIX = 'constraint-'
-    LAST_ID = 0
-    ITEMS = dict()  # name: instance
     DESC = "Constraint"
     CHILDREN = []
-    MY_TYPE = 0
     TYPE_PLACER = 1
     TYPE_TRACKER = 2
     TYPE_SPRING = 3
@@ -616,7 +593,12 @@ class Collider:
     PREFIX = 'collider-'
     CHILDREN = []
 
-    def __init__(self, bobj):
+    def __init__(self, bobj=None):
+        if bobj is None:
+            if self.MY_TYPE == self.GHOST:
+                return
+            else:
+                terminate("Unexpected bobj is None")
         if not bobj.name.startswith(self.PREFIX):
             terminate("Collider object name is wrong. In:", bobj.name)
         self.bobj = bobj
@@ -684,11 +666,8 @@ Collider.CHILDREN.append(MeshCollider)
 
 class Texture(ReferenceableObject):
     PREFIX = 'txt-'
-    LAST_ID = 0
-    ITEMS = dict()  # name: instance
     DESC = "Texture"
     CHILDREN = []
-    MY_TYPE = 0
     TYPE_2D = 1
     TYPE_3D = 2
     TYPE_CUBE = 3
@@ -731,7 +710,7 @@ class D2Texture(Texture):
 Texture.CHILDREN.append(D2Texture)
 
 
-class NormalmapTexture(D2Texture):
+class NormalmapTexture(Texture):
     PREFIX = Texture.PREFIX + 'nrm-'
     DESC = "Normal map texture"
     MY_TYPE = Texture.TYPE_NORMALMAP
@@ -743,7 +722,7 @@ class NormalmapTexture(D2Texture):
 Texture.CHILDREN.append(NormalmapTexture)
 
 
-class SpeculareTexture(D2Texture):
+class SpeculareTexture(Texture):
     PREFIX = Texture.PREFIX + 'spec-'
     DESC = "Speculare texture"
     MY_TYPE = Texture.TYPE_SPECULARE
@@ -795,35 +774,51 @@ class CubeTexture(Texture):
 Texture.CHILDREN.append(CubeTexture)
 
 
-class BackedEnvironmentTexture(CubeTexture):
+class BackedEnvironmentTexture(Texture):
     PREFIX = Texture.PREFIX + 'bkenv-'
     DESC = "Backed environment texture"
     MY_TYPE = Texture.TYPE_BACKED_ENVIRONMENT
 
     def __init__(self, bobj):
         super().__init__(bobj)
+        if not self.name.endswith('-up.png'):
+            terminate('Incorrect cube texture:', bobj.name)
+        base_name = self.name[:len(self.name) - len('-up.png')]
+        self.img_down = read_file(base_name + '-down.png')
+        self.img_left = read_file(base_name + '-left.png')
+        self.img_right = read_file(base_name + '-right.png')
+        self.img_front = read_file(base_name + '-front.png')
+        self.img_back = read_file(base_name + '-back.png')
+
+    def write(self):
+        super().write()
+        write_file(self.img_down)
+        write_file(self.img_left)
+        write_file(self.img_right)
+        write_file(self.img_front)
+        write_file(self.img_back)
 
 
 Texture.CHILDREN.append(BackedEnvironmentTexture)
 
 
 class Shader:
-    ITEMS = dict()  # int -> instance
+    items = dict()  # int -> instance
 
     @classmethod
     def init(cls):
-        cls.ITEMS = dict()
+        cls.items = dict()
 
     @classmethod
     def read(cls, shd):
         my_id = shd.to_int()
-        if my_id in cls.ITEMS:
+        if my_id in cls.items:
             return None
-        cls.ITEMS[my_id] = shd
+        cls.items[my_id] = shd
 
     @classmethod
     def write_table(cls):
-        for k in cls.ITEMS.keys():
+        for k in cls.items.keys():
             write_u64(k)
 
     @classmethod
@@ -885,7 +880,9 @@ class Shading:
             for s in bmat.texture_slots:
                 if s is None:
                     continue
-                txt = s.txt
+                txt = s.texture
+                if txt is None:
+                    continue
                 ins = Texture.read(txt)
                 if ins is None:
                     continue
@@ -937,6 +934,8 @@ class Shading:
                 if s is None:
                     continue
                 txt = s.texture
+                if txt is None:
+                    continue
                 ins = Texture.read(txt)
                 if ins is None:
                     continue
@@ -1340,6 +1339,11 @@ class Shading:
                 return True
         return False
 
+    def has_same_attrs(self, o):
+        return self.needs_normal() == o.needs_normal() and \
+            self.needs_uv() == o.needs_uv() and \
+            self.needs_tangent() == o.needs_tangent()
+
     def write(self):
         write_u64(self.to_int())
         if self.shading_data[0] == self.Lighting.RESERVED:
@@ -1351,11 +1355,8 @@ class Shading:
 
 class Mesh(UniRenderObject):
     PREFIX = 'mesh-'
-    LAST_ID = 0
-    ITEMS = dict()  # name: instance
     DESC = "Mesh"
     CHILDREN = []
-    MY_TYPE = 0
     TYPE_BASIC = 1
 
     def __init__(self, bobj):
@@ -1368,7 +1369,7 @@ class Mesh(UniRenderObject):
             terminate("Mesh can not have children:", bobj.name)
         self.shd = Shading(bobj.material_slots[0].material)
         if self.origin_instance is not None:
-            if not self.shd.is_same(self.origin_instance.shd):
+            if not self.shd.has_same_attrs(self.origin_instance.shd):
                 terminate("Different mesh attributes, in: " + bobj.name)
             return
         if bobj.parent is not None:
@@ -1462,11 +1463,8 @@ class Occlusion:
 
 class Model(RenderObject):
     PREFIX = 'model-'
-    LAST_ID = 0
-    ITEMS = dict()  # name: instance
     DESC = "Model"
     CHILDREN = []
-    MY_TYPE = 0
     TYPE_BASIC = 1
     TYPE_WIDGET = 1
 
@@ -1525,11 +1523,8 @@ Model.CHILDREN.append(WidgetModel)
 
 class Scene(RenderObject):
     PREFIX = 'scene-'
-    LAST_ID = 0
-    ITEMS = dict()  # name: instance
     DESC = "Scene"
     CHILDREN = []
-    MY_TYPE = 0
     TYPE_GAME = 1
     TYPE_UI = 2
 
@@ -1657,11 +1652,11 @@ class Gearoenix:
 
     @classmethod
     def write_instances_offsets(cls, clsobj):
-        offsets = [i for i in range(len(clsobj.ITEMS))]
+        offsets = [i for i in range(len(clsobj.items))]
         mod_name = clsobj.__name__
         cls.rust_code.write("pub mod " + mod_name + " {\n")
         cls.cpp_code.write("namespace " + mod_name + "\n{\n")
-        for name, instance in clsobj.ITEMS.items():
+        for name, instance in clsobj.items.items():
             offset = instance.offset
             item_id = instance.my_id
             name = cls.const_string(name)
@@ -1693,8 +1688,8 @@ class Gearoenix:
 
     @classmethod
     def write_all_instances(cls, clsobj):
-        items = [i for i in range(len(clsobj.ITEMS))]
-        for item in clsobj.ITEMS.values():
+        items = [i for i in range(len(clsobj.items))]
+        for item in clsobj.items.values():
             items[item.my_id] = item
         for item in items:
             item.offset = cls.out.tell()
