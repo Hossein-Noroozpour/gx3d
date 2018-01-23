@@ -204,8 +204,6 @@ def enum_max_check(e):
 class RenderObject:
     # each instance of this class must define:
     #     my_type    int
-    #     DESC       str
-    #     PREFIX     str
     # it will add following fiels:
     #     last_id    int
     #     items      dict[name] = instance
@@ -220,11 +218,15 @@ class RenderObject:
         self.my_id = self.__class__.last_id
         self.__class__.last_id += 1
         self.name = self.__class__.get_name_from_bobj(bobj)
-        if not bobj.name.startswith(self.__class__.PREFIX):
-            terminate("Unexpected name in ", self.__class__.DESC)
+        if not bobj.name.startswith(self.get_offset()):
+            terminate("Unexpected name in ", self.__class__.__name__)
         if self.name in self.__class__.items:
             terminate(self.name, "is already in items.")
         self.__class__.items[self.name] = self
+
+    @classmethod
+    def get_prefix(cls):
+        return cls.__name__.lower()
 
     def write(self):
         write_u64(self.my_type)
@@ -254,18 +256,11 @@ class RenderObject:
     @classmethod
     def read(cls, bobj):
         name = cls.get_name_from_bobj(bobj)
-        if not bobj.name.startswith(cls.PREFIX):
+        if not bobj.name.startswith(cls.get_prefix()):
             return None
         if name in cls.items:
             return None
-        cc = None
-        for c in cls.CHILDREN:
-            if bobj.name.startswith(c.PREFIX):
-                cc = c
-                break
-        if cc is None:
-            terminate("Type not found. ", cls.DESC, ":", bobj.name)
-        return cc(bobj)
+        return cls(bobj)
 
     @classmethod
     def init(cls):
@@ -287,12 +282,11 @@ class UniRenderObject(RenderObject):
         self.origin_instance = None
         origin_name = get_origin_name(bobj)
         if origin_name is None:
-            super().__init__(bobj)
-        else:
-            self.origin_instance = self.__class__.items[origin_name]
-            self.name = bobj.name
-            self.my_id = self.origin_instance.my_id
-            self.bobj = bobj
+            return super().__init__(bobj)
+        self.origin_instance = self.__class__.items[origin_name]
+        self.name = bobj.name
+        self.my_id = self.origin_instance.my_id
+        self.bobj = bobj
 
     def write(self):
         if self.origin_instance is not None:
@@ -301,20 +295,13 @@ class UniRenderObject(RenderObject):
 
     @classmethod
     def read(cls, bobj):
-        if not bobj.name.startswith(cls.PREFIX):
+        if not bobj.name.startswith(cls.get_prefix()):
             return None
         origin_name = get_origin_name(bobj)
         if origin_name is None:
             return super().read(bobj)
         super().read(bpy.data.objects[origin_name])
-        cc = None
-        for c in cls.CHILDREN:
-            if bobj.name.startswith(c.PREFIX):
-                cc = c
-                break
-        if cc is None:
-            terminate("Type not found. ", cls.DESC, ":", bobj.name)
-        return cc(bobj)
+        return cls(bobj)
 
 
 class ReferenceableObject(RenderObject):
@@ -334,19 +321,12 @@ class ReferenceableObject(RenderObject):
 
     @classmethod
     def read(cls, bobj):
-        if not bobj.name.startswith(cls.PREFIX):
+        if not bobj.name.startswith(cls.get_prefix()):
             return None
         name = cls.get_name_from_bobj(bobj)
         if name not in cls.items:
             return super().read(bobj)
-        cc = None
-        for c in cls.CHILDREN:
-            if bobj.name.startswith(c.PREFIX):
-                cc = c
-                break
-        if cc is None:
-            terminate("Type not found. ", cls.DESC, ":", bobj.name)
-        return cc(bobj)
+        return cls(bobj)
 
     def write(self):
         if self.origin_instance is not None:
@@ -360,14 +340,23 @@ class ReferenceableObject(RenderObject):
 
 
 class Audio(ReferenceableObject):
-    PREFIX_MUSIC = 'aud-music-'
-    DESC = "Audio object"
-    CHILDREN = []
     TYPE_MUSIC = 1
     TYPE_OBJECT = 2
 
+    @classmethod
+    def init(cls):
+        super().init()
+        cls.MUSIC_PREFIX = cls.get_offset() + 'music-'
+        cls.OBJECT_PREFIX = cls.get_offset() + 'object-'
+
     def __init__(self, bobj):
         super().__init__(bobj)
+        if bobj.startswith(self.MUSIC_PREFIX):
+            self.my_type = self.TYPE_MUSIC
+        elif bobj.startswith(self.OBJECT_PREFIX):
+            self.my_type = self.TYPE_OBJECT
+        else:
+            terminate('Unspecified type in:', bobl.name)
         self.file = read_file(self.name)
 
     def write(self):
@@ -392,25 +381,21 @@ class Audio(ReferenceableObject):
         return filepath
 
 
-class MusicAudio(Audio):
-
-    def __init__(self, bobj):
-        super().__init__(bobj)
-
-
-Audio.CHILDREN.append(MusicAudio)
-
-
 class Light(RenderObject):
-    PREFIX = 'light-'
-    DESC = "Light"
-    CHILDREN = []
     TYPE_SUN = 1
+
+    @classmethod
+    def init(cls):
+        cls.SUN_PREFIX = cls.get_prefix() + 'sun-'
 
     def __init__(self, bobj):
         super().__init__(bobj)
         if self.bobj.type != 'LAMP':
             terminate('Light type is incorrect:', bobj.name)
+        if bobj.name.startswith(self.SUN_PREFIX):
+            self.my_type = self.TYPE_SUN
+        else:
+            terminate('Unspecified type in:', bobj.name)
 
     def write(self):
         super().write()
@@ -422,31 +407,29 @@ class Light(RenderObject):
         write_float(self.bobj['size'])
 
 
-class SunLight(Light):
-    PREFIX = Light.PREFIX + 'sun-'
-    DESC = "Sun light"
-    MY_TYPE = Light.TYPE_SUN
-
-    def __init__(self, bobj):
-        super().__init__(bobj)
-        if self.bobj.data.type != 'SUN':
-            terminate('Light type is incorrect:', bobj.name)
-
-
-Light.CHILDREN.append(SunLight)
-
-
 class Camera(RenderObject):
-    PREFIX = 'cam-'
-    DESC = "Camera"
-    CHILDREN = []
     TYPE_PERSPECTIVE = 1
     TYPE_ORTHOGRAPHIC = 2
+
+    @classmethod
+    def init(cls):
+        cls.PERSPECTIVE_PREFIX = cls.get_prefix() + 'perspective-'
+        cls.ORTHOGRAPHIC_PREFIX = cls.get_prefix() + 'orthographic-'
 
     def __init__(self, bobj):
         super().__init__(bobj)
         if self.bobj.type != 'CAMERA':
             terminate('Camera type is incorrect:', bobj.name)
+        if bobj.name.startswith(self.PERSPECTIVE_PREFIX):
+            self.my_type = TYPE_PERSPECTIVE
+            if bobj.data.type != 'PERSP':
+                terminate('Camera type is incorrect:', bobj.name)
+        elif bobj.name.startswith(self.ORTHOGRAPHIC_PREFIX):
+            self.my_type = TYPE_ORTHOGRAPHIC
+            if bobj.data.type != 'ORTHO':
+                terminate('Camera type is incorrect:', bobj.name)
+        else:
+            terminate('Unspecified type in:', bobj.name)
 
     def write(self):
         super().write()
@@ -455,136 +438,107 @@ class Camera(RenderObject):
         write_vector(self.bobj.rotation_euler)
         write_float(cam.clip_start)
         write_float(cam.clip_end)
-
-
-class PerspectiveCamera(Camera):
-    PREFIX = Camera.PREFIX + 'pers-'
-    DESC = "Perspective camera"
-    MY_TYPE = Camera.TYPE_PERSPECTIVE
-
-    def __init__(self, bobj):
-        super().__init__(bobj)
-        if self.bobj.data.type != 'PERSP':
-            terminate('Camera type is incorrect:', bobj.name)
-
-    def write(self):
-        super().write()
         cam = self.bobj.data
-        write_float(cam.angle_x / 2.0)
-
-
-Camera.CHILDREN.append(PerspectiveCamera)
-
-
-class OrthographicCamera(Camera):
-    PREFIX = Camera.PREFIX + 'ortho-'
-    DESC = "Orthographic camera"
-    MY_TYPE = Camera.TYPE_ORTHOGRAPHIC
-
-    def __init__(self, bobj):
-        super().__init__(bobj)
-        if self.bobj.data.type != 'ORTHO':
-            terminate('Camera type is incorrect:', bobj.name)
-
-    def write(self):
-        super().write()
-        cam = self.bobj.data
-        write_float(cam.ortho_scale / 2.0)
-
-
-Camera.CHILDREN.append(OrthographicCamera)
+        if self.my_type == self.TYPE_PERSPECTIVE:
+            write_float(cam.angle_x / 2.0)
+        elif self.my_type == self.TYPE_ORTHOGRAPHIC:
+            write_float(cam.ortho_scale / 2.0)
+        else:
+            terminate('Unspecified type in:', bobj.name)
 
 
 class Constraint(RenderObject):
-    PREFIX = 'constraint-'
-    DESC = "Constraint"
-    CHILDREN = []
     TYPE_PLACER = 1
     TYPE_TRACKER = 2
     TYPE_SPRING = 3
     TYPE_SPRING_JOINT = 4
 
-    def __init__(self, bobj):
-        super().__init__(bobj)
-
-
-class Placer(Constraint):
-    PREFIX = Constraint.PREFIX + "placer-"
-    DESC = "Placer constraint"
-    MY_TYPE = Constraint.TYPE_PLACER
-    BTYPE = "EMPTY"
-    ATT_X_MIDDLE = 'x-middle'  # 0
-    ATT_Y_MIDDLE = 'y-middle'  # 1
-    ATT_X_RIGHT = 'x-right'  # 2
-    ATT_X_LEFT = 'x-left'  # 3
-    ATT_Y_UP = 'y-up'  # 4
-    ATT_Y_DOWN = 'y-down'  # 5
-    ATT_RATIO = 'ratio'
+    @classmethod
+    def init(cls):
+        cls.PLACER_PREFIX = cls.get_prefix() + 'placer-'
 
     def __init__(self, bobj):
         super().__init__(bobj)
-        if bobj.type != self.BTYPE:
-            terminate(self.DESC + " type must be " + self.BTYPE +
-                      " in object: " + bobj.name)
-        if has_transformation(bobj):
-            terminate(self.DESC + " should not have any transformation, " +
-                      "in object: " + bobj.name)
-        if len(bobj.children) < 1:
-            terminate(self.DESC + " must have more than 0 children, " +
-                      "in object: " + bobj.name)
-        self.model_children = []
-        for c in bobj.children:
-            ins = Model.read(c)
-            if ins is None:
-                terminate(self.DESC + " can only have model as its " +
-                          "child, in object: " + bobj.name)
-            self.model_children.append(ins)
-        self.attrs = [None for i in range(6)]
-        if self.ATT_X_MIDDLE in bobj:
-            self.attrs[0] = bobj[self.ATT_X_MIDDLE]
-            limit_check(self.attrs[0], 0.8, 0.0, bobj)
-        if self.ATT_Y_MIDDLE in bobj:
-            terminate("Not implemented, in object: " + bobj.name)
-        if self.ATT_X_LEFT in bobj:
-            terminate("Not implemented, in object: " + bobj.name)
-        if self.ATT_X_RIGHT in bobj:
-            terminate("Not implemented, in object: " + bobj.name)
-        if self.ATT_Y_UP in bobj:
-            terminate("Not implemented, in object: " + bobj.name)
-        if self.ATT_Y_DOWN in bobj:
-            self.attrs[5] = bobj[self.ATT_Y_DOWN]
-            limit_check(self.attrs[5], 0.8, 0.0, bobj)
-        if self.ATT_RATIO in bobj:
-            self.ratio = bobj[self.ATT_RATIO]
+        if bobj.name.startswith(self.PLACER_PREFIX):
+            self.my_type = self.TYPE_PLACER
+            self.init_placer()
         else:
-            terminate(self.DESC + " must have " + self.ATT_RATIO +
-                      " properties, in object: " + bobj.name)
-        self.type_id = 0
-        for i in range(len(self.attrs)):
-            if self.attrs[i] is not None:
-                self.type_id |= (1 << i)
-        if self.type_id not in {33, }:
-            terminate(self.DESC + " must have meaningful combination, " +
-                      "in object: " + bobj.name)
+            terminate('Unspecified type in:', bobj.name)
 
     def write(self):
         super().write()
-        log_info(self.DESC, "is being written with offset:", str(self.offset))
-        write_u64(self.type_id)
-        write_float(self.ratio)
-        if self.type_id == 33:
-            write_float(self.attrs[0])
-            write_float(self.attrs[5])
+        if self.my_type == self.TYPE_PLACER:
+            self.write_placer()
         else:
-            terminate("It is not implemented, in object: " + bobj.name)
-        childrenids = []
-        for c in self.model_children:
-            childrenids.append(c.my_id)
-        childrenids.sort()
-        write_u64_array(childrenids)
+            terminate('Unspecified type in:', bobj.name)
 
+    def init_placer(self):
+        BTYPE = "EMPTY"
+        DESC = 'Placer constraint'
+        ATT_X_MIDDLE = 'x-middle'  # 0
+        ATT_Y_MIDDLE = 'y-middle'  # 1
+        ATT_X_RIGHT = 'x-right'  # 2
+        ATT_X_LEFT = 'x-left'  # 3
+        ATT_Y_UP = 'y-up'  # 4
+        ATT_Y_DOWN = 'y-down'  # 5
+        ATT_RATIO = 'ratio'
+        if self.bobj.type != BTYPE:
+            terminate(DESC, "type must be", BTYPE, "in object:",
+                      self.bobj.name)
+        if has_transformation(self.bobj):
+            terminate(DESC, "should not have any transformation, in object:",
+                      self.bobj.name)
+        if len(self.bobj.children) < 1:
+            terminate(DESC, "must have more than 0 children, in object:",
+                      self.bobj.name)
+        self.model_children = []
+        for c in self.bobj.children:
+            ins = Model.read(c)
+            if ins is None:
+                terminate(DESC, "can only have model as its child, in object:",
+                          self.bobj.name)
+            self.model_children.append(ins)
+        self.attrs = [None for i in range(6)]
+        if ATT_X_MIDDLE in self.bobj:
+            self.attrs[0] = self.bobj[ATT_X_MIDDLE]
+            limit_check(self.attrs[0], 0.8, 0.0, self.bobj)
+        if ATT_Y_MIDDLE in self.bobj:
+            terminate("Not implemented, in object:", self.bobj.name)
+        if ATT_X_LEFT in self.bobj:
+            terminate("Not implemented, in object:", self.bobj.name)
+        if ATT_X_RIGHT in self.bobj:
+            terminate("Not implemented, in object:", self.bobj.name)
+        if ATT_Y_UP in self.bobj:
+            terminate("Not implemented, in object:", self.bobj.name)
+        if ATT_Y_DOWN in self.bobj:
+            self.attrs[5] = self.bobj[ATT_Y_DOWN]
+            limit_check(self.attrs[5], 0.8, 0.0, self.bobj)
+        if ATT_RATIO in self.bobj:
+            self.ratio = self.bobj[ATT_RATIO]
+        else:
+            terminate(DESC, "must have", ATT_RATIO, "properties, in object:",
+                      self.bobj.name)
+        self.placer_type = 0
+        for i in range(len(self.attrs)):
+            if self.attrs[i] is not None:
+                self.placer_type |= (1 << i)
+        if self.placer_type not in {33, }:
+            terminate(DESC, "must have meaningful combination, in object:",
+                      self.bobj.name)
 
-Constraint.CHILDREN = [Placer]
+        def write_placer(self):
+            write_u64(self.placer_type)
+            write_float(self.ratio)
+            if self.placer_type == 33:
+                write_float(self.attrs[0])
+                write_float(self.attrs[5])
+            else:
+                terminate("It is not implemented, in object:", self.bobj.name)
+            childrenids = []
+            for c in self.model_children:
+                childrenids.append(c.my_id)
+            childrenids.sort()
+            write_u64_array(childrenids)
 
 
 class Collider:
@@ -665,9 +619,6 @@ Collider.CHILDREN.append(MeshCollider)
 
 
 class Texture(ReferenceableObject):
-    PREFIX = 'txt-'
-    DESC = "Texture"
-    CHILDREN = []
     TYPE_2D = 1
     TYPE_3D = 2
     TYPE_CUBE = 3
@@ -946,13 +897,13 @@ class Shading:
                     cubetxt = ins
                 elif ins.MY_TYPE == D2Texture.MY_TYPE:
                     if d2txt is not None:
-                        terminate(
-                            "Only one 2d texture is expected:", bmat.name)
+                        terminate("Only one 2d texture is expected:",
+                                  bmat.name)
                     d2txt = ins
                 elif ins.MY_TYPE == D3Texture.MY_TYPE:
                     if d3txt is not None:
-                        terminate(
-                            "Only one 3d texture is expected:", bmat.name)
+                        terminate("Only one 3d texture is expected:",
+                                  bmat.name)
                     d3txt = ins
             found = 0
             result = self.COLORED
