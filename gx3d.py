@@ -201,6 +201,35 @@ def enum_max_check(e):
         terminate('UNEXPECTED')
 
 
+def write_start_module(c):
+    mod_name = c.__name__
+    GearoenixInfo.RUST_FILE.write("pub mod " + mod_name + " {\n")
+    GearoenixInfo.CPP_FILE.write("namespace " + mod_name + "\n{\n")
+
+
+def write_name_id(name, item_id):
+    GearoenixInfo.RUST_FILE.write("\tpub const " + name + ": u64 = " + str(
+        item_id) + ";\n")
+    GearoenixInfo.CPP_FILE.write("\tconst gearoenix::core::Id " + name + " = " +
+                                 str(item_id) + ";\n")
+
+
+def write_end_modul():
+    GearoenixInfo.RUST_FILE.write("}\n")
+    GearoenixInfo.CPP_FILE.write("}\n")
+
+
+def find_common_starting(s1, s2):
+    s = ''
+    l = min(len(s1), len(s2))
+    for i in range(l):
+        if s1[i] == s2[i]:
+            s += s1[i]
+        else:
+            break
+    return s
+
+
 class RenderObject:
     # each instance of this class must define:
     #     my_type    int
@@ -218,7 +247,7 @@ class RenderObject:
         self.my_id = self.__class__.last_id
         self.__class__.last_id += 1
         self.name = self.__class__.get_name_from_bobj(bobj)
-        if not bobj.name.startswith(self.get_offset()):
+        if not bobj.name.startswith(self.__class__.get_prefix()):
             terminate("Unexpected name in ", self.__class__.__name__)
         if self.name in self.__class__.items:
             terminate(self.name, "is already in items.")
@@ -226,7 +255,7 @@ class RenderObject:
 
     @classmethod
     def get_prefix(cls):
-        return cls.__name__.lower()
+        return cls.__name__.lower() + '-'
 
     def write(self):
         write_u64(self.my_type)
@@ -242,12 +271,21 @@ class RenderObject:
 
     @classmethod
     def write_table(cls):
+        write_start_module(cls)
         items = [i for i in range(len(cls.items))]
+        common_starting = ''
+        if len(cls.items) > 1:
+            for k in cls.items.keys():
+                common_starting = const_string(k)
         for item in cls.items.values():
-            print(item, ":", item.my_id)
             items[item.my_id] = item
+            common_starting = find_common_starting(common_starting,
+                                                   const_string(item.name))
         for item in items:
             write_u64(item.offset)
+            write_name_id(const_string(item.name)[len(common_starting):],
+                          item.my_id)
+        write_end_modul()
 
     @staticmethod
     def get_name_from_bobj(bobj):
@@ -348,8 +386,8 @@ class Audio(ReferenceableObject):
     @classmethod
     def init(cls):
         super().init()
-        cls.MUSIC_PREFIX = cls.get_offset() + 'music-'
-        cls.OBJECT_PREFIX = cls.get_offset() + 'object-'
+        cls.MUSIC_PREFIX = cls.get_prefix() + 'music-'
+        cls.OBJECT_PREFIX = cls.get_prefix() + 'object-'
 
     def __init__(self, bobj):
         super().__init__(bobj)
@@ -425,11 +463,11 @@ class Camera(RenderObject):
         if self.bobj.type != 'CAMERA':
             terminate('Camera type is incorrect:', bobj.name)
         if bobj.name.startswith(self.PERSPECTIVE_PREFIX):
-            self.my_type = TYPE_PERSPECTIVE
+            self.my_type = self.TYPE_PERSPECTIVE
             if bobj.data.type != 'PERSP':
                 terminate('Camera type is incorrect:', bobj.name)
         elif bobj.name.startswith(self.ORTHOGRAPHIC_PREFIX):
-            self.my_type = TYPE_ORTHOGRAPHIC
+            self.my_type = self.TYPE_ORTHOGRAPHIC
             if bobj.data.type != 'ORTHO':
                 terminate('Camera type is incorrect:', bobj.name)
         else:
@@ -531,19 +569,19 @@ class Constraint(RenderObject):
             terminate(DESC, "must have meaningful combination, in object:",
                       self.bobj.name)
 
-        def write_placer(self):
-            write_u64(self.placer_type)
-            write_float(self.ratio)
-            if self.placer_type == 33:
-                write_float(self.attrs[0])
-                write_float(self.attrs[5])
-            else:
-                terminate("It is not implemented, in object:", self.bobj.name)
-            childrenids = []
-            for c in self.model_children:
-                childrenids.append(c.my_id)
-            childrenids.sort()
-            write_u64_array(childrenids)
+    def write_placer(self):
+        write_u64(self.placer_type)
+        write_float(self.ratio)
+        if self.placer_type == 33:
+            write_float(self.attrs[0])
+            write_float(self.attrs[5])
+        else:
+            terminate("It is not implemented, in object:", self.bobj.name)
+        childrenids = []
+        for c in self.model_children:
+            childrenids.append(c.my_id)
+        childrenids.sort()
+        write_u64_array(childrenids)
 
 
 class Collider:
@@ -866,15 +904,15 @@ class Shading:
             found = 0
             result = self.COLORED
             if d2txt is not None:
-                shd.d2
+                shd.d2 = d2txt
                 found += 1
                 result = self.D2
             if d3txt is not None:
-                shd.d3
+                shd.d3 = d3txt
                 found += 1
                 result = self.D3
             if cubetxt is not None:
-                shd.cube
+                shd.cube = cubetxt
                 found += 1
                 result = self.CUBE
             if found == 0:
@@ -1355,6 +1393,10 @@ class Occlusion:
                 return cls(c)
         terminate("Occlusion not found in: ", bobj.name)
 
+    def write(self):
+        write_vector(self.radius)
+        write_vector(self.center)
+
 
 class Model(RenderObject):
     TYPE_BASIC = 1
@@ -1447,6 +1489,10 @@ class Scene(RenderObject):
             self.my_type = self.TYPE_UI
         else:
             terminate('Unspecified scene type, in:', bobj.name)
+        if len(self.cameras) < 1:
+            terminate('Scene must have at least one camera, in:', bobj.name)
+        if len(self.lights) < 1:
+            terminate('Scene must have at least one light, in:', bobj.name)
 
     def write(self):
         super().write()
@@ -1621,7 +1667,7 @@ def initialize_shaders():
     Shader.read(s)
 
 
-def write_file(filepath):
+def export_files(filepath):
     GearoenixInfo.GX3D_FILE = open(filepath, mode='wb')
     GearoenixInfo.RUST_FILE = open(filepath + ".rs", mode='w')
     GearoenixInfo.CPP_FILE = open(filepath + ".hpp", mode='w')
@@ -1671,14 +1717,14 @@ class GearoenixExporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
         options={'HIDDEN'}, )
     export_vulkan = bpy.props.BoolProperty(
         name="Enable Vulkan",
-        description="This item enables data exporting for Vulkan engine.",
+        description="This item enables data exporting for Vulkan engine",
         default=False,
         options={'ANIMATABLE'},
         subtype='NONE',
         update=None)
     export_metal = bpy.props.BoolProperty(
         name="Enable Metal",
-        description="This item enables data exporting for Metal engine.",
+        description="This item enables data exporting for Metal engine",
         default=False,
         options={'ANIMATABLE'},
         subtype='NONE',
@@ -1687,7 +1733,7 @@ class GearoenixExporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
     def execute(self, context):
         GearoenixInfo.EXPORT_VULKAN = bool(self.export_vulkan)
         GearoenixInfo.EXPORT_METAL = bool(self.export_metal)
-        write_file(self.filepath)
+        export_files(self.filepath)
         return {'FINISHED'}
 
 
