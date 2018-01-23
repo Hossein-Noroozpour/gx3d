@@ -286,6 +286,7 @@ class UniRenderObject(RenderObject):
         self.origin_instance = self.__class__.items[origin_name]
         self.name = bobj.name
         self.my_id = self.origin_instance.my_id
+        self.my_type = self.origin_instance.my_type
         self.bobj = bobj
 
     def write(self):
@@ -317,6 +318,7 @@ class ReferenceableObject(RenderObject):
             return super().__init__(bobj)
         self.origin_instance = self.__class__.items[self.name]
         self.my_id = self.origin_instance.my_id
+        self.my_type = self.origin_instance.my_type
         self.bobj = bobj
 
     @classmethod
@@ -386,6 +388,7 @@ class Light(RenderObject):
 
     @classmethod
     def init(cls):
+        super().init()
         cls.SUN_PREFIX = cls.get_prefix() + 'sun-'
 
     def __init__(self, bobj):
@@ -413,6 +416,7 @@ class Camera(RenderObject):
 
     @classmethod
     def init(cls):
+        super().init()
         cls.PERSPECTIVE_PREFIX = cls.get_prefix() + 'perspective-'
         cls.ORTHOGRAPHIC_PREFIX = cls.get_prefix() + 'orthographic-'
 
@@ -455,6 +459,7 @@ class Constraint(RenderObject):
 
     @classmethod
     def init(cls):
+        super().init()
         cls.PLACER_PREFIX = cls.get_prefix() + 'placer-'
 
     def __init__(self, bobj):
@@ -626,131 +631,84 @@ class Texture(ReferenceableObject):
     TYPE_NORMALMAP = 5
     TYPE_SPECULARE = 6
 
+    @classmethod
+    def init(cls):
+        super().init()
+        cls.D2_PREFIX = cls.get_prefix() + "2d-"
+        cls.D3_PREFIX = cls.get_prefix() + "3d-"
+        cls.CUBE_PREFIX = cls.get_prefix() + "cube-"
+        cls.BACKED_ENVIRONMENT_PREFIX = cls.get_prefix() + "bkenv-"
+        cls.NORMALMAP_PREFIX = cls.get_prefix() + "nrm-"
+        cls.SPECULARE_PREFIX = cls.get_prefix() + "spec-"
+
+    def init_6_face(self):
+        if not self.name.endswith('-up.png'):
+            terminate('Incorrect 6 face texture:', self.bobj.name)
+        base_name = self.name[:len(self.name) - len('-up.png')]
+        self.img_up = read_file(self.name)
+        self.img_down = read_file(base_name + '-down.png')
+        self.img_left = read_file(base_name + '-left.png')
+        self.img_right = read_file(base_name + '-right.png')
+        self.img_front = read_file(base_name + '-front.png')
+        self.img_back = read_file(base_name + '-back.png')
+
+    def write_6_face(self):
+        write_file(self.img_up)
+        write_file(self.img_down)
+        write_file(self.img_left)
+        write_file(self.img_right)
+        write_file(self.img_front)
+        write_file(self.img_back)
+
     def __init__(self, bobj):
         super().__init__(bobj)
-        self.file = read_file(self.name)
+        if bobj.name.startswith(self.D2_PREFIX):
+            self.file = read_file(self.name)
+            self.my_type = self.TYPE_2D
+        elif bobj.name.startswith(self.D3_PREFIX):
+            self.file = read_file(self.name)
+            self.my_type = self.TYPE_D3
+        elif bobj.name.startswith(self.CUBE_PREFIX):
+            self.init_6_face()
+            self.my_type = self.TYPE_CUBE
+        elif bobj.name.startswith(self.BACKED_ENVIRONMENT_PREFIX):
+            self.init_6_face()
+            self.my_type = self.TYPE_BACKED_ENVIRONMENT
+        elif bobj.name.startswith(self.NORMALMAP_PREFIX):
+            self.file = read_file(self.name)
+            self.my_type = self.TYPE_NORMALMAP
+        elif bobj.name.startswith(self.SPECULARE_PREFIX):
+            self.file = read_file(self.name)
+            self.my_type = self.TYPE_SPECULARE
+        else:
+            terminate('Unspecified texture type, in:', bobl.name)
 
     def write(self):
         super().write()
-        write_file(self.file)
+        if self.my_type == self.TYPE_2D or \
+                self.my_type == self.TYPE_3D or \
+                self.my_type == self.TYPE_NORMALMAP or \
+                self.my_type == self.TYPE_SPECULARE:
+            write_file(self.file)
+        elif self.my_type == self.TYPE_CUBE or \
+                self.my_type == self.TYPE_BACKED_ENVIRONMENT:
+            self.write_6_face()
+        else:
+            terminate('Unspecified texture type, in:', self.bobj.name)
 
     @staticmethod
     def get_name_from_bobj(bobj):
         if bobj.type != 'IMAGE':
-            terminate("Texture must be image: ", bobj.name)
+            terminate("Texture must be image:", bobj.name)
         img = bobj.image
         if img is None:
-            terminate("Image is not set in texture: ", bobj.name)
+            terminate("Image is not set in texture:", bobj.name)
         filepath = bpy.path.abspath(bobj.image.filepath_raw).strip()
         if filepath is None or len(filepath) == 0:
-            terminate("Image is not specified yet in texture: ", bobj.name)
+            terminate("Image is not specified yet in texture:", bobj.name)
         if not filepath.endswith(".png"):
-            terminate("Use PNG image instead of ", filepath)
+            terminate("Use PNG image instead of", filepath)
         return filepath
-
-
-class D2Texture(Texture):
-    PREFIX = Texture.PREFIX + '2d-'
-    DESC = "2D texture"
-    MY_TYPE = Texture.TYPE_2D
-
-    def __init__(self, bobj):
-        super().__init__(bobj)
-
-
-Texture.CHILDREN.append(D2Texture)
-
-
-class NormalmapTexture(Texture):
-    PREFIX = Texture.PREFIX + 'nrm-'
-    DESC = "Normal map texture"
-    MY_TYPE = Texture.TYPE_NORMALMAP
-
-    def __init__(self, bobj):
-        super().__init__(bobj)
-
-
-Texture.CHILDREN.append(NormalmapTexture)
-
-
-class SpeculareTexture(Texture):
-    PREFIX = Texture.PREFIX + 'spec-'
-    DESC = "Speculare texture"
-    MY_TYPE = Texture.TYPE_SPECULARE
-
-    def __init__(self, bobj):
-        super().__init__(bobj)
-
-
-Texture.CHILDREN.append(SpeculareTexture)
-
-
-class D3Texture(Texture):
-    PREFIX = Texture.PREFIX + '3d-'
-    DESC = "3D texture"
-    MY_TYPE = Texture.TYPE_3D
-
-    def __init__(self, bobj):
-        super().__init__(bobj)
-
-
-Texture.CHILDREN.append(D3Texture)
-
-
-class CubeTexture(Texture):
-    PREFIX = Texture.PREFIX + 'cube-'
-    DESC = "Cube texture"
-    MY_TYPE = Texture.TYPE_CUBE
-
-    def __init__(self, bobj):
-        super().__init__(bobj)
-        if not self.name.endswith('-up.png'):
-            terminate('Incorrect cube texture:', bobj.name)
-        base_name = self.name[:len(self.name) - len('-up.png')]
-        self.img_down = read_file(base_name + '-down.png')
-        self.img_left = read_file(base_name + '-left.png')
-        self.img_right = read_file(base_name + '-right.png')
-        self.img_front = read_file(base_name + '-front.png')
-        self.img_back = read_file(base_name + '-back.png')
-
-    def write(self):
-        super().write()
-        write_file(self.img_down)
-        write_file(self.img_left)
-        write_file(self.img_right)
-        write_file(self.img_front)
-        write_file(self.img_back)
-
-
-Texture.CHILDREN.append(CubeTexture)
-
-
-class BackedEnvironmentTexture(Texture):
-    PREFIX = Texture.PREFIX + 'bkenv-'
-    DESC = "Backed environment texture"
-    MY_TYPE = Texture.TYPE_BACKED_ENVIRONMENT
-
-    def __init__(self, bobj):
-        super().__init__(bobj)
-        if not self.name.endswith('-up.png'):
-            terminate('Incorrect cube texture:', bobj.name)
-        base_name = self.name[:len(self.name) - len('-up.png')]
-        self.img_down = read_file(base_name + '-down.png')
-        self.img_left = read_file(base_name + '-left.png')
-        self.img_right = read_file(base_name + '-right.png')
-        self.img_front = read_file(base_name + '-front.png')
-        self.img_back = read_file(base_name + '-back.png')
-
-    def write(self):
-        super().write()
-        write_file(self.img_down)
-        write_file(self.img_left)
-        write_file(self.img_right)
-        write_file(self.img_front)
-        write_file(self.img_back)
-
-
-Texture.CHILDREN.append(BackedEnvironmentTexture)
 
 
 class Shader:
@@ -837,7 +795,7 @@ class Shading:
                 ins = Texture.read(txt)
                 if ins is None:
                     continue
-                if ins.MY_TYPE == NormalmapTexture.MY_TYPE:
+                if ins.my_type == Texture.TYPE_NORMALMAP:
                     if nrm_txt is not None:
                         terminate('Only one normal map is accepted in:',
                                   bmat.name)
@@ -890,17 +848,17 @@ class Shading:
                 ins = Texture.read(txt)
                 if ins is None:
                     continue
-                if ins.MY_TYPE == CubeTexture.MY_TYPE:
+                if ins.my_type == Texture.TYPE_CUBE:
                     if cubetxt is not None:
                         terminate("Only one cube texture is expected:",
                                   bmat.name)
                     cubetxt = ins
-                elif ins.MY_TYPE == D2Texture.MY_TYPE:
+                elif ins.my_type == Texture.TYPE_2D:
                     if d2txt is not None:
                         terminate("Only one 2d texture is expected:",
                                   bmat.name)
                     d2txt = ins
-                elif ins.MY_TYPE == D3Texture.MY_TYPE:
+                elif ins.my_type == Texture.TYPE_3D:
                     if d3txt is not None:
                         terminate("Only one 3d texture is expected:",
                                   bmat.name)
@@ -971,7 +929,7 @@ class Shading:
                 ins = Texture.read(txt)
                 if ins is None:
                     continue
-                if ins.MY_TYPE == SpeculareTexture.MY_TYPE:
+                if ins.my_type == Texture.TYPE_SPECULARE:
                     if spectxt is not None:
                         terminate('Only one speculare texture is expected in:',
                                   bmat.name)
@@ -1022,7 +980,7 @@ class Shading:
                 txt = Texture.read(txt)
                 if txt is None:
                     continue
-                if txt.MY_TYPE == BackedEnvironmentTexture.MY_TYPE:
+                if txt.my_type == Texture.TYPE_BACKED_ENVIRONMENT:
                     if bakedtxt is not None:
                         terminate('Only one baked environment is accepted in:',
                                   bmat.name)
@@ -1305,13 +1263,11 @@ class Shading:
 
 
 class Mesh(UniRenderObject):
-    PREFIX = 'mesh-'
-    DESC = "Mesh"
-    CHILDREN = []
     TYPE_BASIC = 1
 
     def __init__(self, bobj):
         super().__init__(bobj)
+        self.my_type = self.TYPE_BASIC
         if bobj.type != 'MESH':
             terminate('Mesh must be of type MESH:', bobj.name)
         if has_transformation(bobj):
@@ -1377,18 +1333,6 @@ class Mesh(UniRenderObject):
         write_u32_array(self.indices)
 
 
-class BasicMesh(Mesh):
-    PREFIX = Mesh.PREFIX + 'basic-'
-    DESC = "Basic mesh"
-    MY_TYPE = Mesh.TYPE_BASIC
-
-    def __init__(self, bobj):
-        super().__init__(bobj)
-
-
-Mesh.CHILDREN.append(BasicMesh)
-
-
 class Occlusion:
     PREFIX = 'occlusion-'
 
@@ -1413,11 +1357,14 @@ class Occlusion:
 
 
 class Model(RenderObject):
-    PREFIX = 'model-'
-    DESC = "Model"
-    CHILDREN = []
     TYPE_BASIC = 1
-    TYPE_WIDGET = 1
+    TYPE_WIDGET = 2
+
+    @classmethod
+    def init(cls):
+        super().init()
+        cls.BASIC_PREFIX = cls.get_prefix() + 'basic-'
+        cls.WIDGET_PREFIX = cls.get_prefix() + 'widget-'
 
     def __init__(self, bobj):
         super().__init__(bobj)
@@ -1437,6 +1384,12 @@ class Model(RenderObject):
                 continue
         if len(self.model_children) + len(self.meshes) < 1:
             terminate('Waste model', bobj.name)
+        if bobj.name.startswith(self.BASIC_PREFIX):
+            self.my_type = self.TYPE_BASIC
+        elif bobj.name.startswith(self.WIDGET_PREFIX):
+            self.my_type = self.TYPE_WIDGET
+        else:
+            terminate('Unspecified model type, in:', bobj.name)
 
     def write(self):
         super().write()
@@ -1448,36 +1401,15 @@ class Model(RenderObject):
             mesh.shd.write()
 
 
-class BasicModel(Model):
-    PREFIX = Model.PREFIX + 'basic-'
-    DESC = "Basic model"
-    MY_TYPE = Model.TYPE_BASIC
-
-    def __init__(self, bobj):
-        super().__init__(bobj)
-
-
-Model.CHILDREN.append(BasicModel)
-
-
-class WidgetModel(Model):
-    PREFIX = Model.PREFIX + 'widget-'
-    DESC = "Widget model"
-    MY_TYPE = Model.TYPE_WIDGET
-
-    def __init__(self, bobj):
-        super().__init__(bobj)
-
-
-Model.CHILDREN.append(WidgetModel)
-
-
 class Scene(RenderObject):
-    PREFIX = 'scene-'
-    DESC = "Scene"
-    CHILDREN = []
     TYPE_GAME = 1
     TYPE_UI = 2
+
+    @classmethod
+    def init(cls):
+        super().init()
+        cls.GAME_PREFIX = cls.get_prefix() + 'game-'
+        cls.UI_PREFIX = cls.get_prefix() + 'ui-'
 
     def __init__(self, bobj):
         super().__init__(bobj)
@@ -1509,6 +1441,12 @@ class Scene(RenderObject):
             if ins is not None:
                 self.constraints.append(ins)
                 continue
+        if bobj.name.startswith(self.GAME_PREFIX):
+            self.my_type = self.TYPE_GAME
+        elif bobj.name.startswith(self.UI_PREFIX):
+            self.my_type = self.TYPE_UI
+        else:
+            terminate('Unspecified scene type, in:', bobj.name)
 
     def write(self):
         super().write()
@@ -1523,30 +1461,6 @@ class Scene(RenderObject):
     def read_all(cls):
         for s in bpy.data.scenes:
             super().read(s)
-
-
-class GameScene(Scene):
-    PREFIX = Scene.PREFIX + 'game-'
-    DESC = "Game scene"
-    MY_TYPE = Scene.TYPE_GAME
-
-    def __init__(self, bobj):
-        super().__init__(bobj)
-
-
-Scene.CHILDREN.append(GameScene)
-
-
-class UiScene(Scene):
-    PREFIX = Scene.PREFIX + 'ui-'
-    DESC = "UI scene"
-    MY_TYPE = Scene.TYPE_UI
-
-    def __init__(self, bobj):
-        super().__init__(bobj)
-
-
-Scene.CHILDREN.append(UiScene)
 
 
 class Gearoenix:
