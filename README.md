@@ -79,36 +79,36 @@ Blender plug-in for Gearoenix 3D file format.
 
 - Texture
 
-  - Its name starts with `txt-` in texture slots.
+  - Its name starts with `texture-` in texture slots.
   - Texture must have a image with format of `PNG`.
   - It has following types:
 
     - 2D:
 
-      - Its name starts with `txt-2d-`.
+      - Its name starts with `texture-2d-`.
 
     - 3D:
 
-      - Its name starts with `txt-3d-`.
+      - Its name starts with `texture-3d-`.
 
     - Cube:
 
-      - Its name starts with `txt-cube-`.
+      - Its name starts with `texture-cube-`.
       - Its image file name must end with `-up.png`.
       - All of its faces image files must be in the same location.
       - So, its faces image files names are like `[texture-name]-(up/down/front/back/right/left).png`.
 
     - Specular:
 
-      - Is name starts with `txt-spec-`.
+      - Is name starts with `texture-spec-`.
 
     - Normal map:
 
-      - Is name starts with `txt-nrm-`.
+      - Is name starts with `texture-nrm-`.
 
     - Backed Environment:
 
-      - Is name starts with `txt-bkenv-`.
+      - Is name starts with `texture-bkenv-`.
       - It is like cube.
 
   - Note: 3D, Specular and Normal map texture is not supported right now.
@@ -158,7 +158,7 @@ Blender plug-in for Gearoenix 3D file format.
 
   - Placer:
 
-    - Its name is `placer-[name]`.
+    - Its name is `constraint-placer-[name]`.
     - It is an empty object.
     - It should not have any transformation.
     - It can have only model in its children.
