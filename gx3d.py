@@ -281,6 +281,7 @@ class RenderObject:
             items[item.my_id] = item
             common_starting = find_common_starting(common_starting,
                                                    const_string(item.name))
+        write_u64(len(items))
         for item in items:
             write_u64(item.offset)
             write_name_id(const_string(item.name)[len(common_starting):],
@@ -442,10 +443,10 @@ class Light(RenderObject):
         super().write()
         write_vector(self.bobj.location)
         write_vector(self.bobj.rotation_euler)
-        write_vector(self.bobj.data.color)
         write_float(self.bobj['near'])
         write_float(self.bobj['far'])
         write_float(self.bobj['size'])
+        write_vector(self.bobj.data.color)
 
 
 class Camera(RenderObject):
@@ -765,11 +766,13 @@ class Shader:
 
     @classmethod
     def write_table(cls):
-        for k in cls.items.keys():
-            write_u64(k)
+        pass
+        # for k in cls.items.keys():
+        #     write_u64(k)
 
     @classmethod
     def write_all(cls):
+        # this is for future
         pass
 
 
@@ -1435,6 +1438,7 @@ class Model(RenderObject):
 
     def write(self):
         super().write()
+        write_matrix(self.bobj.matrix_world)
         self.occlusion.write()
         self.collider.write()
         write_instances_ids(self.model_children)
