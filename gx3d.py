@@ -1427,9 +1427,6 @@ class Model(RenderObject):
         else:
             terminate('Unrecognized widget type:', self.bobj.name)
 
-    def write_widget(self):
-        write_u64(self.widget_type)
-
     def __init__(self, bobj):
         super().__init__(bobj)
         self.matrix = bobj.matrix_world
@@ -1458,6 +1455,8 @@ class Model(RenderObject):
 
     def write(self):
         super().write()
+        if self.my_type == self.TYPE_WIDGET:
+            write_u64(self.widget_type)
         write_matrix(self.bobj.matrix_world)
         self.occlusion.write()
         self.collider.write()
@@ -1465,8 +1464,6 @@ class Model(RenderObject):
         write_instances_ids(self.meshes)
         for mesh in self.meshes:
             mesh.shd.write()
-        if self.my_type == self.TYPE_WIDGET:
-            self.write_widget()
 
 
 class Scene(RenderObject):
