@@ -1404,12 +1404,31 @@ class Occlusion:
 class Model(RenderObject):
     TYPE_BASIC = 1
     TYPE_WIDGET = 2
+    TYPE_BUTTON = 3
+    TYPE_TEXT = 4
+    TYPE_EDIT = 5
 
     @classmethod
     def init(cls):
         super().init()
         cls.BASIC_PREFIX = cls.get_prefix() + 'basic-'
         cls.WIDGET_PREFIX = cls.get_prefix() + 'widget-'
+        cls.BUTTON_PREFIX = cls.WIDGET_PREFIX + 'button-'
+        cls.TEXT_PREFIX = cls.WIDGET_PREFIX + 'text-'
+        cls.EDIT_PREFIX = cls.WIDGET_PREFIX + 'edit-'
+
+    def init_widget(self):
+        if self.bobj.name.startswith(self.BUTTON_PREFIX):
+            self.widget_type = self.TYPE_BUTTON
+        elif self.bobj.name.startswith(self.TEXT_PREFIX):
+            self.widget_type = self.TYPE_TEXT
+        elif self.bobj.name.startswith(self.EDIT_PREFIX):
+            self.widget_type = self.TYPE_EDIT
+        else:
+            terminate('Unrecognized widget type:', self.bobj.name)
+
+    def write_widget(self):
+        write_u64(self.widget_type)
 
     def __init__(self, bobj):
         super().__init__(bobj)
@@ -1433,6 +1452,7 @@ class Model(RenderObject):
             self.my_type = self.TYPE_BASIC
         elif bobj.name.startswith(self.WIDGET_PREFIX):
             self.my_type = self.TYPE_WIDGET
+            self.init_widget()
         else:
             terminate('Unspecified model type, in:', bobj.name)
 
@@ -1445,6 +1465,8 @@ class Model(RenderObject):
         write_instances_ids(self.meshes)
         for mesh in self.meshes:
             mesh.shd.write()
+        if self.my_type == self.TYPE_WIDGET:
+            self.write_widget()
 
 
 class Scene(RenderObject):
