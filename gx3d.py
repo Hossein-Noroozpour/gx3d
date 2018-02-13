@@ -35,6 +35,7 @@ TYPE_U64 = ctypes.c_uint64
 TYPE_BYTE = ctypes.c_uint8
 TYPE_FLOAT = ctypes.c_float
 TYPE_U32 = ctypes.c_uint32
+TYPE_U8 = ctypes.c_uint8
 
 STRING_TRANSPARENT = 'transparency'
 STRING_CUTOFF = 'cutoff'
@@ -121,6 +122,10 @@ def write_u64(n):
 
 def write_u32(n):
     GearoenixInfo.GX3D_FILE.write(TYPE_U32(n))
+
+
+def write_u8(n):
+    GearoenixInfo.GX3D_FILE.write(TYPE_U8(n))
 
 
 def write_instances_ids(inss):
@@ -210,6 +215,12 @@ def has_transformation(bobj):
             elif not is_zero(m[i][j]):
                 return True
     return False
+
+
+def write_string(s):
+    write_u64(len(s))
+    for c in s:
+        write_u8(int(ord(c)))
 
 
 def const_string(s):
@@ -722,6 +733,7 @@ class Texture(ReferenceableObject):
     TYPE_BACKED_ENVIRONMENT = 4
     TYPE_NORMALMAP = 5
     TYPE_SPECULARE = 6
+    TYPE_FONT = 7
 
     @classmethod
     def init(cls):
@@ -732,6 +744,7 @@ class Texture(ReferenceableObject):
         cls.BACKED_ENVIRONMENT_PREFIX = cls.get_prefix() + "bkenv-"
         cls.NORMALMAP_PREFIX = cls.get_prefix() + "nrm-"
         cls.SPECULARE_PREFIX = cls.get_prefix() + "spec-"
+        cls.FONT_PREFIX = cls.get_prefix() + "font-"
 
     def init_6_face(self):
         if not self.name.endswith('-up.png'):
@@ -772,6 +785,9 @@ class Texture(ReferenceableObject):
         elif bobj.name.startswith(self.SPECULARE_PREFIX):
             self.file = read_file(self.name)
             self.my_type = self.TYPE_SPECULARE
+        elif bobj.name.startswith(self.FONT_PREFIX):
+            self.file = read_ttf(self.name)
+            self.my_type = self.TYPE_FONT
         else:
             terminate('Unspecified texture type, in:', bobl.name)
 
@@ -780,7 +796,8 @@ class Texture(ReferenceableObject):
         if self.my_type == self.TYPE_2D or \
                 self.my_type == self.TYPE_3D or \
                 self.my_type == self.TYPE_NORMALMAP or \
-                self.my_type == self.TYPE_SPECULARE:
+                self.my_type == self.TYPE_SPECULARE or \
+                self.my_type == self.TYPE_FONT:
             write_file(self.file)
         elif self.my_type == self.TYPE_CUBE or \
                 self.my_type == self.TYPE_BACKED_ENVIRONMENT:
@@ -790,16 +807,20 @@ class Texture(ReferenceableObject):
 
     @staticmethod
     def get_name_from_bobj(bobj):
-        if bobj.type != 'IMAGE':
-            terminate("Texture must be image:", bobj.name)
-        img = bobj.image
-        if img is None:
-            terminate("Image is not set in texture:", bobj.name)
-        filepath = bpy.path.abspath(bobj.image.filepath_raw).strip()
+        filepath = None
+        if bobj.type == 'IMAGE':
+            img = bobj.image
+            if img is None:
+                terminate("Image is not set in texture:", bobj.name)
+            filepath = bpy.path.abspath(bobj.image.filepath_raw).strip()
+        elif str(type(bobj)) == "<class 'bpy.types.VectorFont'>":
+            filepath = bpy.path.abspath(bobj.filepath).strip()
+        else:
+            terminate("Unrecognized type for texture")
         if filepath is None or len(filepath) == 0:
-            terminate("Image is not specified yet in texture:", bobj.name)
-        if not filepath.endswith(".png"):
-            terminate("Use PNG image instead of", filepath)
+            terminate("Filepass is empty:", bobj.name)
+        if not filepath.endswith(".png") and not filepath.endswith(".ttf"):
+            terminate("Use PNG for image and TTF for font, in:", filepath)
         return filepath
 
 
@@ -1475,8 +1496,12 @@ class Model(RenderObject):
             self.widget_type = self.TYPE_BUTTON
         elif self.bobj.name.startswith(self.TEXT_PREFIX):
             self.widget_type = self.TYPE_TEXT
+            self.text = self.bobj.data.body.strip()
+            self.font = Texture.read(self.bobj.data.font)
         elif self.bobj.name.startswith(self.EDIT_PREFIX):
             self.widget_type = self.TYPE_EDIT
+            self.text = self.bobj.data.body.strip()
+            self.font = Texture.read(self.bobj.data.font)
         else:
             terminate('Unrecognized widget type:', self.bobj.name)
 
@@ -1496,7 +1521,8 @@ class Model(RenderObject):
             if ins is not None:
                 self.model_children.append(ins)
                 continue
-        if len(self.model_children) + len(self.meshes) < 1:
+        if len(self.model_children) + len(self.meshes) < 1 and \
+                self.my_type != self.TYPE_WIDGET:
             terminate('Waste model', bobj.name)
         if bobj.name.startswith(self.BASIC_PREFIX):
             self.my_type = self.TYPE_BASIC
@@ -1505,6 +1531,11 @@ class Model(RenderObject):
             self.init_widget()
         else:
             terminate('Unspecified model type, in:', bobj.name)
+
+    def write_widget(self):
+        if self.widget_type == self.TYPE_TEXT or\
+                self.widget_type == self.TYPE_EDIT:
+            write_string(self.text)
 
     def write(self):
         super().write()
@@ -1517,6 +1548,8 @@ class Model(RenderObject):
         write_instances_ids(self.meshes)
         for mesh in self.meshes:
             mesh.shd.write()
+        if self.my_type == self.TYPE_WIDGET:
+            self.write_widget()
 
 
 class Scene(RenderObject):
