@@ -45,18 +45,24 @@ EPSILON = 0.0001
 
 
 class GearoenixInfo:
+    ENGINE_GEAROENIX = 0
+    ENGINE_VRUST = 1
+
     EXPORT_VULKAN = False
     EXPORT_METAL = False
+    EXPORT_FILE_PATH = None
 
     GX3D_FILE = None
     CPP_FILE = None
     CPP_ENUM_FILE = None
     RUST_FILE = None
 
-    PATH_ENGINE_SDK = None
+    PATH_VRUST_SDK = None
     PATH_GEAROENIX_SDK = None
     PATH_SHADERS_DIR = None
     PATH_SHADER_COMPILER = None
+    PATH_TOOLS_DIR = None
+    PATH_TTF_TO_PNG = None
 
 
 def terminate(*msgs):
@@ -65,6 +71,29 @@ def terminate(*msgs):
         msg += str(m) + " "
     print("Error: " + msg)
     raise Exception(msg)
+
+
+def initialize_pathes():
+    if GearoenixInfo.ENGINE_GEAROENIX == GearoenixInfo.EXPORT_ENGINE:
+        GearoenixInfo.PATH_GEAROENIX_SDK = os.environ.get("GEAROENIX_SDK")
+        if GearoenixInfo.PATH_GEAROENIX_SDK is None:
+            terminate("Gearoenix SDK environment variable not found")
+        GearoenixInfo.PATH_TOOLS_DIR = GearoenixInfo.PATH_GEAROENIX_SDK + \
+            "/tools/"
+    else:
+        GearoenixInfo.PATH_VRUST_SDK = os.environ.get("VRUST_SDK")
+        if GearoenixInfo.PATH_VRUST_SDK is None:
+            terminate("VRust SDK environment variable not found")
+        terminate("not implemented yet.")
+    GearoenixInfo.PATH_TTF_TO_PNG = GearoenixInfo.PATH_TOOLS_DIR + \
+        "gearoenix-ttf-to-png.exe"
+    GearoenixInfo.GX3D_FILE = open(GearoenixInfo.EXPORT_FILE_PATH, mode='wb')
+    GearoenixInfo.RUST_FILE = open(
+        GearoenixInfo.EXPORT_FILE_PATH + ".rs", mode='w')
+    GearoenixInfo.CPP_FILE = open(
+        GearoenixInfo.EXPORT_FILE_PATH + ".hpp", mode='w')
+    GearoenixInfo.CPP_ENUM_FILE = open(
+        GearoenixInfo.EXPORT_FILE_PATH + "-enum.hpp", mode='w')
 
 
 def log_info(*msgs):
@@ -228,6 +257,30 @@ def find_common_starting(s1, s2):
         else:
             break
     return s
+
+
+class GxTmpFile:
+    def __init__(self):
+        tmpfile = tempfile.NamedTemporaryFile(delete=False)
+        self.filename = tmpfile.name
+        tmpfile.close()
+
+    def __del__(self):
+        os.remove(self.filename)
+
+    def read(self):
+        f = open(self.filename, 'rb')
+        d = f.read()
+        f.close()
+        return d
+
+
+def read_ttf(f):
+    tmp = GxTmpFile()
+    args = [GearoenixInfo.PATH_TTF_TO_PNG, f, tmp.filename]
+    if subprocess.run(args).returncode != 0:
+        terminate("TTF file " + f + " can not convert to PNG.")
+    return tmp.read()
 
 
 class RenderObject:
@@ -1643,22 +1696,6 @@ class Gearoenix:
         else:
             cls.show("Unexpected number of materials in mesh " + m.name)
 
-    @classmethod
-    class TmpFile:
-        def __init__(self):
-            tmpfile = tempfile.NamedTemporaryFile(delete=False)
-            self.filename = tmpfile.name
-            tmpfile.close()
-
-        def __del__(self):
-            os.remove(self.filename)
-
-        def read(self):
-            f = open(self.filename, 'rb')
-            d = f.read()
-            f.close()
-            return d
-
 
 def write_tables():
     Shader.write_table()
@@ -1690,11 +1727,8 @@ def initialize_shaders():
     Shader.read(s)
 
 
-def export_files(filepath):
-    GearoenixInfo.GX3D_FILE = open(filepath, mode='wb')
-    GearoenixInfo.RUST_FILE = open(filepath + ".rs", mode='w')
-    GearoenixInfo.CPP_FILE = open(filepath + ".hpp", mode='w')
-    GearoenixInfo.CPP_ENUM_FILE = open(filepath + "-enum.hpp", mode='w')
+def export_files():
+    initialize_pathes()
     initialize_shaders()
     Audio.init()
     Light.init()
@@ -1752,11 +1786,19 @@ class GearoenixExporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
         options={'ANIMATABLE'},
         subtype='NONE',
         update=None)
+    export_engine = bpy.props.EnumProperty(
+        name="Game engine",
+        description="This item select the game engine",
+        items=(
+            (str(GearoenixInfo.ENGINE_GEAROENIX), 'Gearoenix', ''),
+            (str(GearoenixInfo.ENGINE_VRUST), 'VRust', '')))
 
     def execute(self, context):
         GearoenixInfo.EXPORT_VULKAN = bool(self.export_vulkan)
         GearoenixInfo.EXPORT_METAL = bool(self.export_metal)
-        export_files(self.filepath)
+        GearoenixInfo.EXPORT_ENGINE = int(self.export_engine)
+        GearoenixInfo.EXPORT_FILE_PATH = self.filepath
+        export_files()
         return {'FINISHED'}
 
 
