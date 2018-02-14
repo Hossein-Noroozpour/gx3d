@@ -733,7 +733,6 @@ class Texture(ReferenceableObject):
     TYPE_BACKED_ENVIRONMENT = 4
     TYPE_NORMALMAP = 5
     TYPE_SPECULARE = 6
-    TYPE_FONT = 7
 
     @classmethod
     def init(cls):
@@ -744,7 +743,6 @@ class Texture(ReferenceableObject):
         cls.BACKED_ENVIRONMENT_PREFIX = cls.get_prefix() + "bkenv-"
         cls.NORMALMAP_PREFIX = cls.get_prefix() + "nrm-"
         cls.SPECULARE_PREFIX = cls.get_prefix() + "spec-"
-        cls.FONT_PREFIX = cls.get_prefix() + "font-"
 
     def init_6_face(self):
         if not self.name.endswith('-up.png'):
@@ -785,9 +783,6 @@ class Texture(ReferenceableObject):
         elif bobj.name.startswith(self.SPECULARE_PREFIX):
             self.file = read_file(self.name)
             self.my_type = self.TYPE_SPECULARE
-        elif bobj.name.startswith(self.FONT_PREFIX):
-            self.file = read_ttf(self.name)
-            self.my_type = self.TYPE_FONT
         else:
             terminate('Unspecified texture type, in:', bobl.name)
 
@@ -796,8 +791,7 @@ class Texture(ReferenceableObject):
         if self.my_type == self.TYPE_2D or \
                 self.my_type == self.TYPE_3D or \
                 self.my_type == self.TYPE_NORMALMAP or \
-                self.my_type == self.TYPE_SPECULARE or \
-                self.my_type == self.TYPE_FONT:
+                self.my_type == self.TYPE_SPECULARE:
             write_file(self.file)
         elif self.my_type == self.TYPE_CUBE or \
                 self.my_type == self.TYPE_BACKED_ENVIRONMENT:
@@ -813,14 +807,50 @@ class Texture(ReferenceableObject):
             if img is None:
                 terminate("Image is not set in texture:", bobj.name)
             filepath = bpy.path.abspath(bobj.image.filepath_raw).strip()
-        elif str(type(bobj)) == "<class 'bpy.types.VectorFont'>":
-            filepath = bpy.path.abspath(bobj.filepath).strip()
         else:
             terminate("Unrecognized type for texture")
         if filepath is None or len(filepath) == 0:
             terminate("Filepass is empty:", bobj.name)
-        if not filepath.endswith(".png") and not filepath.endswith(".ttf"):
-            terminate("Use PNG for image and TTF for font, in:", filepath)
+        if not filepath.endswith(".png"):
+            terminate("Use PNG for image, in:", filepath)
+        return filepath
+
+
+class Font(ReferenceableObject):
+    TYPE_2D = 1
+    TYPE_3D = 2
+
+    @classmethod
+    def init(cls):
+        super().init()
+        cls.D2_PREFIX = cls.get_prefix() + "2d-"
+        cls.D3_PREFIX = cls.get_prefix() + "3d-"
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
+        if bobj.name.startswith(self.D2_PREFIX):
+            self.my_type = self.TYPE_2D
+        elif bobj.name.startswith(self.D3_PREFIX):
+            self.my_type = self.TYPE_D3
+        else:
+            terminate('Unspecified texture type, in:', bobl.name)
+        self.file = read_file(self.name)
+
+    def write(self):
+        super().write()
+        write_file(self.file)
+
+    @staticmethod
+    def get_name_from_bobj(bobj):
+        filepath = None
+        if str(type(bobj)) == "<class 'bpy.types.VectorFont'>":
+            filepath = bpy.path.abspath(bobj.filepath).strip()
+        else:
+            terminate("Unrecognized type for font")
+        if filepath is None or len(filepath) == 0:
+            terminate("Filepass is empty:", bobj.name)
+        if not filepath.endswith(".ttf"):
+            terminate("Use TTF for font, in:", filepath)
         return filepath
 
 
@@ -1496,14 +1526,36 @@ class Model(RenderObject):
             self.widget_type = self.TYPE_BUTTON
         elif self.bobj.name.startswith(self.TEXT_PREFIX):
             self.widget_type = self.TYPE_TEXT
-            self.text = self.bobj.data.body.strip()
-            self.font = Texture.read(self.bobj.data.font)
         elif self.bobj.name.startswith(self.EDIT_PREFIX):
             self.widget_type = self.TYPE_EDIT
-            self.text = self.bobj.data.body.strip()
-            self.font = Texture.read(self.bobj.data.font)
         else:
             terminate('Unrecognized widget type:', self.bobj.name)
+        if self.widget_type == self.TYPE_EDIT or \
+                self.widget_type == self.TYPE_TEXT:
+            self.text = self.bobj.data.body.strip()
+            self.font = Font.read(self.bobj.data.font)
+            align_x = self.bobj.data.align_x
+            align_y = self.bobj.data.align_y
+            if align_x == 'LEFT':
+                self.align_x = 1
+            elif align_x == 'CENTER':
+                self.align_x = 2
+            elif align_x == 'RIGHT':
+                self.align_x = 3
+            else:
+                terminate(
+                    "Unrecognized text horizontal alignment, in:",
+                    self.bobj.name)
+            if align_y == 'TOP':
+                self.align_y = 1
+            elif align_y == 'CENTER':
+                self.align_y = 2
+            elif align_y == 'BOTTOM':
+                self.align_y = 3
+            else:
+                terminate(
+                    "Unrecognized text vertical alignment, in:",
+                    self.bobj.name)
 
     def __init__(self, bobj):
         super().__init__(bobj)
@@ -1522,7 +1574,7 @@ class Model(RenderObject):
                 self.model_children.append(ins)
                 continue
         if len(self.model_children) + len(self.meshes) < 1 and \
-                self.my_type != self.TYPE_WIDGET:
+                not bobj.name.startswith(self.TEXT_PREFIX):
             terminate('Waste model', bobj.name)
         if bobj.name.startswith(self.BASIC_PREFIX):
             self.my_type = self.TYPE_BASIC
@@ -1536,6 +1588,9 @@ class Model(RenderObject):
         if self.widget_type == self.TYPE_TEXT or\
                 self.widget_type == self.TYPE_EDIT:
             write_string(self.text)
+            write_u8(self.align_x)
+            write_u8(self.align_y)
+            write_u64(self.font.my_id)
 
     def write(self):
         super().write()
@@ -1736,6 +1791,7 @@ def write_tables():
     Audio.write_table()
     Light.write_table()
     Texture.write_table()
+    Font.write_table()
     Mesh.write_table()
     Model.write_table()
     Constraint.write_table()
@@ -1767,6 +1823,7 @@ def export_files():
     Light.init()
     Camera.init()
     Texture.init()
+    Font.init()
     Mesh.init()
     Model.init()
     Constraint.init()
@@ -1780,6 +1837,7 @@ def export_files():
     Audio.write_all()
     Light.write_all()
     Texture.write_all()
+    Font.write_all()
     Mesh.write_all()
     Model.write_all()
     Constraint.write_all()
