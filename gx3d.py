@@ -1536,22 +1536,23 @@ class Model(RenderObject):
             self.font = Font.read(self.bobj.data.font)
             align_x = self.bobj.data.align_x
             align_y = self.bobj.data.align_y
+            self.align = 0
             if align_x == 'LEFT':
-                self.align_x = 1
+                self.align += 3
             elif align_x == 'CENTER':
-                self.align_x = 2
+                self.align += 0
             elif align_x == 'RIGHT':
-                self.align_x = 3
+                self.align += 6
             else:
                 terminate(
                     "Unrecognized text horizontal alignment, in:",
                     self.bobj.name)
             if align_y == 'TOP':
-                self.align_y = 1
+                self.align += 3
             elif align_y == 'CENTER':
-                self.align_y = 2
+                self.align += 2
             elif align_y == 'BOTTOM':
-                self.align_y = 3
+                self.align += 1
             else:
                 terminate(
                     "Unrecognized text vertical alignment, in:",
@@ -1588,8 +1589,7 @@ class Model(RenderObject):
         if self.widget_type == self.TYPE_TEXT or\
                 self.widget_type == self.TYPE_EDIT:
             write_string(self.text)
-            write_u8(self.align_x)
-            write_u8(self.align_y)
+            write_u8(self.align)
             write_u64(self.font.my_id)
 
     def write(self):
