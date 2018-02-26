@@ -63,7 +63,7 @@ class GearoenixInfo:
     PATH_SHADERS_DIR = None
     PATH_SHADER_COMPILER = None
     PATH_TOOLS_DIR = None
-    PATH_TTF_TO_PNG = None
+    PATH_TTF_BAKER = None
 
 
 def terminate(*msgs):
@@ -86,8 +86,8 @@ def initialize_pathes():
         if GearoenixInfo.PATH_VRUST_SDK is None:
             terminate("VRust SDK environment variable not found")
         terminate("not implemented yet.")
-    GearoenixInfo.PATH_TTF_TO_PNG = GearoenixInfo.PATH_TOOLS_DIR + \
-        "gearoenix-ttf-to-png.exe"
+    GearoenixInfo.PATH_TTF_BAKER = GearoenixInfo.PATH_TOOLS_DIR + \
+        "gearoenix-ttf-baker.exe"
     GearoenixInfo.GX3D_FILE = open(GearoenixInfo.EXPORT_FILE_PATH, mode='wb')
     GearoenixInfo.RUST_FILE = open(
         GearoenixInfo.EXPORT_FILE_PATH + ".rs", mode='w')
@@ -288,7 +288,7 @@ class GxTmpFile:
 
 def read_ttf(f):
     tmp = GxTmpFile()
-    args = [GearoenixInfo.PATH_TTF_TO_PNG, f, tmp.filename]
+    args = [GearoenixInfo.PATH_TTF_BAKER, f, tmp.filename]
     if subprocess.run(args).returncode != 0:
         terminate("TTF file " + f + " can not convert to PNG.")
     return tmp.read()
@@ -834,7 +834,7 @@ class Font(ReferenceableObject):
             self.my_type = self.TYPE_D3
         else:
             terminate('Unspecified texture type, in:', bobl.name)
-        self.file = read_file(self.name)
+        self.file = read_ttf(self.name)
 
     def write(self):
         super().write()
