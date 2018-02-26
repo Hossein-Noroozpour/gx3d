@@ -886,7 +886,8 @@ class Shading:
         DEPTH_POS_NRM = 1
         DEPTH_POS_UV = 2
         DEPTH_POS_NRM_UV = 3
-        MAX = 4
+        FONT_COLORED = 4
+        MAX = 5
 
         def needs_normal(self):
             enum_max_check(self)
@@ -894,6 +895,8 @@ class Shading:
 
         def needs_uv(self):
             enum_max_check(self)
+            if self == self.FONT_COLORED:
+                return True
             return False
 
         def needs_tangent(self):
@@ -1804,16 +1807,16 @@ def initialize_shaders():
     s.print_all_enums()
     s = Shading()
     s.set_reserved(Shading.Reserved.DEPTH_POS)
-    Shader.read(s)
+    # Shader.read(s)
     s = Shading()
     s.set_reserved(Shading.Reserved.DEPTH_POS_NRM)
-    Shader.read(s)
+    # Shader.read(s)
     s = Shading()
     s.set_reserved(Shading.Reserved.DEPTH_POS_UV)
-    Shader.read(s)
+    # Shader.read(s)
     s = Shading()
     s.set_reserved(Shading.Reserved.DEPTH_POS_NRM_UV)
-    Shader.read(s)
+    # Shader.read(s)
 
 
 def export_files():
