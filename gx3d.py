@@ -248,10 +248,10 @@ def write_start_module(c):
 
 
 def write_name_id(name, item_id):
-    GearoenixInfo.RUST_FILE.write("\tpub const " + name + ": u64 = " + str(
-        item_id) + ";\n")
-    GearoenixInfo.CPP_FILE.write("\tconst gearoenix::core::Id " + name + " = " +
-                                 str(item_id) + ";\n")
+    GearoenixInfo.RUST_FILE.write(
+        "\tpub const " + name + ": u64 = " + str(item_id) + ";\n")
+    GearoenixInfo.CPP_FILE.write(
+        "\tconst gearoenix::core::Id " + name + " = " + str(item_id) + ";\n")
 
 
 def write_end_modul():
@@ -348,8 +348,8 @@ class RenderObject:
         write_u64(len(items))
         for item in items:
             write_u64(item.offset)
-            write_name_id(const_string(item.name)[len(common_starting):],
-                          item.my_id)
+            write_name_id(
+                const_string(item.name)[len(common_starting):], item.my_id)
         write_end_modul()
 
     @staticmethod
@@ -630,7 +630,9 @@ class Constraint(RenderObject):
         for i in range(len(self.attrs)):
             if self.attrs[i] is not None:
                 self.placer_type |= (1 << i)
-        if self.placer_type not in {33, }:
+        if self.placer_type not in {
+                33,
+        }:
             terminate(DESC, "must have meaningful combination, in object:",
                       self.bobj.name)
 
@@ -903,7 +905,19 @@ class Shading:
             enum_max_check(self)
             return False
 
+        def translate(self, shd):
+            class FontData:
+                pass
+
+            shd.font = FontData()
+            color = shd.bmat.diffuse_color
+            alpha = shd.bmat.alpha
+            shd.font.color = (color[0], color[1], color[2], alpha)
+            return self.FONT_COLORED
+
         def write(self, shd):
+            if self == self.FONT_COLORED:
+                write_vector(shd.font.color, 4)
             return
 
     class Lighting(enum.Enum):
@@ -1224,7 +1238,7 @@ class Shading:
             if self == self.TRANSPARENT or self == self.CUTOFF:
                 write_float(shd.transparency)
 
-    def __init__(self, bmat=None):
+    def __init__(self, bmat=None, bobj=None):
         self.shading_data = [
             self.Lighting.SHADELESS,
             self.Texturing.COLORED,
@@ -1246,8 +1260,11 @@ class Shading:
         self.bakedenv = None
         self.transparency = None
         self.bmat = bmat
+        self.bobj = None
         if bmat is None:
             self.set_reserved(self.Reserved.DEPTH_POS)
+        elif bobj is not None:
+            self.set_reserved(self.Reserved.DEPTH_POS.translate(self))
         else:
             for i in range(len(self.shading_data)):
                 e = self.shading_data[i].translate(bmat, self)
@@ -1315,7 +1332,7 @@ class Shading:
 
     def set_reserved(self, e):
         if not isinstance(e, self.Reserved) or e.MAX == e:
-            terminate("Unexpected ", e, bmat)
+            terminate("Unexpected ", e, self.bmat)
         self.shading_data[0] = self.Lighting.RESERVED
         self.reserved = e
 
@@ -1547,9 +1564,8 @@ class Model(RenderObject):
             elif align_x == 'RIGHT':
                 self.align += 6
             else:
-                terminate(
-                    "Unrecognized text horizontal alignment, in:",
-                    self.bobj.name)
+                terminate("Unrecognized text horizontal alignment, in:",
+                          self.bobj.name)
             if align_y == 'TOP':
                 self.align += 3
             elif align_y == 'CENTER':
@@ -1557,9 +1573,10 @@ class Model(RenderObject):
             elif align_y == 'BOTTOM':
                 self.align += 1
             else:
-                terminate(
-                    "Unrecognized text vertical alignment, in:",
-                    self.bobj.name)
+                terminate("Unrecognized text vertical alignment, in:",
+                          self.bobj.name)
+            self.font_shd = Shading(self.bobj.material_slots[0].material,
+                                    self.bobj)
 
     def __init__(self, bobj):
         super().__init__(bobj)
@@ -1594,6 +1611,7 @@ class Model(RenderObject):
             write_string(self.text)
             write_u8(self.align)
             write_u64(self.font.my_id)
+            self.font_shd.write()
 
     def write(self):
         super().write()
@@ -1738,8 +1756,8 @@ class Gearoenix:
             offset = instance.offset
             item_id = instance.my_id
             name = cls.const_string(name)
-            cls.rust_code.write("\tpub const " + name + ": u64 = " + str(
-                item_id) + ";\n")
+            cls.rust_code.write(
+                "\tpub const " + name + ": u64 = " + str(item_id) + ";\n")
             cls.cpp_code.write("\tconst gearoenix::core::Id " + name + " = " +
                                str(item_id) + ";\n")
             offsets[item_id] = offset
@@ -1756,9 +1774,9 @@ class Gearoenix:
             offset, item_id = offset_id[0:2]
             cls.rust_code.write("\tpub const " + cls.const_string(name) +
                                 ": u64 = " + str(item_id) + ";\n")
-            cls.cpp_code.write("\tconst gearoenix::core::Id " +
-                               cls.const_string(name) + " = " + str(
-                                   item_id) + ";\n")
+            cls.cpp_code.write(
+                "\tconst gearoenix::core::Id " + cls.const_string(name) +
+                " = " + str(item_id) + ";\n")
             offsets[item_id] = offset
         cls.rust_code.write("}\n")
         cls.cpp_code.write("}\n")
@@ -1865,7 +1883,8 @@ class GearoenixExporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
     filename_ext = ".gx3d"
     filter_glob = bpy.props.StringProperty(
         default="*.gx3d",
-        options={'HIDDEN'}, )
+        options={'HIDDEN'},
+    )
     export_vulkan = bpy.props.BoolProperty(
         name="Enable Vulkan",
         description="This item enables data exporting for Vulkan engine",
@@ -1883,9 +1902,8 @@ class GearoenixExporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
     export_engine = bpy.props.EnumProperty(
         name="Game engine",
         description="This item select the game engine",
-        items=(
-            (str(GearoenixInfo.ENGINE_GEAROENIX), 'Gearoenix', ''),
-            (str(GearoenixInfo.ENGINE_VRUST), 'VRust', '')))
+        items=((str(GearoenixInfo.ENGINE_GEAROENIX), 'Gearoenix', ''), (str(
+            GearoenixInfo.ENGINE_VRUST), 'VRust', '')))
 
     def execute(self, context):
         GearoenixInfo.EXPORT_VULKAN = bool(self.export_vulkan)
