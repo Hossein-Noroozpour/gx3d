@@ -619,7 +619,7 @@ class Constraint(RenderObject):
             terminate("Not implemented, in object:", self.bobj.name)
         if ATT_Y_DOWN in self.bobj:
             self.attrs[5] = self.bobj[ATT_Y_DOWN]
-            limit_check(self.attrs[5], 0.8, 0.0, self.bobj)
+            limit_check(self.attrs[5], 0.8, -0.8, self.bobj)
         if ATT_RATIO in self.bobj:
             self.ratio = self.bobj[ATT_RATIO]
         else:
@@ -1575,6 +1575,9 @@ class Model(RenderObject):
                           self.bobj.name)
             self.font_shd = Shading(self.bobj.material_slots[0].material,
                                     self.bobj)
+            self.font_space_character = self.bobj.data.space_character - 1.0
+            self.font_space_word = self.bobj.data.space_word - 1.0
+            self.font_space_line = self.bobj.data.space_line
 
     def __init__(self, bobj):
         super().__init__(bobj)
@@ -1608,6 +1611,9 @@ class Model(RenderObject):
                 self.widget_type == self.TYPE_EDIT:
             write_string(self.text)
             write_u8(self.align)
+            write_float(self.font_space_character)
+            write_float(self.font_space_word)
+            write_float(self.font_space_line)
             write_u64(self.font.my_id)
             self.font_shd.write()
 
