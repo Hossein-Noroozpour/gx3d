@@ -37,7 +37,6 @@ TYPE_FLOAT = ctypes.c_float
 TYPE_U32 = ctypes.c_uint32
 TYPE_U8 = ctypes.c_uint8
 
-STRING_TRANSPARENT = 'transparency'
 STRING_CUTOFF = 'cutoff'
 
 DEBUG_MODE = True
@@ -1221,13 +1220,12 @@ class Shading:
             return False
 
         def translate(self, bmat, shd):
-            trn = STRING_TRANSPARENT in bmat
+            trn = bmat.use_transparency and bmat.alpha < 1.0
             ctf = STRING_CUTOFF in bmat
             if trn and ctf:
                 terminate("A material can not be transparent and cutoff in",
                           "same time. Error in material:", bmat.name)
             if trn:
-                shd.transparency = bmat[STRING_TRANSPARENT]
                 return self.TRANSPARENT
             if ctf:
                 shd.transparency = bmat[STRING_CUTOFF]
@@ -1235,7 +1233,7 @@ class Shading:
             return self.OPAQUE
 
         def write(self, shd):
-            if self == self.TRANSPARENT or self == self.CUTOFF:
+            if self == self.CUTOFF:
                 write_float(shd.transparency)
 
     def __init__(self, bmat=None, bobj=None):
