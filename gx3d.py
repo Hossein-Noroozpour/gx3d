@@ -65,6 +65,12 @@ class GearoenixInfo:
     PATH_TTF_BAKER = None
 
 
+class Gearoenix:
+    @classmethod
+    def register_class(cls, c):
+        exec("cls." + c.__name__ + " = c")
+
+
 def terminate(*msgs):
     msg = ""
     for m in msgs:
@@ -1523,6 +1529,27 @@ class Occlusion:
         write_vector(self.center)
 
 
+@Gearoenix.register_class
+class Skybox(RenderObject):
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
+        self.mesh = None
+        for c in bobj.children:
+            if self.mesh is not None:
+                terminate("Only one mesh is accepted.")
+            self.mesh = Mesh.read(c)
+                if self.mesh is None:
+                    terminate("Only one mesh is accepted.")
+        self.mesh.shd = Shading(
+            self.mesh.bobj.material_slots[0].material, self)
+
+    def write(self):
+        super().write()
+        write_u64(self.mesh.my_id)
+        self.mesh.shd.write()
+
+
 class Model(RenderObject):
     TYPE_BASIC = 1
     TYPE_WIDGET = 2
@@ -1698,116 +1725,116 @@ class Scene(RenderObject):
             super().read(s)
 
 
-class Gearoenix:
-    @classmethod
-    def check_env(cls):
-        cls.PATH_ENGINE_SDK = os.environ.get(cls.STRING_ENGINE_SDK_VAR_NAME)
-        if cls.PATH_ENGINE_SDK is None:
-            cls.show('"' + cls.STRING_ENGINE_SDK_VAR_NAME +
-                     '" variable is not set!')
-        cls.PATH_SHADERS_DIR = cls.PATH_ENGINE_SDK + '/vulkan/shaders/'
-        if sys.platform == 'darwin':
-            cls.PATH_SHADER_COMPILER = "xcrun"
-        else:
-            cls.PATH_VULKAN_SDK = os.environ.get(
-                cls.STRING_VULKAN_SDK_VAR_NAME)
-            if cls.PATH_VULKAN_SDK is None:
-                cls.show('"' + cls.STRING_VULKAN_SDK_VAR_NAME +
-                         '" variable is not set!')
-                return False
-            cls.PATH_SHADER_COMPILER = \
-                cls.PATH_VULKAN_SDK + '/bin/glslangValidator'
-        return True
-
-    @classmethod
-    def compile_shader(cls, stage, shader_name):
-        tmp = cls.TmpFile()
-        args = None
-        if sys.platform == 'darwin':
-            args = [
-                cls.PATH_SHADER_COMPILER, '-sdk', 'macosx', 'metal',
-                shader_name, '-o', tmp.filename
-            ]
-        else:
-            args = [
-                cls.PATH_SHADER_COMPILER, '-V', '-S', stage, shader_name, '-o',
-                tmp.filename
-            ]
-        if subprocess.run(args).returncode != 0:
-            cls.show('Shader %s can not be compiled!' % shader_name)
-        if sys.platform == "darwin":
-            tmp2 = tmp
-            tmp = cls.TmpFile()
-            args = [
-                cls.PATH_SHADER_COMPILER, '-sdk', 'macosx', 'metallib',
-                tmp2.filename, '-o', tmp.filename
-            ]
-            if subprocess.run(args).returncode != 0:
-                cls.show('Shader %s can not be build!' % shader_name)
-        tmp = tmp.read()
-        cls.log("Shader '", shader_name, "'is compiled has length of: ",
-                len(tmp))
-        cls.out.write(TYPE_U64(len(tmp)))
-        cls.out.write(tmp)
-
-    @classmethod
-    def write_instances_offsets(cls, clsobj):
-        offsets = [i for i in range(len(clsobj.items))]
-        mod_name = clsobj.__name__
-        cls.rust_code.write("pub mod " + mod_name + " {\n")
-        cls.cpp_code.write("namespace " + mod_name + "\n{\n")
-        for name, instance in clsobj.items.items():
-            offset = instance.offset
-            item_id = instance.my_id
-            name = cls.const_string(name)
-            cls.rust_code.write(
-                "\tpub const " + name + ": u64 = " + str(item_id) + ";\n")
-            cls.cpp_code.write("\tconst gearoenix::core::Id " + name + " = " +
-                               str(item_id) + ";\n")
-            offsets[item_id] = offset
-        cls.rust_code.write("}\n")
-        cls.cpp_code.write("}\n")
-        cls.write_u64_array(offsets)
-
-    @classmethod
-    def items_offsets(cls, items, mod_name):
-        offsets = [i for i in range(len(items))]
-        cls.rust_code.write("pub mod " + mod_name + " {\n")
-        cls.cpp_code.write("namespace " + mod_name + "\n{\n")
-        for name, offset_id in items.items():
-            offset, item_id = offset_id[0:2]
-            cls.rust_code.write("\tpub const " + cls.const_string(name) +
-                                ": u64 = " + str(item_id) + ";\n")
-            cls.cpp_code.write(
-                "\tconst gearoenix::core::Id " + cls.const_string(name) +
-                " = " + str(item_id) + ";\n")
-            offsets[item_id] = offset
-        cls.rust_code.write("}\n")
-        cls.cpp_code.write("}\n")
-        return offsets
-
-    @classmethod
-    def write_all_instances(cls, clsobj):
-        items = [i for i in range(len(clsobj.items))]
-        for item in clsobj.items.values():
-            items[item.my_id] = item
-        for item in items:
-            item.offset = cls.out.tell()
-            item.write()
-
-    @classmethod
-    def read_materials(cls, m):
-        if m.type != 'MESH':
-            return
-        material_count = len(m.material_slots.keys())
-        if material_count == 1:
-            s = cls.Shading(cls, m.material_slots[0].material)
-            sid = s.to_int()
-            if sid in cls.shaders:
-                return
-            cls.shaders[sid] = [0, s]
-        else:
-            cls.show("Unexpected number of materials in mesh " + m.name)
+# class Gearoenix:
+#     @classmethod
+#     def check_env(cls):
+#         cls.PATH_ENGINE_SDK = os.environ.get(cls.STRING_ENGINE_SDK_VAR_NAME)
+#         if cls.PATH_ENGINE_SDK is None:
+#             cls.show('"' + cls.STRING_ENGINE_SDK_VAR_NAME +
+#                      '" variable is not set!')
+#         cls.PATH_SHADERS_DIR = cls.PATH_ENGINE_SDK + '/vulkan/shaders/'
+#         if sys.platform == 'darwin':
+#             cls.PATH_SHADER_COMPILER = "xcrun"
+#         else:
+#             cls.PATH_VULKAN_SDK = os.environ.get(
+#                 cls.STRING_VULKAN_SDK_VAR_NAME)
+#             if cls.PATH_VULKAN_SDK is None:
+#                 cls.show('"' + cls.STRING_VULKAN_SDK_VAR_NAME +
+#                          '" variable is not set!')
+#                 return False
+#             cls.PATH_SHADER_COMPILER = \
+#                 cls.PATH_VULKAN_SDK + '/bin/glslangValidator'
+#         return True
+#
+#     @classmethod
+#     def compile_shader(cls, stage, shader_name):
+#         tmp = cls.TmpFile()
+#         args = None
+#         if sys.platform == 'darwin':
+#             args = [
+#                 cls.PATH_SHADER_COMPILER, '-sdk', 'macosx', 'metal',
+#                 shader_name, '-o', tmp.filename
+#             ]
+#         else:
+#             args = [
+#                 cls.PATH_SHADER_COMPILER, '-V', '-S', stage, shader_name, '-o',
+#                 tmp.filename
+#             ]
+#         if subprocess.run(args).returncode != 0:
+#             cls.show('Shader %s can not be compiled!' % shader_name)
+#         if sys.platform == "darwin":
+#             tmp2 = tmp
+#             tmp = cls.TmpFile()
+#             args = [
+#                 cls.PATH_SHADER_COMPILER, '-sdk', 'macosx', 'metallib',
+#                 tmp2.filename, '-o', tmp.filename
+#             ]
+#             if subprocess.run(args).returncode != 0:
+#                 cls.show('Shader %s can not be build!' % shader_name)
+#         tmp = tmp.read()
+#         cls.log("Shader '", shader_name, "'is compiled has length of: ",
+#                 len(tmp))
+#         cls.out.write(TYPE_U64(len(tmp)))
+#         cls.out.write(tmp)
+#
+#     @classmethod
+#     def write_instances_offsets(cls, clsobj):
+#         offsets = [i for i in range(len(clsobj.items))]
+#         mod_name = clsobj.__name__
+#         cls.rust_code.write("pub mod " + mod_name + " {\n")
+#         cls.cpp_code.write("namespace " + mod_name + "\n{\n")
+#         for name, instance in clsobj.items.items():
+#             offset = instance.offset
+#             item_id = instance.my_id
+#             name = cls.const_string(name)
+#             cls.rust_code.write(
+#                 "\tpub const " + name + ": u64 = " + str(item_id) + ";\n")
+#             cls.cpp_code.write("\tconst gearoenix::core::Id " + name + " = " +
+#                                str(item_id) + ";\n")
+#             offsets[item_id] = offset
+#         cls.rust_code.write("}\n")
+#         cls.cpp_code.write("}\n")
+#         cls.write_u64_array(offsets)
+#
+#     @classmethod
+#     def items_offsets(cls, items, mod_name):
+#         offsets = [i for i in range(len(items))]
+#         cls.rust_code.write("pub mod " + mod_name + " {\n")
+#         cls.cpp_code.write("namespace " + mod_name + "\n{\n")
+#         for name, offset_id in items.items():
+#             offset, item_id = offset_id[0:2]
+#             cls.rust_code.write("\tpub const " + cls.const_string(name) +
+#                                 ": u64 = " + str(item_id) + ";\n")
+#             cls.cpp_code.write(
+#                 "\tconst gearoenix::core::Id " + cls.const_string(name) +
+#                 " = " + str(item_id) + ";\n")
+#             offsets[item_id] = offset
+#         cls.rust_code.write("}\n")
+#         cls.cpp_code.write("}\n")
+#         return offsets
+#
+#     @classmethod
+#     def write_all_instances(cls, clsobj):
+#         items = [i for i in range(len(clsobj.items))]
+#         for item in clsobj.items.values():
+#             items[item.my_id] = item
+#         for item in items:
+#             item.offset = cls.out.tell()
+#             item.write()
+#
+#     @classmethod
+#     def read_materials(cls, m):
+#         if m.type != 'MESH':
+#             return
+#         material_count = len(m.material_slots.keys())
+#         if material_count == 1:
+#             s = cls.Shading(cls, m.material_slots[0].material)
+#             sid = s.to_int()
+#             if sid in cls.shaders:
+#                 return
+#             cls.shaders[sid] = [0, s]
+#         else:
+#             cls.show("Unexpected number of materials in mesh " + m.name)
 
 
 def write_tables():
