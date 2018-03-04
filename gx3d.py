@@ -17,6 +17,9 @@ itemsbl_info = {
 #    everything from blender and support every features of Blender.
 #    Always best practises are the correct way of presenting data.
 
+# todos:
+#     - add the same anotation of skybox to other classes (low priority)
+
 import ctypes
 import enum
 import io
@@ -68,7 +71,7 @@ class GearoenixInfo:
 class Gearoenix:
     @classmethod
     def register_class(cls, c):
-        exec("cls." + c.__name__ + " = c")
+        exec ("cls." + c.__name__ + " = c")
 
 
 def terminate(*msgs):
@@ -606,7 +609,7 @@ class Constraint(RenderObject):
                       self.bobj.name)
         self.model_children = []
         for c in self.bobj.children:
-            ins = Model.read(c)
+            ins = Gearoenix.Model.read(c)
             if ins is None:
                 terminate(DESC, "can only have model as its child, in object:",
                           self.bobj.name)
@@ -894,7 +897,8 @@ class Shading:
         DEPTH_POS_UV = 2
         DEPTH_POS_NRM_UV = 3
         FONT_COLORED = 4
-        MAX = 5
+        SKYBOX_BASIC = 5
+        MAX = 6
 
         def needs_normal(self):
             enum_max_check(self)
@@ -910,7 +914,7 @@ class Shading:
             enum_max_check(self)
             return False
 
-        def translate(self, shd):
+        def translate_font(self, shd):
             class FontData:
                 pass
 
@@ -920,9 +924,47 @@ class Shading:
             shd.font.color = (color[0], color[1], color[2], alpha)
             return self.FONT_COLORED
 
+        def translate_sky(self, shd):
+            txt = None
+            for s in shd.bmat.texture_slots:
+                if s is None:
+                    continue
+                if txt is not None:
+                    terminate("Only one texture is supported for skybox, in:",
+                              shd.bmat.name)
+                txt = s.texture
+                if txt is None:
+                    terminate("Unexpected")
+                txt = Texture.read(txt)
+                if txt is None:
+                    terminate("Unexpected")
+                if txt.my_type != Texture.TYPE_CUBE:
+                    terminate("Only texture cube is supported for cube, in:",
+                              shd.bmat.name)
+
+            class SkyData:
+                pass
+
+            shd.sky = SkyData()
+            shd.sky.txt = txt
+            return self.SKYBOX_BASIC
+
+        def translate(self, shd):
+            if isinstance(shd.gxobj, Gearoenix.Model) and \
+                shd.gxobj.my_type == Gearoenix.Model.TYPE_WIDGET and (\
+                    shd.gxobj.widget_type == Gearoenix.Model.TYPE_TEXT or \
+                    shd.gxobj.widget_type == Gearoenix.Model.TYPE_EDIT):
+                return self.translate_font(shd)
+            elif isinstance(shd.gxobj, Gearoenix.Skybox):
+                return self.translate_sky(shd)
+            else:
+                terminate("Unexpected reserved material in:", shd.bmat.name)
+
         def write(self, shd):
             if self == self.FONT_COLORED:
                 write_vector(shd.font.color, 4)
+            elif self == self.SKYBOX_BASIC:
+                write_u64(shd.sky.txt.my_id)
             return
 
     class Lighting(enum.Enum):
@@ -1242,7 +1284,7 @@ class Shading:
             if self == self.CUTOFF:
                 write_float(shd.transparency)
 
-    def __init__(self, bmat=None, bobj=None):
+    def __init__(self, bmat=None, gxobj=None):
         self.shading_data = [
             self.Lighting.SHADELESS,
             self.Texturing.COLORED,
@@ -1264,10 +1306,10 @@ class Shading:
         self.bakedenv = None
         self.transparency = None
         self.bmat = bmat
-        self.bobj = None
+        self.gxobj = gxobj
         if bmat is None:
             self.set_reserved(self.Reserved.DEPTH_POS)
-        elif bobj is not None:
+        elif gxobj is not None:
             self.set_reserved(self.Reserved.DEPTH_POS.translate(self))
         else:
             for i in range(len(self.shading_data)):
@@ -1530,26 +1572,6 @@ class Occlusion:
 
 
 @Gearoenix.register_class
-class Skybox(RenderObject):
-
-    def __init__(self, bobj):
-        super().__init__(bobj)
-        self.mesh = None
-        for c in bobj.children:
-            if self.mesh is not None:
-                terminate("Only one mesh is accepted.")
-            self.mesh = Mesh.read(c)
-                if self.mesh is None:
-                    terminate("Only one mesh is accepted.")
-        self.mesh.shd = Shading(
-            self.mesh.bobj.material_slots[0].material, self)
-
-    def write(self):
-        super().write()
-        write_u64(self.mesh.my_id)
-        self.mesh.shd.write()
-
-
 class Model(RenderObject):
     TYPE_BASIC = 1
     TYPE_WIDGET = 2
@@ -1600,8 +1622,7 @@ class Model(RenderObject):
             else:
                 terminate("Unrecognized text vertical alignment, in:",
                           self.bobj.name)
-            self.font_shd = Shading(self.bobj.material_slots[0].material,
-                                    self.bobj)
+            self.font_shd = Shading(self.bobj.material_slots[0].material, self)
             self.font_space_character = self.bobj.data.space_character - 1.0
             self.font_space_word = self.bobj.data.space_word - 1.0
             self.font_space_line = self.bobj.data.space_line
@@ -1618,7 +1639,7 @@ class Model(RenderObject):
             if ins is not None:
                 self.meshes.append(ins)
                 continue
-            ins = Model.read(c)
+            ins = Gearoenix.Model.read(c)
             if ins is not None:
                 self.model_children.append(ins)
                 continue
@@ -1659,6 +1680,29 @@ class Model(RenderObject):
             self.write_widget()
 
 
+@Gearoenix.register_class
+class Skybox(RenderObject):
+    TYPE_BASIC = 1
+
+    def __init__(self, bobj):
+        super().__init__(bobj)
+        self.my_type = 1
+        self.mesh = None
+        for c in bobj.children:
+            if self.mesh is not None:
+                terminate("Only one mesh is accepted.")
+            self.mesh = Mesh.read(c)
+            if self.mesh is None:
+                terminate("Only one mesh is accepted.")
+        self.mesh.shd = Shading(self.mesh.bobj.material_slots[0].material,
+                                self)
+
+    def write(self):
+        super().write()
+        write_u64(self.mesh.my_id)
+        self.mesh.shd.write()
+
+
 class Scene(RenderObject):
     TYPE_GAME = 1
     TYPE_UI = 2
@@ -1672,6 +1716,7 @@ class Scene(RenderObject):
     def __init__(self, bobj):
         super().__init__(bobj)
         self.models = []
+        self.skybox = None
         self.cameras = []
         self.lights = []
         self.audios = []
@@ -1679,9 +1724,16 @@ class Scene(RenderObject):
         for o in bobj.objects:
             if o.parent is not None:
                 continue
-            ins = Model.read(o)
+            ins = Gearoenix.Model.read(o)
             if ins is not None:
                 self.models.append(ins)
+                continue
+            ins = Gearoenix.Skybox.read(o)
+            if ins is not None:
+                if self.skybox is not None:
+                    terminate("Only one skybox is acceptable in a scene",
+                              "wrong scene is: ", bobj.name)
+                self.skybox = ins
                 continue
             ins = Camera.read(o)
             if ins is not None:
@@ -1699,6 +1751,7 @@ class Scene(RenderObject):
             if ins is not None:
                 self.constraints.append(ins)
                 continue
+
         if bobj.name.startswith(self.GAME_PREFIX):
             self.my_type = self.TYPE_GAME
         elif bobj.name.startswith(self.UI_PREFIX):
@@ -1717,6 +1770,11 @@ class Scene(RenderObject):
         write_instances_ids(self.audios)
         write_instances_ids(self.lights)
         write_instances_ids(self.models)
+        if self.skybox is None:
+            write_bool(False)
+        else:
+            write_bool(True)
+            write_u64(self.skybox.my_id)
         write_instances_ids(self.constraints)
 
     @classmethod
@@ -1845,7 +1903,8 @@ def write_tables():
     Texture.write_table()
     Font.write_table()
     Mesh.write_table()
-    Model.write_table()
+    Gearoenix.Model.write_table()
+    Gearoenix.Skybox.write_table()
     Constraint.write_table()
     Scene.write_table()
 
@@ -1877,7 +1936,8 @@ def export_files():
     Texture.init()
     Font.init()
     Mesh.init()
-    Model.init()
+    Gearoenix.Model.init()
+    Gearoenix.Skybox.init()
     Constraint.init()
     Scene.init()
     Scene.read_all()
@@ -1891,7 +1951,8 @@ def export_files():
     Texture.write_all()
     Font.write_all()
     Mesh.write_all()
-    Model.write_all()
+    Gearoenix.Model.write_all()
+    Gearoenix.Skybox.write_all()
     Constraint.write_all()
     Scene.write_all()
     GearoenixInfo.GX3D_FILE.flush()
