@@ -71,7 +71,7 @@ class GearoenixInfo:
 class Gearoenix:
     @classmethod
     def register_class(cls, c):
-        exec ("cls." + c.__name__ + " = c")
+        exec("cls." + c.__name__ + " = c")
 
 
 def terminate(*msgs):
@@ -951,8 +951,8 @@ class Shading:
 
         def translate(self, shd):
             if isinstance(shd.gxobj, Gearoenix.Model) and \
-                shd.gxobj.my_type == Gearoenix.Model.TYPE_WIDGET and (\
-                    shd.gxobj.widget_type == Gearoenix.Model.TYPE_TEXT or \
+                shd.gxobj.my_type == Gearoenix.Model.TYPE_WIDGET and (
+                    shd.gxobj.widget_type == Gearoenix.Model.TYPE_TEXT or
                     shd.gxobj.widget_type == Gearoenix.Model.TYPE_EDIT):
                 return self.translate_font(shd)
             elif isinstance(shd.gxobj, Gearoenix.Skybox):
