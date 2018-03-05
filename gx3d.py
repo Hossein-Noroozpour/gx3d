@@ -1966,6 +1966,8 @@ def export_files():
     GearoenixInfo.RUST_FILE.close()
     GearoenixInfo.CPP_FILE.flush()
     GearoenixInfo.CPP_FILE.close()
+    GearoenixInfo.CPP_ENUM_FILE.flush()
+    GearoenixInfo.CPP_ENUM_FILE.close()
 
 
 class GearoenixExporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
