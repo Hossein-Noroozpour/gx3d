@@ -601,9 +601,6 @@ class Constraint(RenderObject):
         if self.bobj.type != BTYPE:
             terminate(DESC, "type must be", BTYPE, "in object:",
                       self.bobj.name)
-        if has_transformation(self.bobj):
-            terminate(DESC, "should not have any transformation, in object:",
-                      self.bobj.name)
         if len(self.bobj.children) < 1:
             terminate(DESC, "must have more than 0 children, in object:",
                       self.bobj.name)
@@ -616,38 +613,42 @@ class Constraint(RenderObject):
             self.model_children.append(ins)
         self.attrs = [None for i in range(6)]
         if ATT_X_MIDDLE in self.bobj:
+            self.check_trans()
             self.attrs[0] = self.bobj[ATT_X_MIDDLE]
-            limit_check(self.attrs[0], 0.8, 0.0, self.bobj)
         if ATT_Y_MIDDLE in self.bobj:
-            terminate("Not implemented, in object:", self.bobj.name)
+            self.check_trans()
+            self.attrs[1] = self.bobj[ATT_Y_MIDDLE]
         if ATT_X_LEFT in self.bobj:
-            terminate("Not implemented, in object:", self.bobj.name)
+            self.attrs[2] = self.bobj[ATT_X_LEFT]
         if ATT_X_RIGHT in self.bobj:
-            terminate("Not implemented, in object:", self.bobj.name)
+            self.attrs[3] = self.bobj[ATT_X_RIGHT]
         if ATT_Y_UP in self.bobj:
-            terminate("Not implemented, in object:", self.bobj.name)
+            self.attrs[4] = self.bobj[ATT_Y_UP]
         if ATT_Y_DOWN in self.bobj:
             self.attrs[5] = self.bobj[ATT_Y_DOWN]
-            limit_check(self.attrs[5], 0.8, -0.8, self.bobj)
         if ATT_RATIO in self.bobj:
             self.ratio = self.bobj[ATT_RATIO]
         else:
-            terminate(DESC, "must have", ATT_RATIO, "properties, in object:",
-                      self.bobj.name)
+            self.ratio = None
         self.placer_type = 0
         for i in range(len(self.attrs)):
             if self.attrs[i] is not None:
                 self.placer_type |= (1 << i)
         if self.placer_type not in {
-                33,
+                4, 8, 33,
         }:
             terminate(DESC, "must have meaningful combination, in object:",
                       self.bobj.name)
 
     def write_placer(self):
         write_u64(self.placer_type)
-        write_float(self.ratio)
-        if self.placer_type == 33:
+        if self.ratio is not None:
+            write_float(self.ratio)
+        if self.placer_type == 4:
+            write_float(self.attrs[2])
+        elif self.placer_type == 8:
+            write_float(self.attrs[3])
+        elif self.placer_type == 33:
             write_float(self.attrs[0])
             write_float(self.attrs[5])
         else:
@@ -657,6 +658,11 @@ class Constraint(RenderObject):
             childrenids.append(c.my_id)
         childrenids.sort()
         write_u64_array(childrenids)
+
+    def check_trans(self):
+        if has_transformation(self.bobj):
+            terminate("This object should not have any transformation, in:",
+                      self.bobj.name)
 
 
 class Collider:
