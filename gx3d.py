@@ -232,7 +232,14 @@ def write_string(s):
 
 
 def const_string(s):
-    return s.replace("-", "_").replace('/', '_').replace('.', '_').upper()
+    ss = s.replace("-", "_")
+    ss = ss.replace('/', '_')
+    ss = ss.replace('.', '_')
+    ss = ss.replace('C:\\', '_')
+    ss = ss.replace('c:\\', '_')
+    ss = ss.replace('\\', '_')
+    ss = ss.upper()
+    return ss
 
 
 def read_file(f):
