@@ -34,10 +34,11 @@ import bpy_extras
 import mathutils
 
 TYPE_BOOLEAN = ctypes.c_uint8
-TYPE_U64 = ctypes.c_uint64
 TYPE_BYTE = ctypes.c_uint8
 TYPE_FLOAT = ctypes.c_float
+TYPE_U64 = ctypes.c_uint64
 TYPE_U32 = ctypes.c_uint32
+TYPE_U16 = ctypes.c_uint16
 TYPE_U8 = ctypes.c_uint8
 
 STRING_CUTOFF = 'cutoff'
@@ -130,6 +131,10 @@ def write_u64(n):
 
 def write_u32(n):
     GearoenixInfo.GX3D_FILE.write(TYPE_U32(n))
+
+
+def write_u16(n):
+    GearoenixInfo.GX3D_FILE.write(TYPE_U16(n))
 
 
 def write_u8(n):
@@ -1805,9 +1810,9 @@ class Scene(RenderObject):
             write_float(self.boundary_right)
             write_float(self.boundary_front)
             write_float(self.boundary_back)
-            write_u32(self.grid_x_count)
-            write_u32(self.grid_y_count)
-            write_u32(self.grid_z_count)
+            write_u16(self.grid_x_count)
+            write_u16(self.grid_y_count)
+            write_u16(self.grid_z_count)
 
     @classmethod
     def read_all(cls):
