@@ -1671,6 +1671,11 @@ class Model(RenderObject):
             self.init_widget()
         else:
             terminate('Unspecified model type, in:', bobj.name)
+        self.is_rigid_body = bobj.rigid_body is not None:
+        if self.is_rigid_body:
+            if self.collider.MY_TYPE = Collider.GHOST:
+                terminate("Unexpected collider for rigid body, in:", bobj.name)
+            self.is_rigid_body_dynamic = bobj.rigid_body.enabled
 
     def write_widget(self):
         if self.widget_type == self.TYPE_TEXT or\
@@ -1692,6 +1697,9 @@ class Model(RenderObject):
         self.collider.write()
         write_instances_ids(self.model_children)
         write_instances_ids(self.meshes)
+        write_bool(self.is_rigid_body)
+        if self.is_rigid_body:
+            write_bool(self.is_rigid_body_dynamic)
         for mesh in self.meshes:
             mesh.shd.write()
         if self.my_type == self.TYPE_WIDGET:
