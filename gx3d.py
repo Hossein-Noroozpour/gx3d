@@ -1671,9 +1671,9 @@ class Model(RenderObject):
             self.init_widget()
         else:
             terminate('Unspecified model type, in:', bobj.name)
-        self.is_rigid_body = bobj.rigid_body is not None:
+        self.is_rigid_body = bobj.rigid_body is not None
         if self.is_rigid_body:
-            if self.collider.MY_TYPE = Collider.GHOST:
+            if self.collider.MY_TYPE == Collider.GHOST:
                 terminate("Unexpected collider for rigid body, in:", bobj.name)
             self.is_rigid_body_dynamic = bobj.rigid_body.enabled
 
