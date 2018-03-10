@@ -734,21 +734,20 @@ class MeshCollider(Collider):
             terminate('Mesh collider can not have any transformation, in:',
                       bobj.name)
         msh = bobj.data
-        self.triangles = []
+        self.indices = []
+        self.vertices = msh.vertices
         for p in msh.polygons:
-            triangle = []
             if len(p.vertices) > 3:
                 terminate("Object", bobj.name, "is not triangled!")
-            for i, li in zip(p.vertices, p.loop_indices):
-                triangle.append(msh.vertices[i].co)
-            self.triangles.append(triangle)
+            for i in p.vertices:
+                self.indices.append(i)
 
     def write(self):
         super().write()
-        write_u64(len(self.triangles))
-        for t in self.triangles:
-            for pos in t:
-                write_vector(pos)
+        write_u64(len(self.vertices))
+        for v in self.vertices:
+            write_vector(v.co)
+        write_u32_array(self.indices)
 
 
 Collider.CHILDREN.append(MeshCollider)
