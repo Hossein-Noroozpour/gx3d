@@ -1764,7 +1764,6 @@ class Scene(RenderObject):
             if ins is not None:
                 self.constraints.append(ins)
                 continue
-
         if bobj.name.startswith(self.GAME_PREFIX):
             self.my_type = self.TYPE_GAME
         elif bobj.name.startswith(self.UI_PREFIX):
@@ -1775,6 +1774,17 @@ class Scene(RenderObject):
             terminate('Scene must have at least one camera, in:', bobj.name)
         if len(self.lights) < 1:
             terminate('Scene must have at least one light, in:', bobj.name)
+        self.boundary_left = None
+        if 'left' in bobj:
+            self.boundary_left = bobj['left']
+            self.boundary_right = bobj['right']
+            self.boundary_up = bobj['up']
+            self.boundary_down = bobj['down']
+            self.boundary_front = bobj['front']
+            self.boundary_back = bobj['back']
+            self.grid_x_count = int(bobj['x-grid-count'])
+            self.grid_y_count = int(bobj['y-grid-count'])
+            self.grid_z_count = int(bobj['z-grid-count'])
 
     def write(self):
         super().write()
@@ -1783,12 +1793,21 @@ class Scene(RenderObject):
         write_instances_ids(self.audios)
         write_instances_ids(self.lights)
         write_instances_ids(self.models)
-        if self.skybox is None:
-            write_bool(False)
-        else:
-            write_bool(True)
+        write_bool(self.skybox is not None)
+        if self.skybox is not None:
             write_u64(self.skybox.my_id)
         write_instances_ids(self.constraints)
+        write_bool(self.boundary_left is not None)
+        if self.boundary_left is not None:
+            write_float(self.boundary_up)
+            write_float(self.boundary_down)
+            write_float(self.boundary_left)
+            write_float(self.boundary_right)
+            write_float(self.boundary_front)
+            write_float(self.boundary_back)
+            write_u32(self.grid_x_count)
+            write_u32(self.grid_y_count)
+            write_u32(self.grid_z_count)
 
     @classmethod
     def read_all(cls):
