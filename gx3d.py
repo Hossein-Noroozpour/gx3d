@@ -1590,20 +1590,23 @@ class Occlusion:
 
 @Gearoenix.register_class
 class Model(RenderObject):
-    TYPE_BASIC = 1
-    TYPE_WIDGET = 2
-    TYPE_BUTTON = 3
-    TYPE_TEXT = 4
-    TYPE_EDIT = 5
+    TYPE_DYNAMIC = 1
+    TYPE_STATIC = 2
+    TYPE_WIDGET = 3
+    # TYPES OF WIDGET
+    TYPE_BUTTON = 1
+    TYPE_EDIT = 2
+    TYPE_TEXT = 3
 
     @classmethod
     def init(cls):
         super().init()
-        cls.BASIC_PREFIX = cls.get_prefix() + 'basic-'
+        cls.DYNAMIC_PREFIX = cls.get_prefix() + 'dynamic-'
+        cls.STATIC_PREFIX = cls.get_prefix() + 'static-'
         cls.WIDGET_PREFIX = cls.get_prefix() + 'widget-'
         cls.BUTTON_PREFIX = cls.WIDGET_PREFIX + 'button-'
-        cls.TEXT_PREFIX = cls.WIDGET_PREFIX + 'text-'
         cls.EDIT_PREFIX = cls.WIDGET_PREFIX + 'edit-'
+        cls.TEXT_PREFIX = cls.WIDGET_PREFIX + 'text-'
 
     def init_widget(self):
         if self.bobj.name.startswith(self.BUTTON_PREFIX):
@@ -1663,18 +1666,15 @@ class Model(RenderObject):
         if len(self.model_children) + len(self.meshes) < 1 and \
                 not bobj.name.startswith(self.TEXT_PREFIX):
             terminate('Waste model', bobj.name)
-        if bobj.name.startswith(self.BASIC_PREFIX):
-            self.my_type = self.TYPE_BASIC
+        if bobj.name.startswith(self.DYNAMIC_PREFIX):
+            self.my_type = self.TYPE_DYNAMIC
+        elif bobj.name.startswith(self.STATIC_PREFIX):
+            self.my_type = self.TYPE_STATIC
         elif bobj.name.startswith(self.WIDGET_PREFIX):
             self.my_type = self.TYPE_WIDGET
             self.init_widget()
         else:
             terminate('Unspecified model type, in:', bobj.name)
-        self.is_rigid_body = bobj.rigid_body is not None
-        if self.is_rigid_body:
-            if self.collider.MY_TYPE == Collider.GHOST:
-                terminate("Unexpected collider for rigid body, in:", bobj.name)
-            self.is_rigid_body_dynamic = bobj.rigid_body.enabled
 
     def write_widget(self):
         if self.widget_type == self.TYPE_TEXT or\
@@ -1696,9 +1696,6 @@ class Model(RenderObject):
         self.collider.write()
         write_instances_ids(self.model_children)
         write_instances_ids(self.meshes)
-        write_bool(self.is_rigid_body)
-        if self.is_rigid_body:
-            write_bool(self.is_rigid_body_dynamic)
         for mesh in self.meshes:
             mesh.shd.write()
         if self.my_type == self.TYPE_WIDGET:
