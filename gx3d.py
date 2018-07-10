@@ -1,5 +1,5 @@
 itemsbl_info = {
-    "name": "Gearoenix Blender",
+    "name": "Gearoenix 3D Blender",
     "author": "Hossein Noroozpour",
     "version": (2, 0),
     "blender": (2, 7, 5),
@@ -12,13 +12,10 @@ itemsbl_info = {
     "category": "Import-Export",
 }
 
-# The philosophy behind this plugin is to import everything that is engaged
-#    at least in one of the blender scene in a file. Plan is not to take
-#    everything from blender and support every features of Blender.
-#    Always best practises are the correct way of presenting data.
-
 # todos:
 #     - add the same anotation of skybox to other classes (low priority)
+#     - add a max ID
+#     - Use single ID for all objects
 
 import ctypes
 import enum
@@ -50,10 +47,12 @@ EPSILON = 0.0001
 
 class GearoenixInfo:
     ENGINE_GEAROENIX = 0
-    ENGINE_VRUST = 1
+    ENGINE_VULKUST = 1
 
     EXPORT_VULKAN = False
     EXPORT_METAL = False
+    EXPORT_GEAROENIX = False
+    EXPORT_VULKUST = False
     EXPORT_FILE_PATH = None
 
     GX3D_FILE = None
@@ -61,7 +60,7 @@ class GearoenixInfo:
     CPP_ENUM_FILE = None
     RUST_FILE = None
 
-    PATH_VRUST_SDK = None
+    PATH_VULKUST_SDK = None
     PATH_GEAROENIX_SDK = None
     PATH_SHADERS_DIR = None
     PATH_SHADER_COMPILER = None
@@ -79,22 +78,25 @@ def terminate(*msgs):
     msg = ""
     for m in msgs:
         msg += str(m) + " "
-    print("Error: " + msg)
+    print("Fatal error: " + msg)
     raise Exception(msg)
 
 
 def initialize_pathes():
-    if GearoenixInfo.ENGINE_GEAROENIX == GearoenixInfo.EXPORT_ENGINE:
+    if GearoenixInfo.EXPORT_GEAROENIX:
         GearoenixInfo.PATH_GEAROENIX_SDK = os.environ.get("GEAROENIX_SDK")
         if GearoenixInfo.PATH_GEAROENIX_SDK is None:
             terminate("Gearoenix SDK environment variable not found")
         GearoenixInfo.PATH_TOOLS_DIR = GearoenixInfo.PATH_GEAROENIX_SDK + \
             "/tools/"
+    elif GearoenixInfo.EXPORT_VULKUST:
+        GearoenixInfo.PATH_VULKUST_SDK = os.environ.get("VULKUST_SDK")
+        if GearoenixInfo.PATH_VULKUST_SDK is None:
+            terminate("VULKUST_SDK environment variable not found")
+        GearoenixInfo.PATH_TOOLS_DIR = GearoenixInfo.PATH_VULKUST_SDK + \
+            "/tools/"
     else:
-        GearoenixInfo.PATH_VRUST_SDK = os.environ.get("VRUST_SDK")
-        if GearoenixInfo.PATH_VRUST_SDK is None:
-            terminate("VRust SDK environment variable not found")
-        terminate("not implemented yet.")
+        terminate("Unexpected engine")
     GearoenixInfo.PATH_TTF_BAKER = GearoenixInfo.PATH_TOOLS_DIR + \
         "gearoenix-ttf-baker.exe"
     GearoenixInfo.GX3D_FILE = open(GearoenixInfo.EXPORT_FILE_PATH, mode='wb')
@@ -2038,12 +2040,20 @@ class GearoenixExporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
         name="Game engine",
         description="This item select the game engine",
         items=((str(GearoenixInfo.ENGINE_GEAROENIX), 'Gearoenix', ''), (str(
-            GearoenixInfo.ENGINE_VRUST), 'VRust', '')))
+            GearoenixInfo.ENGINE_VULKUST), 'Vulkust', '')))
 
     def execute(self, context):
         GearoenixInfo.EXPORT_VULKAN = bool(self.export_vulkan)
         GearoenixInfo.EXPORT_METAL = bool(self.export_metal)
-        GearoenixInfo.EXPORT_ENGINE = int(self.export_engine)
+        engine = int(self.export_engine)
+        if engine == GearoenixInfo.ENGINE_GEAROENIX:
+            GearoenixInfo.EXPORT_GEAROENIX = True
+            log_info("Exporting for Gearoenix engine")
+        elif engine == GearoenixInfo.ENGINE_VULKUST:
+            GearoenixInfo.EXPORT_VULKUST = True
+            log_info("Exporting for Vulkust engine")
+        else:
+            terminate("Unexpected export engine")
         GearoenixInfo.EXPORT_FILE_PATH = self.filepath
         export_files()
         return {'FINISHED'}
