@@ -1,12 +1,16 @@
-# Gearoenix Blender plugin
+# GX3D
 
-Blender plug-in for Gearoenix 3D file format.
+Blender exporter plug-in for Gearoenix 3D file format.
 
 ## License
+- Do whatever you want with it, but keep in mind all consequences is on you!
+- Do me a favor and promote me, I a job seeker.
 
-- Do not use it! :D
-- Do not even look at/in it! :|-
-- Unless your a recruiter or you want to assess me for a job.
+## Philosophy
+
+- Import everything that is engaged at least in one of the blender scene.
+- Plan is to take the things that is needed in current version of game engine.
+- Always best practices are the correct way of presenting data.
 
 ## Rules:
 
