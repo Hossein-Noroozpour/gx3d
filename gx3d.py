@@ -538,7 +538,7 @@ class Light(Gearoenix.RenderObject):
 
 
 @Gearoenix.register
-class Camera(RenderObject):
+class Camera(Gearoenix.RenderObject):
     TYPE_PERSPECTIVE = 1
     TYPE_ORTHOGRAPHIC = 2
 
@@ -603,7 +603,7 @@ class Constraint(Gearoenix.RenderObject):
         if self.my_type == self.TYPE_PLACER:
             self.write_placer()
         else:
-            terminate('Unspecified type in:', bobj.name)
+            Gearoenix.terminate('Unspecified type in:', bobj.name)
 
     def init_placer(self):
         BTYPE = "EMPTY"
@@ -699,13 +699,14 @@ class Collider:
             if self.MY_TYPE == self.GHOST:
                 return
             else:
-                terminate("Unexpected bobj is None")
+                Gearoenix.terminate("Unexpected bobj is None")
         if not bobj.name.startswith(self.PREFIX):
-            terminate("Collider object name is wrong. In:", bobj.name)
+            Gearoenix.terminate(
+                "Collider object name is wrong. In:", bobj.name)
         self.bobj = bobj
 
     def write(self):
-        write_u64(self.MY_TYPE)
+        Gearoenix.write_u64(self.MY_TYPE)
         pass
 
     @classmethod
@@ -715,59 +716,61 @@ class Collider:
             for c in cls.CHILDREN:
                 if bobj.name.startswith(c.PREFIX):
                     if collider_object is not None:
-                        terminate("Only one collider is acceptable. In model:",
-                                  pbobj.name)
+                        Gearoenix.terminate(
+                            "Only one collider is acceptable. In model:",
+                            pbobj.name)
                     collider_object = c(bobj)
         if collider_object is None:
-            return GhostCollider()
+            return Gearoenix.GhostCollider()
         return collider_object
 
 
 @Gearoenix.register
-class GhostCollider(Collider):
-    MY_TYPE = Collider.GHOST
-    PREFIX = Collider.PREFIX + 'ghost-'
+class GhostCollider(Gearoenix.Collider):
+    MY_TYPE = Gearoenix.Collider.GHOST
+    PREFIX = Gearoenix.Collider.PREFIX + 'ghost-'
 
 
-Collider.CHILDREN.append(GhostCollider)
+Gearoenix.Collider.CHILDREN.append(Gearoenix.GhostCollider)
 
 
 @Gearoenix.register
-class MeshCollider(Collider):
-    MY_TYPE = Collider.MESH
-    PREFIX = Collider.PREFIX + 'mesh-'
+class MeshCollider(Gearoenix.Collider):
+    MY_TYPE = Gearoenix.Collider.MESH
+    PREFIX = Gearoenix.Collider.PREFIX + 'mesh-'
 
     def __init__(self, bobj):
         super().__init__(bobj)
         self.bobj = bobj
         if bobj.type != 'MESH':
-            terminate('Mesh collider must have mesh object type, In model:',
-                      bobj.name)
+            Gearoenix.terminate(
+                'Mesh collider must have mesh object type, In model:',
+                bobj.name)
         if has_transformation(bobj):
-            terminate('Mesh collider can not have any transformation, in:',
-                      bobj.name)
+            Gearoenix.terminate(
+                'Mesh collider can not have any transformation, in:', bobj.name)
         msh = bobj.data
         self.indices = []
         self.vertices = msh.vertices
         for p in msh.polygons:
             if len(p.vertices) > 3:
-                terminate("Object", bobj.name, "is not triangled!")
+                Gearoenix.terminate("Object", bobj.name, "is not triangled!")
             for i in p.vertices:
                 self.indices.append(i)
 
     def write(self):
         super().write()
-        write_u64(len(self.vertices))
+        Gearoenix.write_u64(len(self.vertices))
         for v in self.vertices:
-            write_vector(v.co)
-        write_u32_array(self.indices)
+            Gearoenix.write_vector(v.co)
+        Gearoenix.write_u32_array(self.indices)
 
 
-Collider.CHILDREN.append(MeshCollider)
+Gearoenix.Collider.CHILDREN.append(Gearoenix.MeshCollider)
 
 
 @Gearoenix.register
-class Texture(ReferenceableObject):
+class Texture(Gearoenix.ReferenceableObject):
     TYPE_2D = 1
     TYPE_3D = 2
     TYPE_CUBE = 3
@@ -787,22 +790,22 @@ class Texture(ReferenceableObject):
 
     def init_6_face(self):
         if not self.name.endswith('-up.png'):
-            terminate('Incorrect 6 face texture:', self.bobj.name)
+            Gearoenix.terminate('Incorrect 6 face texture:', self.bobj.name)
         base_name = self.name[:len(self.name) - len('-up.png')]
-        self.img_up = read_file(self.name)
-        self.img_down = read_file(base_name + '-down.png')
-        self.img_left = read_file(base_name + '-left.png')
-        self.img_right = read_file(base_name + '-right.png')
-        self.img_front = read_file(base_name + '-front.png')
-        self.img_back = read_file(base_name + '-back.png')
+        self.img_up = Gearoenix.read_file(self.name)
+        self.img_down = Gearoenix.read_file(base_name + '-down.png')
+        self.img_left = Gearoenix.read_file(base_name + '-left.png')
+        self.img_right = Gearoenix.read_file(base_name + '-right.png')
+        self.img_front = Gearoenix.read_file(base_name + '-front.png')
+        self.img_back = Gearoenix.read_file(base_name + '-back.png')
 
     def write_6_face(self):
-        write_file(self.img_up)
-        write_file(self.img_down)
-        write_file(self.img_left)
-        write_file(self.img_right)
-        write_file(self.img_front)
-        write_file(self.img_back)
+        Gearoenix.write_file(self.img_up)
+        Gearoenix.write_file(self.img_down)
+        Gearoenix.write_file(self.img_left)
+        Gearoenix.write_file(self.img_right)
+        Gearoenix.write_file(self.img_front)
+        Gearoenix.write_file(self.img_back)
 
     def __init__(self, bobj):
         super().__init__(bobj)
@@ -825,7 +828,7 @@ class Texture(ReferenceableObject):
             self.file = read_file(self.name)
             self.my_type = self.TYPE_SPECULARE
         else:
-            terminate('Unspecified texture type, in:', bobl.name)
+            Gearoenix.terminate('Unspecified texture type, in:', bobl.name)
 
     def write(self):
         super().write()
@@ -833,12 +836,13 @@ class Texture(ReferenceableObject):
                 self.my_type == self.TYPE_3D or \
                 self.my_type == self.TYPE_NORMALMAP or \
                 self.my_type == self.TYPE_SPECULARE:
-            write_file(self.file)
+            Gearoenix.write_file(self.file)
         elif self.my_type == self.TYPE_CUBE or \
                 self.my_type == self.TYPE_BACKED_ENVIRONMENT:
             self.write_6_face()
         else:
-            terminate('Unspecified texture type, in:', self.bobj.name)
+            Gearoenix.terminate(
+                'Unspecified texture type, in:', self.bobj.name)
 
     @staticmethod
     def get_name_from_bobj(bobj):
@@ -846,19 +850,19 @@ class Texture(ReferenceableObject):
         if bobj.type == 'IMAGE':
             img = bobj.image
             if img is None:
-                terminate("Image is not set in texture:", bobj.name)
+                Gearoenix.terminate("Image is not set in texture:", bobj.name)
             filepath = bpy.path.abspath(bobj.image.filepath_raw).strip()
         else:
-            terminate("Unrecognized type for texture")
+            Gearoenix.terminate("Unrecognized type for texture")
         if filepath is None or len(filepath) == 0:
-            terminate("Filepass is empty:", bobj.name)
+            Gearoenix.terminate("Filepass is empty:", bobj.name)
         if not filepath.endswith(".png"):
-            terminate("Use PNG for image, in:", filepath)
+            Gearoenix.terminate("Use PNG for image, in:", filepath)
         return filepath
 
 
 @Gearoenix.register
-class Font(ReferenceableObject):
+class Font(Gearoenix.ReferenceableObject):
     TYPE_2D = 1
     TYPE_3D = 2
 
@@ -875,12 +879,12 @@ class Font(ReferenceableObject):
         elif bobj.name.startswith(self.D3_PREFIX):
             self.my_type = self.TYPE_D3
         else:
-            terminate('Unspecified texture type, in:', bobl.name)
+            Gearoenix.terminate('Unspecified texture type, in:', bobl.name)
         self.file = read_ttf(self.name)
 
     def write(self):
         super().write()
-        write_file(self.file)
+        Gearoenix.write_file(self.file)
 
     @staticmethod
     def get_name_from_bobj(bobj):
@@ -888,34 +892,36 @@ class Font(ReferenceableObject):
         if str(type(bobj)) == "<class 'bpy.types.VectorFont'>":
             filepath = bpy.path.abspath(bobj.filepath).strip()
         else:
-            terminate("Unrecognized type for font")
+            Gearoenix.terminate("Unrecognized type for font")
         if filepath is None or len(filepath) == 0:
-            terminate("Filepass is empty:", bobj.name)
+            Gearoenix.terminate("Filepass is empty:", bobj.name)
         if not filepath.endswith(".ttf"):
-            terminate("Use TTF for font, in:", filepath)
+            Gearoenix.terminate("Use TTF for font, in:", filepath)
         return filepath
 
 
 @Gearoenix.register
-class Mesh(UniRenderObject):
+class Mesh(Gearoenix.UniRenderObject):
     TYPE_BASIC = 1
 
     def __init__(self, bobj):
         super().__init__(bobj)
         self.my_type = self.TYPE_BASIC
         if bobj.type != 'MESH':
-            terminate('Mesh must be of type MESH:', bobj.name)
+            Gearoenix.terminate('Mesh must be of type MESH:', bobj.name)
         if has_transformation(bobj):
-            terminate("Mesh must not have any transformation. in:", bobj.name)
+            Gearoenix.terminate(
+                "Mesh must not have any transformation. in:", bobj.name)
         if len(bobj.children) != 0:
-            terminate("Mesh can not have children:", bobj.name)
+            Gearoenix.terminate("Mesh can not have children:", bobj.name)
         self.shd = Shading(bobj.material_slots[0].material)
         if self.origin_instance is not None:
             if not self.shd.has_same_attrs(self.origin_instance.shd):
-                terminate("Different mesh attributes, in: " + bobj.name)
+                Gearoenix.terminate(
+                    "Different mesh attributes, in: " + bobj.name)
             return
         if bobj.parent is not None:
-            terminate("Mesh can not have parent:", bobj.name)
+            Gearoenix.terminate("Mesh can not have parent:", bobj.name)
         msh = bobj.data
         nrm = self.shd.needs_normal()
         uv = self.shd.needs_uv()
@@ -923,7 +929,7 @@ class Mesh(UniRenderObject):
         last_index = 0
         for p in msh.polygons:
             if len(p.vertices) > 3:
-                terminate("Object " + bobj.name + " is not triangled!")
+                Gearoenix.terminate("Object", bobj.name, "is not triangled!")
             for i, li in zip(p.vertices, p.loop_indices):
                 vertex = []
                 v = msh.vertices[i].co
@@ -938,8 +944,8 @@ class Mesh(UniRenderObject):
                 if uv:
                     uv_lyrs = msh.uv_layers
                     if len(uv_lyrs) > 1 or len(uv_lyrs) < 1:
-                        terminate("Unexpected number of uv layers in ",
-                                  bobj.name)
+                        Gearoenix.terminate(
+                            "Unexpected number of uv layers in", bobj.name)
                     texco = uv_lyrs.active.data[li].uv
                     vertex.append(texco[0])
                     vertex.append(1.0 - texco[1])
@@ -960,21 +966,23 @@ class Mesh(UniRenderObject):
 
     def write(self):
         super().write()
-        write_u64(len(self.vertices[0]))
-        write_u64(len(self.vertices))
+        Gearoenix.write_u64(len(self.vertices[0]))
+        Gearoenix.write_u64(len(self.vertices))
         for vertex in self.vertices:
             for e in vertex:
-                write_float(e)
-        write_u32_array(self.indices)
+                Gearoenix.write_float(e)
+        Gearoenix.write_u32_array(self.indices)
 
 
+@Gearoenix.register
 class Occlusion:
     PREFIX = 'occlusion-'
 
     def __init__(self, bobj):
         if bobj.empty_draw_type != 'SPHERE':
-            terminate("The only acceptable shape for an occlusion is " +
-                      "sphere. in: " + bobj.name)
+            Gearoenix.terminate(
+                "The only acceptable shape for an occlusion is sphere. in:",
+                bobj.name)
         center = bobj.matrix_world * mathutils.Vector((0.0, 0.0, 0.0))
         radius = bobj.empty_draw_size
         radius = mathutils.Vector((radius, radius, radius))
@@ -988,15 +996,15 @@ class Occlusion:
         for c in bobj.children:
             if c.name.startswith(cls.PREFIX):
                 return cls(c)
-        terminate("Occlusion not found in: ", bobj.name)
+        Gearoenix.terminate("Occlusion not found in: ", bobj.name)
 
     def write(self):
-        write_vector(self.radius)
-        write_vector(self.center)
+        Gearoenix.write_vector(self.radius)
+        Gearoenix.write_vector(self.center)
 
 
 @Gearoenix.register
-class Model(RenderObject):
+class Model(Gearoenix.RenderObject):
     TYPE_DYNAMIC = 1
     TYPE_STATIC = 2
     TYPE_WIDGET = 3
@@ -1023,7 +1031,7 @@ class Model(RenderObject):
         elif self.bobj.name.startswith(self.EDIT_PREFIX):
             self.widget_type = self.TYPE_EDIT
         else:
-            terminate('Unrecognized widget type:', self.bobj.name)
+            Gearoenix.terminate('Unrecognized widget type:', self.bobj.name)
         if self.widget_type == self.TYPE_EDIT or \
                 self.widget_type == self.TYPE_TEXT:
             self.text = self.bobj.data.body.strip()
@@ -1038,8 +1046,9 @@ class Model(RenderObject):
             elif align_x == 'RIGHT':
                 self.align += 6
             else:
-                terminate("Unrecognized text horizontal alignment, in:",
-                          self.bobj.name)
+                Gearoenix.terminate(
+                    "Unrecognized text horizontal alignment, in:",
+                    self.bobj.name)
             if align_y == 'TOP':
                 self.align += 3
             elif align_y == 'CENTER':
@@ -1047,8 +1056,8 @@ class Model(RenderObject):
             elif align_y == 'BOTTOM':
                 self.align += 1
             else:
-                terminate("Unrecognized text vertical alignment, in:",
-                          self.bobj.name)
+                Gearoenix.terminate(
+                    "Unrecognized text vertical alignment, in:", self.bobj.name)
             self.font_shd = Shading(self.bobj.material_slots[0].material, self)
             self.font_space_character = self.bobj.data.space_character - 1.0
             self.font_space_word = self.bobj.data.space_word - 1.0
@@ -1072,7 +1081,7 @@ class Model(RenderObject):
                 continue
         if len(self.model_children) + len(self.meshes) < 1 and \
                 not bobj.name.startswith(self.TEXT_PREFIX):
-            terminate('Waste model', bobj.name)
+            Gearoenix.terminate('Waste model', bobj.name)
         if bobj.name.startswith(self.DYNAMIC_PREFIX):
             self.my_type = self.TYPE_DYNAMIC
         elif bobj.name.startswith(self.STATIC_PREFIX):
@@ -1081,28 +1090,28 @@ class Model(RenderObject):
             self.my_type = self.TYPE_WIDGET
             self.init_widget()
         else:
-            terminate('Unspecified model type, in:', bobj.name)
+            Gearoenix.terminate('Unspecified model type, in:', bobj.name)
 
     def write_widget(self):
         if self.widget_type == self.TYPE_TEXT or\
                 self.widget_type == self.TYPE_EDIT:
-            write_string(self.text)
-            write_u8(self.align)
-            write_float(self.font_space_character)
-            write_float(self.font_space_word)
-            write_float(self.font_space_line)
-            write_u64(self.font.my_id)
+            Gearoenix.write_string(self.text)
+            Gearoenix.write_u8(self.align)
+            Gearoenix.write_float(self.font_space_character)
+            Gearoenix.write_float(self.font_space_word)
+            Gearoenix.write_float(self.font_space_line)
+            Gearoenix.write_u64(self.font.my_id)
             self.font_shd.write()
 
     def write(self):
         super().write()
         if self.my_type == self.TYPE_WIDGET:
-            write_u64(self.widget_type)
-        write_matrix(self.bobj.matrix_world)
+            Gearoenix.write_u64(self.widget_type)
+        Gearoenix.write_matrix(self.bobj.matrix_world)
         self.occlusion.write()
         self.collider.write()
-        write_instances_ids(self.model_children)
-        write_instances_ids(self.meshes)
+        Gearoenix.write_instances_ids(self.model_children)
+        Gearoenix.write_instances_ids(self.meshes)
         for mesh in self.meshes:
             mesh.shd.write()
         if self.my_type == self.TYPE_WIDGET:
@@ -1110,7 +1119,7 @@ class Model(RenderObject):
 
 
 @Gearoenix.register
-class Skybox(RenderObject):
+class Skybox(Gearoenix.RenderObject):
     TYPE_BASIC = 1
 
     def __init__(self, bobj):
@@ -1119,21 +1128,21 @@ class Skybox(RenderObject):
         self.mesh = None
         for c in bobj.children:
             if self.mesh is not None:
-                terminate("Only one mesh is accepted.")
+                Gearoenix.terminate("Only one mesh is accepted.")
             self.mesh = Mesh.read(c)
             if self.mesh is None:
-                terminate("Only one mesh is accepted.")
+                Gearoenix.terminate("Only one mesh is accepted.")
         self.mesh.shd = Shading(self.mesh.bobj.material_slots[0].material,
                                 self)
 
     def write(self):
         super().write()
-        write_u64(self.mesh.my_id)
+        Gearoenix.write_u64(self.mesh.my_id)
         self.mesh.shd.write()
 
 
 @Gearoenix.register
-class Scene(RenderObject):
+class Scene(Gearoenix.RenderObject):
     TYPE_GAME = 1
     TYPE_UI = 2
 
@@ -1161,8 +1170,9 @@ class Scene(RenderObject):
             ins = Gearoenix.Skybox.read(o)
             if ins is not None:
                 if self.skybox is not None:
-                    terminate("Only one skybox is acceptable in a scene",
-                              "wrong scene is: ", bobj.name)
+                    Gearoenix.terminate(
+                        "Only one skybox is acceptable in a scene,",
+                        "wrong scene is: ", bobj.name)
                 self.skybox = ins
                 continue
             ins = Camera.read(o)
@@ -1186,11 +1196,13 @@ class Scene(RenderObject):
         elif bobj.name.startswith(self.UI_PREFIX):
             self.my_type = self.TYPE_UI
         else:
-            terminate('Unspecified scene type, in:', bobj.name)
+            Gearoenix.terminate('Unspecified scene type, in:', bobj.name)
         if len(self.cameras) < 1:
-            terminate('Scene must have at least one camera, in:', bobj.name)
+            Gearoenix.terminate(
+                'Scene must have at least one camera, in:', bobj.name)
         if len(self.lights) < 1:
-            terminate('Scene must have at least one light, in:', bobj.name)
+            Gearoenix.terminate(
+                'Scene must have at least one light, in:', bobj.name)
         self.boundary_left = None
         if 'left' in bobj:
             self.boundary_left = bobj['left']
@@ -1205,26 +1217,26 @@ class Scene(RenderObject):
 
     def write(self):
         super().write()
-        write_vector(self.bobj.world.ambient_color)
-        write_instances_ids(self.cameras)
-        write_instances_ids(self.audios)
-        write_instances_ids(self.lights)
-        write_instances_ids(self.models)
-        write_bool(self.skybox is not None)
+        Gearoenix.write_vector(self.bobj.world.ambient_color)
+        Gearoenix.write_instances_ids(self.cameras)
+        Gearoenix.write_instances_ids(self.audios)
+        Gearoenix.write_instances_ids(self.lights)
+        Gearoenix.write_instances_ids(self.models)
+        Gearoenix.write_bool(self.skybox is not None)
         if self.skybox is not None:
-            write_u64(self.skybox.my_id)
-        write_instances_ids(self.constraints)
-        write_bool(self.boundary_left is not None)
+            Gearoenix.write_u64(self.skybox.my_id)
+        Gearoenix.write_instances_ids(self.constraints)
+        Gearoenix.write_bool(self.boundary_left is not None)
         if self.boundary_left is not None:
-            write_float(self.boundary_up)
-            write_float(self.boundary_down)
-            write_float(self.boundary_left)
-            write_float(self.boundary_right)
-            write_float(self.boundary_front)
-            write_float(self.boundary_back)
-            write_u16(self.grid_x_count)
-            write_u16(self.grid_y_count)
-            write_u16(self.grid_z_count)
+            Gearoenix.write_float(self.boundary_up)
+            Gearoenix.write_float(self.boundary_down)
+            Gearoenix.write_float(self.boundary_left)
+            Gearoenix.write_float(self.boundary_right)
+            Gearoenix.write_float(self.boundary_front)
+            Gearoenix.write_float(self.boundary_back)
+            Gearoenix.write_u16(self.grid_x_count)
+            Gearoenix.write_u16(self.grid_y_count)
+            Gearoenix.write_u16(self.grid_z_count)
 
     @classmethod
     def read_all(cls):
@@ -1310,14 +1322,14 @@ class Exporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
         engine = int(self.export_engine)
         if engine == Gearoenix.ENGINE_GEAROENIX:
             Gearoenix.EXPORT_GEAROENIX = True
-            log_info("Exporting for Gearoenix engine")
+            Gearoenix.log_info("Exporting for Gearoenix engine")
         elif engine == Gearoenix.ENGINE_VULKUST:
             Gearoenix.EXPORT_VULKUST = True
-            log_info("Exporting for Vulkust engine")
+            Gearoenix.log_info("Exporting for Vulkust engine")
         else:
-            terminate("Unexpected export engine")
+            Gearoenix.terminate("Unexpected export engine")
         Gearoenix.EXPORT_FILE_PATH = self.filepath
-        export_files()
+        Gearoenix.export_files()
         return {'FINISHED'}
 
 
