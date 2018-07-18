@@ -25,22 +25,22 @@ import bpy
 import bpy_extras
 import mathutils
 
-TYPE_BOOLEAN = ctypes.c_uint8
-TYPE_BYTE = ctypes.c_uint8
-TYPE_FLOAT = ctypes.c_float
-TYPE_U64 = ctypes.c_uint64
-TYPE_U32 = ctypes.c_uint32
-TYPE_U16 = ctypes.c_uint16
-TYPE_U8 = ctypes.c_uint8
-
-STRING_CUTOFF = 'cutoff'
-
-DEBUG_MODE = True
-
-EPSILON = 0.0001
-
 
 class Gearoenix:
+
+    TYPE_BOOLEAN = ctypes.c_uint8
+    TYPE_BYTE = ctypes.c_uint8
+    TYPE_FLOAT = ctypes.c_float
+    TYPE_U64 = ctypes.c_uint64
+    TYPE_U32 = ctypes.c_uint32
+    TYPE_U16 = ctypes.c_uint16
+    TYPE_U8 = ctypes.c_uint8
+
+    STRING_CUTOFF = 'cutoff'
+
+    DEBUG_MODE = True
+
+    EPSILON = 0.0001
 
     ENGINE_GEAROENIX = 0
     ENGINE_VULKUST = 1
@@ -83,7 +83,7 @@ def initialize_pathes():
 
 @Gearoenix.register
 def log_info(*msgs):
-    if DEBUG_MODE:
+    if Gearoenix.DEBUG_MODE:
         msg = ""
         for m in msgs:
             msg += str(m) + " "
@@ -92,61 +92,61 @@ def log_info(*msgs):
 
 @Gearoenix.register
 def write_float(f):
-    Gearoenix.GX3D_FILE.write(TYPE_FLOAT(f))
+    Gearoenix.GX3D_FILE.write(Gearoenix.TYPE_FLOAT(f))
 
 
 @Gearoenix.register
 def write_u64(n):
-    Gearoenix.GX3D_FILE.write(TYPE_U64(n))
+    Gearoenix.GX3D_FILE.write(Gearoenix.TYPE_U64(n))
 
 
 @Gearoenix.register
 def write_u32(n):
-    Gearoenix.GX3D_FILE.write(TYPE_U32(n))
+    Gearoenix.GX3D_FILE.write(Gearoenix.TYPE_U32(n))
 
 
 @Gearoenix.register
 def write_u16(n):
-    Gearoenix.GX3D_FILE.write(TYPE_U16(n))
+    Gearoenix.GX3D_FILE.write(Gearoenix.TYPE_U16(n))
 
 
 @Gearoenix.register
 def write_u8(n):
-    Gearoenix.GX3D_FILE.write(TYPE_U8(n))
+    Gearoenix.GX3D_FILE.write(Gearoenix.TYPE_U8(n))
 
 
 @Gearoenix.register
 def write_instances_ids(inss):
-    write_u64(len(inss))
+    Gearoenix.write_u64(len(inss))
     for ins in inss:
-        write_u64(ins.my_id)
+        Gearoenix.write_u64(ins.my_id)
 
 
 @Gearoenix.register
 def write_vector(v, element_count=3):
     for i in range(element_count):
-        write_float(v[i])
+        Gearoenix.write_float(v[i])
 
 
 @Gearoenix.register
 def write_matrix(matrix):
     for i in range(0, 4):
         for j in range(0, 4):
-            write_float(matrix[j][i])
+            Gearoenix.write_float(matrix[j][i])
 
 
 @Gearoenix.register
 def write_u32_array(arr):
-    write_u64(len(arr))
+    Gearoenix.write_u64(len(arr))
     for i in arr:
-        write_u32(i)
+        Gearoenix.write_u32(i)
 
 
 @Gearoenix.register
 def write_u64_array(arr):
-    write_u64(len(arr))
+    Gearoenix.write_u64(len(arr))
     for i in arr:
-        write_u64(i)
+        Gearoenix.write_u64(i)
 
 
 @Gearoenix.register
@@ -168,7 +168,7 @@ def limit_check(val, maxval=1.0, minval=0.0, obj=None):
         msg = "Out of range value"
         if obj is not None:
             msg += ", in object: " + obj.name
-        terminate(msg)
+        Gearoenix.terminate(msg)
 
 
 @Gearoenix.register
@@ -177,8 +177,8 @@ def uint_check(s):
         if int(s) >= 0:
             return True
     except ValueError:
-        terminate("Type error")
-    terminate("Type error")
+        Gearoenix.terminate("Type error")
+    Gearoenix.terminate("Type error")
 
 
 @Gearoenix.register
@@ -186,19 +186,19 @@ def get_origin_name(bobj):
     origin_name = bobj.name.strip().split('.')
     num_dot = len(origin_name)
     if num_dot > 2 or num_dot < 1:
-        terminate("Wrong name in:", bobj.name)
+        Gearoenix.terminate("Wrong name in:", bobj.name)
     elif num_dot == 1:
         return None
     try:
         int(origin_name[1])
     except:
-        terminate("Wrong name in:", bobj.name)
+        Gearoenix.terminate("Wrong name in:", bobj.name)
     return origin_name[0]
 
 
 @Gearoenix.register
 def is_zero(f):
-    return -EPSILON < f < EPSILON
+    return -Gearoenix.EPSILON < f < Gearoenix.EPSILON
 
 
 @Gearoenix.register
@@ -209,9 +209,9 @@ def has_transformation(bobj):
     for i in range(4):
         for j in range(4):
             if i == j:
-                if not is_zero(m[i][j] - 1.0):
+                if not Gearoenix.is_zero(m[i][j] - 1.0):
                     return True
-            elif not is_zero(m[i][j]):
+            elif not Gearoenix.is_zero(m[i][j]):
                 return True
     return False
 
@@ -219,9 +219,9 @@ def has_transformation(bobj):
 @Gearoenix.register
 def write_string(s):
     bs = bytes(s, 'utf-8')
-    write_u64(len(bs))
+    Gearoenix.write_u64(len(bs))
     for b in bs:
-        write_u8(b)
+        Gearoenix.write_u8(b)
 
 
 @Gearoenix.register
@@ -901,20 +901,58 @@ class Font(Gearoenix.ReferenceableObject):
 
 
 @Gearoenix.register
+class Material:
+
+    def __init__(self, bobj):
+        inputs = [
+            'Alpha', 'AlphaCutoff', 'AlphaMode', 'BaseColor',
+            'BaseColorFactor', 'DoubleSided', 'Emissive', 'EmissiveFactor',
+            'MetallicFactor', 'MetallicRoughness', 'Normal', 'NormalScale',
+            'Occlusion', 'OcclusionStrength', 'RoughnessFactor']
+        if len(bobj.material_slots) < 1:
+            Gearoenix.terminate('There is no material:', bobl.name)
+        if len(bobj.material_slots) > 1:
+            Gearoenix.terminate('There must be only one material slot:', bobl.name)
+        mat = bobj.material_slots[0]
+        if mat.material is None:
+            Gearoenix.terminate('Material does not exist in:', bobj.name)
+        mat = mat.material
+        if mat.node_tree is None:
+            Gearoenix.terminate('Material node tree does not exist in:', bobj.name)
+        node = mat.node_tree
+        if 'Group' not in node.nodes:
+            Gearoenix.terminate('Material main group node does not exist in:', bobj.name)
+        node = node.nodes['Group']
+        if node.node_tree.name != 'glTF Metallic Roughness':
+            Gearoenix.terminate('Material only glTF Metallic Roughness:', bobj.name)
+        node_tree.inputs['BaseColor']
+        # todo
+
+
+@Gearoenix.register
 class Mesh(Gearoenix.UniRenderObject):
     TYPE_BASIC = 1
 
+    @classmethod
+    def init(cls):
+        super().init()
+        cls.BASIC_PREFIX = cls.get_prefix() + "basic-"
+
     def __init__(self, bobj):
         super().__init__(bobj)
-        self.my_type = self.TYPE_BASIC
+        if bobj.name.startswith(self.BASIC_PREFIX):
+            self.my_type = self.TYPE_BASIC
+        else:
+            Gearoenix.terminate('Unspecified mesh type, in:', bobl.name)
         if bobj.type != 'MESH':
             Gearoenix.terminate('Mesh must be of type MESH:', bobj.name)
-        if has_transformation(bobj):
-            Gearoenix.terminate(
-                "Mesh must not have any transformation. in:", bobj.name)
+        if Gearoenix.has_transformation(bobj):
+            Gearoenix.terminate("Mesh must not have any transformation. in:", bobj.name)
         if len(bobj.children) != 0:
             Gearoenix.terminate("Mesh can not have children:", bobj.name)
-        self.shd = Shading(bobj.material_slots[0].material)
+        if bobj.parent is None:
+            Gearoenix.terminate("Mesh must have parent:", bobj.name)
+        self.shd = Gearoenix.Material(bobj)
         if self.origin_instance is not None:
             if not self.shd.has_same_attrs(self.origin_instance.shd):
                 Gearoenix.terminate(
@@ -1066,12 +1104,12 @@ class Model(Gearoenix.RenderObject):
     def __init__(self, bobj):
         super().__init__(bobj)
         self.matrix = bobj.matrix_world
-        self.occlusion = Occlusion.read(bobj)
+        self.occlusion = Gearoenix.Occlusion.read(bobj)
         self.meshes = []
         self.model_children = []
-        self.collider = Collider.read(bobj)
+        self.collider = Gearoenix.Collider.read(bobj)
         for c in bobj.children:
-            ins = Mesh.read(c)
+            ins = Gearoenix.Mesh.read(c)
             if ins is not None:
                 self.meshes.append(ins)
                 continue
@@ -1175,19 +1213,19 @@ class Scene(Gearoenix.RenderObject):
                         "wrong scene is: ", bobj.name)
                 self.skybox = ins
                 continue
-            ins = Camera.read(o)
+            ins = Gearoenix.Camera.read(o)
             if ins is not None:
                 self.cameras.append(ins)
                 continue
-            ins = Light.read(o)
+            ins = Gearoenix.Light.read(o)
             if ins is not None:
                 self.lights.append(ins)
                 continue
-            ins = Audio.read(o)
+            ins = Gearoenix.Audio.read(o)
             if ins is not None:
                 self.audios.append(ins)
                 continue
-            ins = Constraint.read(o)
+            ins = Gearoenix.Constraint.read(o)
             if ins is not None:
                 self.constraints.append(ins)
                 continue
