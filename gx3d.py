@@ -1,19 +1,20 @@
 itemsbl_info = {
-    "name": "Gearoenix 3D Blender",
-    "author": "Hossein Noroozpour",
-    "version": (3, 0),
-    "blender": (2, 7, 5),
-    "api": 1,
-    "location": "File > Export",
-    "description": "Export several scene into a Gearoenix 3D file format.",
-    "warning": "",
-    "wiki_url": "",
-    "tracker_url": "",
-    "category": "Import-Export",
+    'name': 'Gearoenix 3D Blender',
+    'author': 'Hossein Noroozpour',
+    'version': (3, 0),
+    'blender': (2, 7, 5),
+    'api': 1,
+    'location': 'File > Export',
+    'description': 'Export several scene into a Gearoenix 3D file format.',
+    'warning': '',
+    'wiki_url': '',
+    'tracker_url': '',
+    'category': 'Import-Export',
 }
 
 import ctypes
 import enum
+import gc
 import io
 import math
 import os
@@ -57,37 +58,36 @@ class Gearoenix:
 
     @classmethod
     def register(cls, c):
-        exec("cls." + c.__name__ + " = c")
+        exec('cls.' + c.__name__ + ' = c')
 
 
 @Gearoenix.register
 def terminate(*msgs):
-    msg = ""
+    msg = ''
     for m in msgs:
-        msg += str(m) + " "
-    print("Fatal error: " + msg)
+        msg += str(m) + ' '
+    print('Fatal error: ' + msg)
     raise Exception(msg)
 
 
 @Gearoenix.register
 def initialize_pathes():
-    Gearoenix.GX3D_FILE = open(
-        Gearoenix.EXPORT_FILE_PATH, mode='wb')
+    Gearoenix.GX3D_FILE = open(Gearoenix.EXPORT_FILE_PATH, mode='wb')
     if Gearoenix.EXPORT_VULKUST:
-        Gearoenix.RUST_FILE = open(
-            Gearoenix.EXPORT_FILE_PATH + ".rs", mode='w')
-    if Gearoenix.EXPORT_GEAROENIX:
-        Gearoenix.CPP_FILE = open(
-            Gearoenix.EXPORT_FILE_PATH + ".hpp", mode='w')
+        Gearoenix.RUST_FILE = open(Gearoenix.EXPORT_FILE_PATH + '.rs', mode='w')
+    elif Gearoenix.EXPORT_GEAROENIX:
+        Gearoenix.CPP_FILE = open(Gearoenix.EXPORT_FILE_PATH + '.hpp', mode='w')
+    else:
+        Gearoenix.terminate('Unexpected engine selection')
 
 
 @Gearoenix.register
 def log_info(*msgs):
     if Gearoenix.DEBUG_MODE:
-        msg = ""
+        msg = ''
         for m in msgs:
-            msg += str(m) + " "
-        print("Info: " + msg)
+            msg += str(m) + ' '
+        print('Info: ' + msg)
 
 
 @Gearoenix.register
@@ -123,6 +123,11 @@ def write_instances_ids(inss):
 
 
 @Gearoenix.register
+def write_id(id):
+    Gearoenix.write_u64(id)
+
+
+@Gearoenix.register
 def write_vector(v, element_count=3):
     for i in range(element_count):
         Gearoenix.write_float(v[i])
@@ -154,7 +159,7 @@ def write_bool(b):
     data = 0
     if b:
         data = 1
-    Gearoenix.GX3D_FILE.write(TYPE_BOOLEAN(data))
+    Gearoenix.GX3D_FILE.write(Gearoenix.TYPE_BOOLEAN(data))
 
 
 @Gearoenix.register
@@ -165,9 +170,9 @@ def file_tell():
 @Gearoenix.register
 def limit_check(val, maxval=1.0, minval=0.0, obj=None):
     if val > maxval or val < minval:
-        msg = "Out of range value"
+        msg = 'Out of range value'
         if obj is not None:
-            msg += ", in object: " + obj.name
+            msg += ', in object: ' + obj.name
         Gearoenix.terminate(msg)
 
 
@@ -177,8 +182,8 @@ def uint_check(s):
         if int(s) >= 0:
             return True
     except ValueError:
-        Gearoenix.terminate("Type error")
-    Gearoenix.terminate("Type error")
+        Gearoenix.terminate('Type error')
+    Gearoenix.terminate('Type error')
 
 
 @Gearoenix.register
@@ -186,13 +191,13 @@ def get_origin_name(bobj):
     origin_name = bobj.name.strip().split('.')
     num_dot = len(origin_name)
     if num_dot > 2 or num_dot < 1:
-        Gearoenix.terminate("Wrong name in:", bobj.name)
+        Gearoenix.terminate('Wrong name in:', bobj.name)
     elif num_dot == 1:
         return None
     try:
         int(origin_name[1])
     except:
-        Gearoenix.terminate("Wrong name in:", bobj.name)
+        Gearoenix.terminate('Wrong name in:', bobj.name)
     return origin_name[0]
 
 
@@ -226,7 +231,7 @@ def write_string(s):
 
 @Gearoenix.register
 def const_string(s):
-    ss = s.replace("-", "_")
+    ss = s.replace('-', '_')
     ss = ss.replace('/', '_')
     ss = ss.replace('.', '_')
     ss = ss.replace('C:\\', '_')
@@ -238,19 +243,19 @@ def const_string(s):
 
 @Gearoenix.register
 def read_file(f):
-    return open(f, "rb").read()
+    return open(f, 'rb').read()
 
 
 @Gearoenix.register
 def write_file(f):
-    write_u64(len(f))
+    Gearoenix.write_u64(len(f))
     Gearoenix.GX3D_FILE.write(f)
 
 
 @Gearoenix.register
 def enum_max_check(e):
     if e == e.MAX:
-        terminate('UNEXPECTED')
+        Gearoenix.terminate('UNEXPECTED')
 
 
 @Gearoenix.register
@@ -258,29 +263,29 @@ def write_start_module(c):
     mod_name = c.__name__
     if Gearoenix.EXPORT_VULKUST:
         Gearoenix.RUST_FILE.write(
-            "#[cfg_attr(debug_assertions, derive(Debug))]\n")
-        Gearoenix.RUST_FILE.write("#[repr(u64)]\n")
-        Gearoenix.RUST_FILE.write("pub enum " + mod_name + " {\n")
+            '#[cfg_attr(debug_assertions, derive(Debug))]\n')
+        Gearoenix.RUST_FILE.write('#[repr(u64)]\n')
+        Gearoenix.RUST_FILE.write('pub enum ' + mod_name + ' {\n')
     elif Gearoenix.EXPORT_GEAROENIX:
-        Gearoenix.CPP_FILE.write("namespace " + mod_name + "\n{\n")
+        Gearoenix.CPP_FILE.write('namespace ' + mod_name + '\n{\n')
 
 
 @Gearoenix.register
 def write_name_id(name, item_id):
     if Gearoenix.EXPORT_VULKUST:
         Gearoenix.RUST_FILE.write(
-            "    " + name.upper() + " = " + str(int(item_id)) + ",\n")
+            '    ' + name.upper() + ' = ' + str(int(item_id)) + ',\n')
     elif Gearoenix.EXPORT_GEAROENIX:
         Gearoenix.CPP_FILE.write(
-            "\tconst gearoenix::core::Id " + name + " = " + str(item_id) + ";\n")
+            '\tconst gearoenix::core::Id ' + name + ' = ' + str(item_id) + ';\n')
 
 
 @Gearoenix.register
 def write_end_modul():
     if Gearoenix.EXPORT_VULKUST:
-        Gearoenix.RUST_FILE.write("}\n")
+        Gearoenix.RUST_FILE.write('}\n')
     elif Gearoenix.EXPORT_GEAROENIX:
-        Gearoenix.CPP_FILE.write("}\n")
+        Gearoenix.CPP_FILE.write('}\n')
 
 
 @Gearoenix.register
@@ -330,9 +335,9 @@ class RenderObject:
         Gearoenix.last_id += 1
         self.name = self.__class__.get_name_from_bobj(bobj)
         if not bobj.name.startswith(self.__class__.get_prefix()):
-            terminate("Unexpected name in ", self.__class__.__name__)
+            terminate('Unexpected name in ', self.__class__.__name__)
         if self.name in self.__class__.items:
-            terminate(self.name, "is already in items.")
+            terminate(self.name, 'is already in items.')
         self.__class__.items[self.name] = self
 
     @classmethod
@@ -353,7 +358,6 @@ class RenderObject:
     def write_table(cls):
         Gearoenix.write_start_module(cls)
         items = sorted(cls.items.items(), key=lambda kv: kv[1].my_id)
-        print("TEST ", items)
         common_starting = ''
         if len(cls.items) > 1:
             for k in cls.items.keys():
@@ -493,19 +497,19 @@ class Audio(Gearoenix.ReferenceableObject):
     @staticmethod
     def get_name_from_bobj(bobj):
         if bobj.type != 'SPEAKER':
-            Gearoenix.terminate("Audio must be speaker: ", bobj.name)
+            Gearoenix.terminate('Audio must be speaker: ', bobj.name)
         aud = bobj.data
         if aud is None:
-            Gearoenix.terminate("Audio is not set in speaker: ", bobj.name)
+            Gearoenix.terminate('Audio is not set in speaker: ', bobj.name)
         aud = aud.sound
         if aud is None:
-            Gearoenix.terminate("Sound is not set in speaker: ", bobj.name)
+            Gearoenix.terminate('Sound is not set in speaker: ', bobj.name)
         filepath = aud.filepath.strip()
         if filepath is None or len(filepath) == 0:
             Gearoenix.terminate(
-                "Audio is not specified yet in speaker: ", bobj.name)
-        if not filepath.endswith(".ogg"):
-            Gearoenix.terminate("Use OGG instead of ", filepath)
+                'Audio is not specified yet in speaker: ', bobj.name)
+        if not filepath.endswith('.ogg'):
+            Gearoenix.terminate('Use OGG instead of ', filepath)
         return filepath
 
 
@@ -531,9 +535,6 @@ class Light(Gearoenix.RenderObject):
         super().write()
         Gearoenix.write_vector(self.bobj.location)
         Gearoenix.write_vector(self.bobj.rotation_euler)
-        Gearoenix.write_float(self.bobj['near'])
-        Gearoenix.write_float(self.bobj['far'])
-        Gearoenix.write_float(self.bobj['size'])
         Gearoenix.write_vector(self.bobj.data.color)
 
 
@@ -606,7 +607,7 @@ class Constraint(Gearoenix.RenderObject):
             Gearoenix.terminate('Unspecified type in:', bobj.name)
 
     def init_placer(self):
-        BTYPE = "EMPTY"
+        BTYPE = 'EMPTY'
         DESC = 'Placer constraint'
         ATT_X_MIDDLE = 'x-middle'  # 0
         ATT_Y_MIDDLE = 'y-middle'  # 1
@@ -617,17 +618,17 @@ class Constraint(Gearoenix.RenderObject):
         ATT_RATIO = 'ratio'
         if self.bobj.type != BTYPE:
             Gearoenix.terminate(
-                DESC, "type must be", BTYPE, "in object:", self.bobj.name)
+                DESC, 'type must be', BTYPE, 'in object:', self.bobj.name)
         if len(self.bobj.children) < 1:
             Gearoenix.terminate(
-                DESC, "must have more than 0 children, in object:",
+                DESC, 'must have more than 0 children, in object:',
                 self.bobj.name)
         self.model_children = []
         for c in self.bobj.children:
             ins = Gearoenix.Model.read(c)
             if ins is None:
                 Gearoenix.terminate(
-                    DESC, "can only have model as its child, in object:",
+                    DESC, 'can only have model as its child, in object:',
                     self.bobj.name)
             self.model_children.append(ins)
         self.attrs = [None for i in range(6)]
@@ -657,7 +658,7 @@ class Constraint(Gearoenix.RenderObject):
                 4, 8, 33,
         }:
             Gearoenix.terminate(
-                DESC, "must have meaningful combination, in object:",
+                DESC, 'must have meaningful combination, in object:',
                 self.bobj.name)
 
     def write_placer(self):
@@ -673,7 +674,7 @@ class Constraint(Gearoenix.RenderObject):
             Gearoenix.write_float(self.attrs[5])
         else:
             Gearoenix.terminate(
-                "It is not implemented, in object:", self.bobj.name)
+                'It is not implemented, in object:', self.bobj.name)
         childrenids = []
         for c in self.model_children:
             childrenids.append(c.my_id)
@@ -683,7 +684,7 @@ class Constraint(Gearoenix.RenderObject):
     def check_trans(self):
         if Gearoenix.has_transformation(self.bobj):
             Gearoenix.terminate(
-                "This object should not have any transformation, in:",
+                'This object should not have any transformation, in:',
                 self.bobj.name)
 
 
@@ -699,10 +700,10 @@ class Collider:
             if self.MY_TYPE == self.GHOST:
                 return
             else:
-                Gearoenix.terminate("Unexpected bobj is None")
+                Gearoenix.terminate('Unexpected bobj is None')
         if not bobj.name.startswith(self.PREFIX):
             Gearoenix.terminate(
-                "Collider object name is wrong. In:", bobj.name)
+                'Collider object name is wrong. In:', bobj.name)
         self.bobj = bobj
 
     def write(self):
@@ -717,7 +718,7 @@ class Collider:
                 if bobj.name.startswith(c.PREFIX):
                     if collider_object is not None:
                         Gearoenix.terminate(
-                            "Only one collider is acceptable. In model:",
+                            'Only one collider is acceptable. In model:',
                             pbobj.name)
                     collider_object = c(bobj)
         if collider_object is None:
@@ -754,7 +755,7 @@ class MeshCollider(Gearoenix.Collider):
         self.vertices = msh.vertices
         for p in msh.polygons:
             if len(p.vertices) > 3:
-                Gearoenix.terminate("Object", bobj.name, "is not triangled!")
+                Gearoenix.terminate('Object', bobj.name, 'is not triangled!')
             for i in p.vertices:
                 self.indices.append(i)
 
@@ -774,30 +775,26 @@ class Texture(Gearoenix.ReferenceableObject):
     TYPE_2D = 1
     TYPE_3D = 2
     TYPE_CUBE = 3
-    TYPE_BACKED_ENVIRONMENT = 4
-    TYPE_NORMALMAP = 5
-    TYPE_SPECULARE = 6
 
     @classmethod
     def init(cls):
         super().init()
-        cls.D2_PREFIX = cls.get_prefix() + "2d-"
-        cls.D3_PREFIX = cls.get_prefix() + "3d-"
-        cls.CUBE_PREFIX = cls.get_prefix() + "cube-"
-        cls.BACKED_ENVIRONMENT_PREFIX = cls.get_prefix() + "bkenv-"
-        cls.NORMALMAP_PREFIX = cls.get_prefix() + "nrm-"
-        cls.SPECULARE_PREFIX = cls.get_prefix() + "spec-"
+        cls.D2_PREFIX = cls.get_prefix() + '2d-'
+        cls.D3_PREFIX = cls.get_prefix() + '3d-'
+        cls.CUBE_PREFIX = cls.get_prefix() + 'cube-'
 
     def init_6_face(self):
-        if not self.name.endswith('-up.png'):
+        prefix = self.CUBE_PREFIX
+        up_prefix = prefix + 'up-'
+        if not self.name.startswith(up_prefix):
             Gearoenix.terminate('Incorrect 6 face texture:', self.bobj.name)
-        base_name = self.name[:len(self.name) - len('-up.png')]
+        base_name = self.name[len(up_prefix):]
         self.img_up = Gearoenix.read_file(self.name)
-        self.img_down = Gearoenix.read_file(base_name + '-down.png')
-        self.img_left = Gearoenix.read_file(base_name + '-left.png')
-        self.img_right = Gearoenix.read_file(base_name + '-right.png')
-        self.img_front = Gearoenix.read_file(base_name + '-front.png')
-        self.img_back = Gearoenix.read_file(base_name + '-back.png')
+        self.img_down = Gearoenix.read_file(prefix + 'down-' + base_name)
+        self.img_left = Gearoenix.read_file(prefix + 'left-' + base_name)
+        self.img_right = Gearoenix.read_file(prefix + 'right-' + base_name)
+        self.img_front = Gearoenix.read_file(prefix + 'front-' + base_name)
+        self.img_back = Gearoenix.read_file(prefix + 'back-' + base_name)
 
     def write_6_face(self):
         Gearoenix.write_file(self.img_up)
@@ -810,54 +807,33 @@ class Texture(Gearoenix.ReferenceableObject):
     def __init__(self, bobj):
         super().__init__(bobj)
         if bobj.name.startswith(self.D2_PREFIX):
-            self.file = read_file(self.name)
+            self.file = Gearoenix.read_file(self.name)
             self.my_type = self.TYPE_2D
         elif bobj.name.startswith(self.D3_PREFIX):
-            self.file = read_file(self.name)
+            self.file = Gearoenix.read_file(self.name)
             self.my_type = self.TYPE_D3
         elif bobj.name.startswith(self.CUBE_PREFIX):
             self.init_6_face()
             self.my_type = self.TYPE_CUBE
-        elif bobj.name.startswith(self.BACKED_ENVIRONMENT_PREFIX):
-            self.init_6_face()
-            self.my_type = self.TYPE_BACKED_ENVIRONMENT
-        elif bobj.name.startswith(self.NORMALMAP_PREFIX):
-            self.file = read_file(self.name)
-            self.my_type = self.TYPE_NORMALMAP
-        elif bobj.name.startswith(self.SPECULARE_PREFIX):
-            self.file = read_file(self.name)
-            self.my_type = self.TYPE_SPECULARE
         else:
             Gearoenix.terminate('Unspecified texture type, in:', bobl.name)
 
     def write(self):
         super().write()
-        if self.my_type == self.TYPE_2D or \
-                self.my_type == self.TYPE_3D or \
-                self.my_type == self.TYPE_NORMALMAP or \
-                self.my_type == self.TYPE_SPECULARE:
+        if self.my_type == self.TYPE_2D or self.my_type == self.TYPE_3D:
             Gearoenix.write_file(self.file)
-        elif self.my_type == self.TYPE_CUBE or \
-                self.my_type == self.TYPE_BACKED_ENVIRONMENT:
+        elif self.my_type == self.TYPE_CUBE:
             self.write_6_face()
         else:
-            Gearoenix.terminate(
-                'Unspecified texture type, in:', self.bobj.name)
+            Gearoenix.terminate('Unspecified texture type, in:', self.bobj.name)
 
     @staticmethod
     def get_name_from_bobj(bobj):
-        filepath = None
-        if bobj.type == 'IMAGE':
-            img = bobj.image
-            if img is None:
-                Gearoenix.terminate("Image is not set in texture:", bobj.name)
-            filepath = bpy.path.abspath(bobj.image.filepath_raw).strip()
-        else:
-            Gearoenix.terminate("Unrecognized type for texture")
+        if bobj.type != 'IMAGE':
+            Gearoenix.terminate('Unrecognized type for texture')
+        filepath = bpy.path.abspath(bobj.filepath_raw).strip()
         if filepath is None or len(filepath) == 0:
-            Gearoenix.terminate("Filepass is empty:", bobj.name)
-        if not filepath.endswith(".png"):
-            Gearoenix.terminate("Use PNG for image, in:", filepath)
+            Gearoenix.terminate('Filepass is empty:', bobj.name)
         return filepath
 
 
@@ -869,8 +845,8 @@ class Font(Gearoenix.ReferenceableObject):
     @classmethod
     def init(cls):
         super().init()
-        cls.D2_PREFIX = cls.get_prefix() + "2d-"
-        cls.D3_PREFIX = cls.get_prefix() + "3d-"
+        cls.D2_PREFIX = cls.get_prefix() + '2d-'
+        cls.D3_PREFIX = cls.get_prefix() + '3d-'
 
     def __init__(self, bobj):
         super().__init__(bobj)
@@ -892,23 +868,38 @@ class Font(Gearoenix.ReferenceableObject):
         if str(type(bobj)) == "<class 'bpy.types.VectorFont'>":
             filepath = bpy.path.abspath(bobj.filepath).strip()
         else:
-            Gearoenix.terminate("Unrecognized type for font")
+            Gearoenix.terminate('Unrecognized type for font')
         if filepath is None or len(filepath) == 0:
-            Gearoenix.terminate("Filepass is empty:", bobj.name)
-        if not filepath.endswith(".ttf"):
-            Gearoenix.terminate("Use TTF for font, in:", filepath)
+            Gearoenix.terminate('Filepass is empty:', bobj.name)
+        if not filepath.endswith('.ttf'):
+            Gearoenix.terminate('Use TTF for font, in:', filepath)
         return filepath
 
 
 @Gearoenix.register
 class Material:
 
+    FIELD_IS_TEXTURE = 1
+    FIELD_IS_FLOAT = 2
+    FIELD_IS_ARRAY = 3
+    FIELD_IS_VECTOR = 4
+
     def __init__(self, bobj):
-        inputs = [
-            'Alpha', 'AlphaCutoff', 'AlphaMode', 'BaseColor',
-            'BaseColorFactor', 'DoubleSided', 'Emissive', 'EmissiveFactor',
-            'MetallicFactor', 'MetallicRoughness', 'Normal', 'NormalScale',
-            'Occlusion', 'OcclusionStrength', 'RoughnessFactor']
+        self.inputs = {
+            'AlphaCutoff': None,
+            'BaseColor': None,
+            'BaseColorFactor': None,
+            'DoubleSided': None,
+            'Emissive': None,
+            'EmissiveFactor': None,
+            'MetallicFactor': None,
+            'MetallicRoughness': None,
+            'Normal': None,
+            'NormalScale': None,
+            'Occlusion': None,
+            'OcclusionStrength': None,
+            'RoughnessFactor': None,
+        }
         if len(bobj.material_slots) < 1:
             Gearoenix.terminate('There is no material:', bobl.name)
         if len(bobj.material_slots) > 1:
@@ -923,10 +914,51 @@ class Material:
         if 'Group' not in node.nodes:
             Gearoenix.terminate('Material main group node does not exist in:', bobj.name)
         node = node.nodes['Group']
-        if node.node_tree.name != 'glTF Metallic Roughness':
-            Gearoenix.terminate('Material only glTF Metallic Roughness:', bobj.name)
-        node_tree.inputs['BaseColor']
-        # todo
+        for input in self.inputs.keys():
+            if input not in node.inputs:
+                Gearoenix.terminate('Material is incorrect in:', bobj.name)
+        for k in self.inputs.keys():
+            input = node.inputs[k]
+            if len(input.links) < 1:
+                self.inputs[k] = input.default_value
+            elif len(input.links) == 1:
+                img = input.links[0].from_node.image
+                txt = Gearoenix.Texture.read(img)
+                self.inputs[k] = txt
+            else:
+                Gearoenix.terminate('Unexpected number of links in:', input)
+
+    def write(self):
+        for v in self.inputs.values():
+            if isinstance(v, Gearoenix.Texture):
+                Gearoenix.write_u8(self.FIELD_IS_TEXTURE)
+                Gearoenix.write_u64(v.my_id)
+            elif isinstance(v, float):
+                Gearoenix.write_u8(self.FIELD_IS_FLOAT)
+                Gearoenix.write_float(v)
+            elif isinstance(v, bpy.types.bpy_prop_array):
+                Gearoenix.write_u8(self.FIELD_IS_ARRAY)
+                Gearoenix.write_vector(v, 4)
+            elif isinstance(v, mathutils.Vector):
+                Gearoenix.write_u8(self.FIELD_IS_VECTOR)
+                Gearoenix.write_vector(v)
+            else:
+                Gearoenix.terminate('Unexpected type for material input in:', self.bobj.name)
+
+    def has_same_attrs(self, other):
+        for sv, ov in zip(self.inputs.values(), other.inputs.values()):
+            if isinstance(sv, Gearoenix.Texture) != isinstance(ov, Gearoenix.Texture):
+                return False
+        return True
+
+    def needs_normal(self):
+        return True  # todo
+
+    def needs_tangent(self):
+        return True  # todo
+
+    def needs_uv(self):
+        return True  # todo
 
 
 @Gearoenix.register
@@ -936,7 +968,7 @@ class Mesh(Gearoenix.UniRenderObject):
     @classmethod
     def init(cls):
         super().init()
-        cls.BASIC_PREFIX = cls.get_prefix() + "basic-"
+        cls.BASIC_PREFIX = cls.get_prefix() + 'basic-'
 
     def __init__(self, bobj):
         super().__init__(bobj)
@@ -947,27 +979,25 @@ class Mesh(Gearoenix.UniRenderObject):
         if bobj.type != 'MESH':
             Gearoenix.terminate('Mesh must be of type MESH:', bobj.name)
         if Gearoenix.has_transformation(bobj):
-            Gearoenix.terminate("Mesh must not have any transformation. in:", bobj.name)
+            Gearoenix.terminate('Mesh must not have any transformation. in:', bobj.name)
         if len(bobj.children) != 0:
-            Gearoenix.terminate("Mesh can not have children:", bobj.name)
-        if bobj.parent is None:
-            Gearoenix.terminate("Mesh must have parent:", bobj.name)
-        self.shd = Gearoenix.Material(bobj)
+            Gearoenix.terminate('Mesh can not have children:', bobj.name)
+        self.mat = Gearoenix.Material(bobj)
         if self.origin_instance is not None:
-            if not self.shd.has_same_attrs(self.origin_instance.shd):
-                Gearoenix.terminate(
-                    "Different mesh attributes, in: " + bobj.name)
+            if not self.mat.has_same_attrs(self.origin_instance.mat):
+                Gearoenix.terminate('Different mesh attributes, in: ' + bobj.name)
             return
         if bobj.parent is not None:
-            Gearoenix.terminate("Mesh can not have parent:", bobj.name)
+            Gearoenix.terminate('Origin mesh can not have parent:', bobj.name)
         msh = bobj.data
-        nrm = self.shd.needs_normal()
-        uv = self.shd.needs_uv()
+        nrm = self.mat.needs_normal()
+        tng = self.mat.needs_tangent()
+        uv = self.mat.needs_uv()
         vertices = dict()
         last_index = 0
         for p in msh.polygons:
             if len(p.vertices) > 3:
-                Gearoenix.terminate("Object", bobj.name, "is not triangled!")
+                Gearoenix.terminate('Object', bobj.name, 'is not triangled!')
             for i, li in zip(p.vertices, p.loop_indices):
                 vertex = []
                 v = msh.vertices[i].co
@@ -975,15 +1005,20 @@ class Mesh(Gearoenix.UniRenderObject):
                 vertex.append(v[1])
                 vertex.append(v[2])
                 if nrm:
-                    normal = msh.vertices[i].normal.normalized()
+                    normal = msh.loops[li].normal.normalized()
                     vertex.append(normal[0])
                     vertex.append(normal[1])
                     vertex.append(normal[2])
+                if tng:
+                    tangent = msh.loops[li].tangent.normalized()
+                    vertex.append(tangent[0])
+                    vertex.append(tangent[1])
+                    vertex.append(tangent[2])
+                    vertex.append(msh.loops[li].bitangent_sign)
                 if uv:
                     uv_lyrs = msh.uv_layers
                     if len(uv_lyrs) > 1 or len(uv_lyrs) < 1:
-                        Gearoenix.terminate(
-                            "Unexpected number of uv layers in", bobj.name)
+                        Gearoenix.terminate('Unexpected number of uv layers in', bobj.name)
                     texco = uv_lyrs.active.data[li].uv
                     vertex.append(texco[0])
                     vertex.append(1.0 - texco[1])
@@ -1019,7 +1054,7 @@ class Occlusion:
     def __init__(self, bobj):
         if bobj.empty_draw_type != 'SPHERE':
             Gearoenix.terminate(
-                "The only acceptable shape for an occlusion is sphere. in:",
+                'The only acceptable shape for an occlusion is sphere. in:',
                 bobj.name)
         center = bobj.matrix_world * mathutils.Vector((0.0, 0.0, 0.0))
         radius = bobj.empty_draw_size
@@ -1034,7 +1069,7 @@ class Occlusion:
         for c in bobj.children:
             if c.name.startswith(cls.PREFIX):
                 return cls(c)
-        Gearoenix.terminate("Occlusion not found in: ", bobj.name)
+        Gearoenix.terminate('Occlusion not found in: ', bobj.name)
 
     def write(self):
         Gearoenix.write_vector(self.radius)
@@ -1084,9 +1119,7 @@ class Model(Gearoenix.RenderObject):
             elif align_x == 'RIGHT':
                 self.align += 6
             else:
-                Gearoenix.terminate(
-                    "Unrecognized text horizontal alignment, in:",
-                    self.bobj.name)
+                Gearoenix.terminate('Unrecognized text horizontal alignment, in:', self.bobj.name)
             if align_y == 'TOP':
                 self.align += 3
             elif align_y == 'CENTER':
@@ -1094,9 +1127,8 @@ class Model(Gearoenix.RenderObject):
             elif align_y == 'BOTTOM':
                 self.align += 1
             else:
-                Gearoenix.terminate(
-                    "Unrecognized text vertical alignment, in:", self.bobj.name)
-            self.font_shd = Shading(self.bobj.material_slots[0].material, self)
+                Gearoenix.terminate('Unrecognized text vertical alignment, in:', self.bobj.name)
+            self.font_mat = Gearoenix.Material(self.bobj.material_slots[0].material)
             self.font_space_character = self.bobj.data.space_character - 1.0
             self.font_space_word = self.bobj.data.space_word - 1.0
             self.font_space_line = self.bobj.data.space_line
@@ -1139,7 +1171,7 @@ class Model(Gearoenix.RenderObject):
             Gearoenix.write_float(self.font_space_word)
             Gearoenix.write_float(self.font_space_line)
             Gearoenix.write_u64(self.font.my_id)
-            self.font_shd.write()
+            self.font_mat.write()
 
     def write(self):
         super().write()
@@ -1151,7 +1183,7 @@ class Model(Gearoenix.RenderObject):
         Gearoenix.write_instances_ids(self.model_children)
         Gearoenix.write_instances_ids(self.meshes)
         for mesh in self.meshes:
-            mesh.shd.write()
+            mesh.mat.write()
         if self.my_type == self.TYPE_WIDGET:
             self.write_widget()
 
@@ -1166,17 +1198,17 @@ class Skybox(Gearoenix.RenderObject):
         self.mesh = None
         for c in bobj.children:
             if self.mesh is not None:
-                Gearoenix.terminate("Only one mesh is accepted.")
+                Gearoenix.terminate('Only one mesh is accepted.')
             self.mesh = Mesh.read(c)
             if self.mesh is None:
-                Gearoenix.terminate("Only one mesh is accepted.")
-        self.mesh.shd = Shading(self.mesh.bobj.material_slots[0].material,
+                Gearoenix.terminate('Only one mesh is accepted.')
+        self.mesh.mat = Shading(self.mesh.bobj.material_slots[0].material,
                                 self)
 
     def write(self):
         super().write()
         Gearoenix.write_u64(self.mesh.my_id)
-        self.mesh.shd.write()
+        self.mesh.mat.write()
 
 
 @Gearoenix.register
@@ -1209,8 +1241,8 @@ class Scene(Gearoenix.RenderObject):
             if ins is not None:
                 if self.skybox is not None:
                     Gearoenix.terminate(
-                        "Only one skybox is acceptable in a scene,",
-                        "wrong scene is: ", bobj.name)
+                        'Only one skybox is acceptable in a scene,',
+                        'wrong scene is: ', bobj.name)
                 self.skybox = ins
                 continue
             ins = Gearoenix.Camera.read(o)
@@ -1255,7 +1287,6 @@ class Scene(Gearoenix.RenderObject):
 
     def write(self):
         super().write()
-        Gearoenix.write_vector(self.bobj.world.ambient_color)
         Gearoenix.write_instances_ids(self.cameras)
         Gearoenix.write_instances_ids(self.audios)
         Gearoenix.write_instances_ids(self.lights)
@@ -1284,7 +1315,6 @@ class Scene(Gearoenix.RenderObject):
 
 @Gearoenix.register
 def write_tables():
-    Gearoenix.Shader.write_table()
     Gearoenix.Camera.write_table()
     Gearoenix.Audio.write_table()
     Gearoenix.Light.write_table()
@@ -1312,7 +1342,8 @@ def export_files():
     Gearoenix.Scene.init()
     Gearoenix.Scene.read_all()
     Gearoenix.write_bool(sys.byteorder == 'little')
-    Gearoenix.tables_offset = file_tell()
+    Gearoenix.write_id(Gearoenix.last_id)
+    Gearoenix.tables_offset = Gearoenix.file_tell()
     Gearoenix.write_tables()
     Gearoenix.Camera.write_all()
     Gearoenix.Audio.write_all()
@@ -1325,47 +1356,56 @@ def export_files():
     Gearoenix.Constraint.write_all()
     Gearoenix.Scene.write_all()
     Gearoenix.GX3D_FILE.flush()
-    Gearoenix.RUST_FILE.flush()
-    Gearoenix.CPP_FILE.flush()
-    Gearoenix.GX3D_FILE.seek(tables_offset)
-    Gearoenix.RUST_FILE.seek(0)
-    Gearoenix.CPP_FILE.seek(0)
+    if Gearoenix.EXPORT_VULKUST:
+        Gearoenix.RUST_FILE.flush()
+    if Gearoenix.EXPORT_GEAROENIX:
+        Gearoenix.CPP_FILE.flush()
+    Gearoenix.GX3D_FILE.seek(Gearoenix.tables_offset)
+    if Gearoenix.EXPORT_VULKUST:
+        Gearoenix.RUST_FILE.seek(0)
+    if Gearoenix.EXPORT_GEAROENIX:
+        Gearoenix.CPP_FILE.seek(0)
     Gearoenix.write_tables()
     Gearoenix.GX3D_FILE.flush()
     Gearoenix.GX3D_FILE.close()
-    Gearoenix.RUST_FILE.flush()
-    Gearoenix.RUST_FILE.close()
-    Gearoenix.CPP_FILE.flush()
-    Gearoenix.CPP_FILE.close()
+    if Gearoenix.EXPORT_VULKUST:
+        Gearoenix.RUST_FILE.flush()
+        Gearoenix.RUST_FILE.close()
+    if Gearoenix.EXPORT_GEAROENIX:
+        Gearoenix.CPP_FILE.flush()
+        Gearoenix.CPP_FILE.close()
+    gc.collect()
 
 
 @Gearoenix.register
 class Exporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
-    """This is a plug in for Gearoenix 3D file format"""
-    bl_idname = "gearoenix_exporter.data_structure"
-    bl_label = "Export Gearoenix 3D"
-    filename_ext = ".gx3d"
+    'This is a plug in for Gearoenix 3D file format'
+    bl_idname = 'gearoenix_exporter.data_structure'
+    bl_label = 'Export Gearoenix 3D'
+    filename_ext = '.gx3d'
     filter_glob = bpy.props.StringProperty(
-        default="*.gx3d",
+        default='*.gx3d',
         options={'HIDDEN'},
     )
     export_engine = bpy.props.EnumProperty(
-        name="Game engine",
-        description="This item select the game engine",
+        name='Game engine',
+        description='This item select the game engine',
         items=(
+            (str(Gearoenix.ENGINE_VULKUST), 'Vulkust', ''),
             (str(Gearoenix.ENGINE_GEAROENIX), 'Gearoenix', ''),
-            (str(Gearoenix.ENGINE_VULKUST), 'Vulkust', '')))
+        ),
+    )
 
     def execute(self, context):
         engine = int(self.export_engine)
         if engine == Gearoenix.ENGINE_GEAROENIX:
             Gearoenix.EXPORT_GEAROENIX = True
-            Gearoenix.log_info("Exporting for Gearoenix engine")
+            Gearoenix.log_info('Exporting for Gearoenix engine')
         elif engine == Gearoenix.ENGINE_VULKUST:
             Gearoenix.EXPORT_VULKUST = True
-            Gearoenix.log_info("Exporting for Vulkust engine")
+            Gearoenix.log_info('Exporting for Vulkust engine')
         else:
-            Gearoenix.terminate("Unexpected export engine")
+            Gearoenix.terminate('Unexpected export engine')
         Gearoenix.EXPORT_FILE_PATH = self.filepath
         Gearoenix.export_files()
         return {'FINISHED'}
@@ -1374,7 +1414,7 @@ class Exporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
 @Gearoenix.register
 def menu_func_export(self, context):
     self.layout.operator(
-        Gearoenix.Exporter.bl_idname, text="Gearoenix 3D Exporter (.gx3d)")
+        Gearoenix.Exporter.bl_idname, text='Gearoenix 3D Exporter (.gx3d)')
 
 
 @Gearoenix.register
@@ -1383,5 +1423,5 @@ def register_plugin():
     bpy.types.INFO_MT_file_export.append(Gearoenix.menu_func_export)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     Gearoenix.register_plugin()
