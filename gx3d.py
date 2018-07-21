@@ -116,6 +116,11 @@ def write_u8(n):
 
 
 @Gearoenix.register
+def write_type_id(n):
+    Gearoenix.write_u8(n)
+
+
+@Gearoenix.register
 def write_instances_ids(inss):
     Gearoenix.write_u64(len(inss))
     for ins in inss:
@@ -345,7 +350,7 @@ class RenderObject:
         return cls.__name__.lower() + '-'
 
     def write(self):
-        Gearoenix.write_u64(self.my_type)
+        Gearoenix.write_type_id(self.my_type)
 
     @classmethod
     def write_all(cls):
