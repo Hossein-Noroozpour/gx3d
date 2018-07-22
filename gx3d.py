@@ -1280,12 +1280,12 @@ class Scene(Gearoenix.RenderObject):
                 'Scene must have at least one light, in:', bobj.name)
         self.boundary_left = None
         if 'left' in bobj:
-            self.boundary_left = bobj['left']
-            self.boundary_right = bobj['right']
-            self.boundary_up = bobj['up']
-            self.boundary_down = bobj['down']
-            self.boundary_front = bobj['front']
-            self.boundary_back = bobj['back']
+            self.boundary_left = bobj['left']  # todo it must be calculated, remove it
+            self.boundary_right = bobj['right']  # todo it must be calculated, remove it
+            self.boundary_up = bobj['up']  # todo it must be calculated, remove it
+            self.boundary_down = bobj['down']  # todo it must be calculated, remove it
+            self.boundary_front = bobj['front']  # todo it must be calculated, remove it
+            self.boundary_back = bobj['back']  # todo it must be calculated, remove it
             self.grid_x_count = int(bobj['x-grid-count'])
             self.grid_y_count = int(bobj['y-grid-count'])
             self.grid_z_count = int(bobj['z-grid-count'])
