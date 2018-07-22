@@ -573,13 +573,13 @@ class Camera(Gearoenix.RenderObject):
         super().write()
         cam = self.bobj.data
         Gearoenix.write_vector(self.bobj.location)
-        Gearoenix.write_vector(self.bobj.rotation_euler)
+        Gearoenix.write_vector(self.bobj.matrix_world.to_quaternion(), 4)
         Gearoenix.write_float(cam.clip_start)
         Gearoenix.write_float(cam.clip_end)
         if self.my_type == self.TYPE_PERSPECTIVE:
-            Gearoenix.write_float(cam.angle_x / 2.0)
+            Gearoenix.write_float(cam.angle_y)
         elif self.my_type == self.TYPE_ORTHOGRAPHIC:
-            Gearoenix.write_float(cam.ortho_scale / 2.0)
+            Gearoenix.write_float(cam.ortho_scale)
         else:
             Gearoenix.terminate('Unspecified type in:', bobj.name)
 
