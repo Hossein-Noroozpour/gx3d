@@ -1058,16 +1058,13 @@ class Occlusion:
 
     def __init__(self, bobj):
         if bobj.empty_draw_type != 'SPHERE':
-            Gearoenix.terminate(
-                'The only acceptable shape for an occlusion is sphere. in:',
-                bobj.name)
-        center = bobj.matrix_world * mathutils.Vector((0.0, 0.0, 0.0))
+            Gearoenix.terminate('The only acceptable shape for an occlusion is sphere. in:', bobj.name)
+        if Gearoenix.has_transformation(bobj):
+            Gearoenix.terminate('Occlusion can not have transformation. in:', bobj.name)
         radius = bobj.empty_draw_size
         radius = mathutils.Vector((radius, radius, radius))
         radius = bobj.matrix_world * radius
-        radius -= center
-        self.radius = radius
-        self.center = bobj.parent.matrix_world.inverted() * center
+        self.radius = max(radius[0], max(radius[1], radius[2]))
 
     @classmethod
     def read(cls, bobj):
@@ -1077,8 +1074,7 @@ class Occlusion:
         Gearoenix.terminate('Occlusion not found in: ', bobj.name)
 
     def write(self):
-        Gearoenix.write_vector(self.radius)
-        Gearoenix.write_vector(self.center)
+        Gearoenix.write_float(self.radius)
 
 
 @Gearoenix.register
