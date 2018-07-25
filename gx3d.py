@@ -712,8 +712,7 @@ class Collider:
         self.bobj = bobj
 
     def write(self):
-        Gearoenix.write_u64(self.MY_TYPE)
-        pass
+        Gearoenix.write_type_id(self.MY_TYPE)
 
     @classmethod
     def read(cls, pbobj):
@@ -1181,12 +1180,10 @@ class Model(Gearoenix.RenderObject):
         Gearoenix.write_matrix(self.bobj.matrix_world)
         self.occlusion.write()
         self.collider.write()
-        Gearoenix.write_instances_ids(self.model_children)
         Gearoenix.write_instances_ids(self.meshes)
-        for mesh in self.meshes:
-            mesh.mat.write()
         if self.my_type == self.TYPE_WIDGET:
             self.write_widget()
+        Gearoenix.write_instances_ids(self.model_children)
 
 
 @Gearoenix.register
