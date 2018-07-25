@@ -883,13 +883,13 @@ class Font(Gearoenix.ReferenceableObject):
 @Gearoenix.register
 class Material:
 
-    FIELD_IS_TEXTURE = 1
-    FIELD_IS_FLOAT = 2
-    FIELD_IS_ARRAY = 3
-    FIELD_IS_VECTOR = 4
+    FIELD_IS_FLOAT = 1
+    FIELD_IS_TEXTURE = 2
+    FIELD_IS_VECTOR = 3
 
     def __init__(self, bobj):
         self.inputs = {
+            'AlphaMode': None,
             'AlphaCutoff': None,
             'BaseColor': None,
             'BaseColorFactor': None,
@@ -941,11 +941,11 @@ class Material:
                 Gearoenix.write_u8(self.FIELD_IS_FLOAT)
                 Gearoenix.write_float(v)
             elif isinstance(v, bpy.types.bpy_prop_array):
-                Gearoenix.write_u8(self.FIELD_IS_ARRAY)
+                Gearoenix.write_u8(self.FIELD_IS_VECTOR)
                 Gearoenix.write_vector(v, 4)
             elif isinstance(v, mathutils.Vector):
                 Gearoenix.write_u8(self.FIELD_IS_VECTOR)
-                Gearoenix.write_vector(v)
+                Gearoenix.write_vector(v, 4)
             else:
                 Gearoenix.terminate('Unexpected type for material input in:', self.bobj.name)
 
@@ -1049,6 +1049,7 @@ class Mesh(Gearoenix.UniRenderObject):
             for e in vertex:
                 Gearoenix.write_float(e)
         Gearoenix.write_u32_array(self.indices)
+        self.mat.write()
 
 
 @Gearoenix.register
@@ -1149,8 +1150,7 @@ class Model(Gearoenix.RenderObject):
             if ins is not None:
                 self.model_children.append(ins)
                 continue
-        if len(self.model_children) + len(self.meshes) < 1 and \
-                not bobj.name.startswith(self.TEXT_PREFIX):
+        if len(self.model_children) + len(self.meshes) < 1 and not bobj.name.startswith(self.TEXT_PREFIX):
             Gearoenix.terminate('Waste model', bobj.name)
         if bobj.name.startswith(self.DYNAMIC_PREFIX):
             self.my_type = self.TYPE_DYNAMIC
