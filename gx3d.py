@@ -12,6 +12,7 @@ itemsbl_info = {
     'category': 'Import-Export',
 }
 
+import collections
 import ctypes
 import enum
 import gc
@@ -889,8 +890,9 @@ class Material:
 
     def __init__(self, bobj):
         self.inputs = {
-            'AlphaMode': None,
+            'Alpha': None,
             'AlphaCutoff': None,
+            'AlphaMode': None,
             'BaseColor': None,
             'BaseColorFactor': None,
             'DoubleSided': None,
@@ -904,6 +906,7 @@ class Material:
             'OcclusionStrength': None,
             'RoughnessFactor': None,
         }
+        self.inputs = collections.OrderedDict(sorted(self.inputs.items(), key=lambda t: t[0]))
         if len(bobj.material_slots) < 1:
             Gearoenix.terminate('There is no material:', bobl.name)
         if len(bobj.material_slots) > 1:
@@ -942,10 +945,10 @@ class Material:
                 Gearoenix.write_float(v)
             elif isinstance(v, bpy.types.bpy_prop_array):
                 Gearoenix.write_u8(self.FIELD_IS_VECTOR)
-                Gearoenix.write_vector(v, 4)
+                Gearoenix.write_vector(v)
             elif isinstance(v, mathutils.Vector):
                 Gearoenix.write_u8(self.FIELD_IS_VECTOR)
-                Gearoenix.write_vector(v, 4)
+                Gearoenix.write_vector(v)
             else:
                 Gearoenix.terminate('Unexpected type for material input in:', self.bobj.name)
 
