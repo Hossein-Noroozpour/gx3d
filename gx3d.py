@@ -38,8 +38,6 @@ class Gearoenix:
     TYPE_U16 = ctypes.c_uint16
     TYPE_U8 = ctypes.c_uint8
 
-    STRING_CUTOFF = 'cutoff'
-
     DEBUG_MODE = True
 
     EPSILON = 0.0001
