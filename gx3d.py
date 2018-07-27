@@ -268,8 +268,7 @@ def enum_max_check(e):
 def write_start_module(c):
     mod_name = c.__name__
     if Gearoenix.EXPORT_VULKUST:
-        Gearoenix.RUST_FILE.write(
-            '#[cfg_attr(debug_assertions, derive(Debug))]\n')
+        Gearoenix.RUST_FILE.write('#[cfg_attr(debug_assertions, derive(Debug))]\n')
         Gearoenix.RUST_FILE.write('#[repr(u64)]\n')
         Gearoenix.RUST_FILE.write('pub enum ' + mod_name + ' {\n')
     elif Gearoenix.EXPORT_GEAROENIX:
@@ -279,11 +278,9 @@ def write_start_module(c):
 @Gearoenix.register
 def write_name_id(name, item_id):
     if Gearoenix.EXPORT_VULKUST:
-        Gearoenix.RUST_FILE.write(
-            '    ' + name.upper() + ' = ' + str(int(item_id)) + ',\n')
+        Gearoenix.RUST_FILE.write('    ' + name.upper() + ' = ' + str(int(item_id)) + ',\n')
     elif Gearoenix.EXPORT_GEAROENIX:
-        Gearoenix.CPP_FILE.write(
-            '\tconst gearoenix::core::Id ' + name + ' = ' + str(item_id) + ';\n')
+        Gearoenix.CPP_FILE.write('    const gearoenix::core::Id ' + name + ' = ' + str(item_id) + ';\n')
 
 
 @Gearoenix.register
@@ -512,8 +509,7 @@ class Audio(Gearoenix.ReferenceableObject):
             Gearoenix.terminate('Sound is not set in speaker: ', bobj.name)
         filepath = aud.filepath.strip()
         if filepath is None or len(filepath) == 0:
-            Gearoenix.terminate(
-                'Audio is not specified yet in speaker: ', bobj.name)
+            Gearoenix.terminate('Audio is not specified yet in speaker: ', bobj.name)
         if not filepath.endswith('.ogg'):
             Gearoenix.terminate('Use OGG instead of ', filepath)
         return filepath
@@ -938,16 +934,16 @@ class Material:
     def write(self):
         for v in self.inputs.values():
             if isinstance(v, Gearoenix.Texture):
-                Gearoenix.write_u8(self.FIELD_IS_TEXTURE)
+                Gearoenix.write_type_id(self.FIELD_IS_TEXTURE)
                 Gearoenix.write_u64(v.my_id)
             elif isinstance(v, float):
-                Gearoenix.write_u8(self.FIELD_IS_FLOAT)
+                Gearoenix.write_type_id(self.FIELD_IS_FLOAT)
                 Gearoenix.write_float(v)
             elif isinstance(v, bpy.types.bpy_prop_array):
-                Gearoenix.write_u8(self.FIELD_IS_VECTOR)
+                Gearoenix.write_type_id(self.FIELD_IS_VECTOR)
                 Gearoenix.write_vector(v)
             elif isinstance(v, mathutils.Vector):
-                Gearoenix.write_u8(self.FIELD_IS_VECTOR)
+                Gearoenix.write_type_id(self.FIELD_IS_VECTOR)
                 Gearoenix.write_vector(v)
             else:
                 Gearoenix.terminate('Unexpected type for material input in:', self.bobj.name)
