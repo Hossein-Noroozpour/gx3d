@@ -419,8 +419,7 @@ class UniRenderObject(Gearoenix.RenderObject):
 
     def write(self):
         if self.origin_instance is not None:
-            Gearoenix.terminate(
-                'This object must not written like this. in', self.name)
+            Gearoenix.terminate('This object must not written like this. in', self.name)
         super().write()
 
     @classmethod
@@ -462,8 +461,7 @@ class ReferenceableObject(Gearoenix.RenderObject):
 
     def write(self):
         if self.origin_instance is not None:
-            Gearoenix.terminate(
-                'This object must not written like this. in', self.name)
+            Gearoenix.terminate('This object must not written like this. in', self.name)
         super().write()
 
     def get_offset(self):
@@ -619,19 +617,14 @@ class Constraint(Gearoenix.RenderObject):
         ATT_Y_DOWN = 'y-down'  # 5
         ATT_RATIO = 'ratio'
         if self.bobj.type != BTYPE:
-            Gearoenix.terminate(
-                DESC, 'type must be', BTYPE, 'in object:', self.bobj.name)
+            Gearoenix.terminate(DESC, 'type must be', BTYPE, 'in object:', self.bobj.name)
         if len(self.bobj.children) < 1:
-            Gearoenix.terminate(
-                DESC, 'must have more than 0 children, in object:',
-                self.bobj.name)
+            Gearoenix.terminate(DESC, 'must have more than 0 children, in object:', self.bobj.name)
         self.model_children = []
         for c in self.bobj.children:
             ins = Gearoenix.Model.read(c)
             if ins is None:
-                Gearoenix.terminate(
-                    DESC, 'can only have model as its child, in object:',
-                    self.bobj.name)
+                Gearoenix.terminate(DESC, 'can only have model as its child, in object:', self.bobj.name)
             self.model_children.append(ins)
         self.attrs = [None for i in range(6)]
         if ATT_X_MIDDLE in self.bobj:
@@ -656,12 +649,8 @@ class Constraint(Gearoenix.RenderObject):
         for i in range(len(self.attrs)):
             if self.attrs[i] is not None:
                 self.placer_type |= (1 << i)
-        if self.placer_type not in {
-                4, 8, 33,
-        }:
-            Gearoenix.terminate(
-                DESC, 'must have meaningful combination, in object:',
-                self.bobj.name)
+        if self.placer_type not in {4, 8, 33}:
+            Gearoenix.terminate(DESC, 'must have meaningful combination, in object:', self.bobj.name)
 
     def write_placer(self):
         Gearoenix.write_u64(self.placer_type)
@@ -675,8 +664,7 @@ class Constraint(Gearoenix.RenderObject):
             Gearoenix.write_float(self.attrs[0])
             Gearoenix.write_float(self.attrs[5])
         else:
-            Gearoenix.terminate(
-                'It is not implemented, in object:', self.bobj.name)
+            Gearoenix.terminate('It is not implemented, in object:', self.bobj.name)
         childrenids = []
         for c in self.model_children:
             childrenids.append(c.my_id)
@@ -685,9 +673,7 @@ class Constraint(Gearoenix.RenderObject):
 
     def check_trans(self):
         if Gearoenix.has_transformation(self.bobj):
-            Gearoenix.terminate(
-                'This object should not have any transformation, in:',
-                self.bobj.name)
+            Gearoenix.terminate('This object should not have any transformation, in:', self.bobj.name)
 
 
 @Gearoenix.register
@@ -704,8 +690,7 @@ class Collider:
             else:
                 Gearoenix.terminate('Unexpected bobj is None')
         if not bobj.name.startswith(self.PREFIX):
-            Gearoenix.terminate(
-                'Collider object name is wrong. In:', bobj.name)
+            Gearoenix.terminate('Collider object name is wrong. In:', bobj.name)
         self.bobj = bobj
 
     def write(self):
@@ -718,9 +703,7 @@ class Collider:
             for c in cls.CHILDREN:
                 if bobj.name.startswith(c.PREFIX):
                     if collider_object is not None:
-                        Gearoenix.terminate(
-                            'Only one collider is acceptable. In model:',
-                            pbobj.name)
+                        Gearoenix.terminate('Only one collider is acceptable. In model:', pbobj.name)
                     collider_object = c(bobj)
         if collider_object is None:
             return Gearoenix.GhostCollider()
@@ -745,12 +728,9 @@ class MeshCollider(Gearoenix.Collider):
         super().__init__(bobj)
         self.bobj = bobj
         if bobj.type != 'MESH':
-            Gearoenix.terminate(
-                'Mesh collider must have mesh object type, In model:',
-                bobj.name)
+            Gearoenix.terminate('Mesh collider must have mesh object type, In model:', bobj.name)
         if has_transformation(bobj):
-            Gearoenix.terminate(
-                'Mesh collider can not have any transformation, in:', bobj.name)
+            Gearoenix.terminate('Mesh collider can not have any transformation, in:', bobj.name)
         msh = bobj.data
         self.indices = []
         self.vertices = msh.vertices
@@ -1199,8 +1179,7 @@ class Skybox(Gearoenix.RenderObject):
             self.mesh = Mesh.read(c)
             if self.mesh is None:
                 Gearoenix.terminate('Only one mesh is accepted.')
-        self.mesh.mat = Shading(self.mesh.bobj.material_slots[0].material,
-                                self)
+        self.mesh.mat = Shading(self.mesh.bobj.material_slots[0].material, self)
 
     def write(self):
         super().write()
@@ -1237,9 +1216,7 @@ class Scene(Gearoenix.RenderObject):
             ins = Gearoenix.Skybox.read(o)
             if ins is not None:
                 if self.skybox is not None:
-                    Gearoenix.terminate(
-                        'Only one skybox is acceptable in a scene,',
-                        'wrong scene is: ', bobj.name)
+                    Gearoenix.terminate('Only one skybox is acceptable in a scene, wrong scene is: ', bobj.name)
                 self.skybox = ins
                 continue
             ins = Gearoenix.Camera.read(o)
@@ -1265,11 +1242,9 @@ class Scene(Gearoenix.RenderObject):
         else:
             Gearoenix.terminate('Unspecified scene type, in:', bobj.name)
         if len(self.cameras) < 1:
-            Gearoenix.terminate(
-                'Scene must have at least one camera, in:', bobj.name)
+            Gearoenix.terminate('Scene must have at least one camera, in:', bobj.name)
         if len(self.lights) < 1:
-            Gearoenix.terminate(
-                'Scene must have at least one light, in:', bobj.name)
+            Gearoenix.terminate('Scene must have at least one light, in:', bobj.name)
         self.boundary_left = None
         if 'left' in bobj:
             self.boundary_left = bobj['left']  # todo it must be calculated, remove it
