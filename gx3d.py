@@ -72,8 +72,12 @@ def terminate(*msgs):
 @Gearoenix.register
 def initialize_pathes():
     Gearoenix.GX3D_FILE = open(Gearoenix.EXPORT_FILE_PATH, mode='wb')
+    dirstr = os.path.dirname(Gearoenix.EXPORT_FILE_PATH)
+    filename = Gearoenix.EXPORT_FILE_PATH[len(dirstr) + 1:]
+    pdirstr = os.path.dirname(dirstr)
     if Gearoenix.EXPORT_VULKUST:
-        Gearoenix.RUST_FILE = open(Gearoenix.EXPORT_FILE_PATH + '.rs', mode='w')
+        rsfile = filename.replace('.', '_') + '.rs'
+        Gearoenix.RUST_FILE = open(pdirstr + '/src/' + rsfile, mode='w')
     elif Gearoenix.EXPORT_GEAROENIX:
         Gearoenix.CPP_FILE = open(Gearoenix.EXPORT_FILE_PATH + '.hpp', mode='w')
     else:
@@ -269,6 +273,7 @@ def write_start_module(c):
         Gearoenix.RUST_FILE.write('#[cfg_attr(debug_assertions, derive(Debug))]\n')
         Gearoenix.RUST_FILE.write('#[repr(u64)]\n')
         Gearoenix.RUST_FILE.write('pub enum ' + mod_name + ' {\n')
+        Gearoenix.RUST_FILE.write('    UNEXPECTED = 0,\n')
     elif Gearoenix.EXPORT_GEAROENIX:
         Gearoenix.CPP_FILE.write('namespace ' + mod_name + '\n{\n')
 
