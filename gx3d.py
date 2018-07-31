@@ -924,10 +924,10 @@ class Material:
                 Gearoenix.write_float(v)
             elif isinstance(v, bpy.types.bpy_prop_array):
                 Gearoenix.write_type_id(self.FIELD_IS_VECTOR)
-                Gearoenix.write_vector(v)
+                Gearoenix.write_vector(v, 4)
             elif isinstance(v, mathutils.Vector):
                 Gearoenix.write_type_id(self.FIELD_IS_VECTOR)
-                Gearoenix.write_vector(v)
+                Gearoenix.write_vector(v, 4)
             else:
                 Gearoenix.terminate('Unexpected type for material input in:', self.bobj.name)
 
@@ -1025,7 +1025,7 @@ class Mesh(Gearoenix.UniRenderObject):
 
     def write(self):
         super().write()
-        Gearoenix.write_u64(len(self.vertices[0]))
+        Gearoenix.write_u8(len(self.vertices[0]))
         Gearoenix.write_u64(len(self.vertices))
         for vertex in self.vertices:
             for e in vertex:
