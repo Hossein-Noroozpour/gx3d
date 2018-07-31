@@ -373,9 +373,11 @@ class RenderObject:
             common_starting = Gearoenix.find_common_starting(
                 common_starting, Gearoenix.const_string(k))
         Gearoenix.write_u64(len(items))
+        Gearoenix.log_info('Number of', cls.__name__, len(items))
         for _, item in items:
             Gearoenix.write_u64(item.my_id)
             Gearoenix.write_u64(item.offset)
+            Gearoenix.log_info('  id:', item.my_id, 'offset:', item.offset)
             name = Gearoenix.const_string(item.name)[len(common_starting):]
             Gearoenix.write_name_id(name, item.my_id)
         Gearoenix.write_end_modul()
