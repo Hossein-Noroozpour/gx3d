@@ -273,15 +273,30 @@ def write_start_module(c):
         Gearoenix.RUST_FILE.write('#[cfg_attr(debug_assertions, derive(Debug))]\n')
         Gearoenix.RUST_FILE.write('#[repr(u64)]\n')
         Gearoenix.RUST_FILE.write('pub enum ' + mod_name + ' {\n')
-        Gearoenix.RUST_FILE.write('    UNEXPECTED = 0,\n')
+        Gearoenix.RUST_FILE.write('    Unexpected = 0,\n')
     elif Gearoenix.EXPORT_GEAROENIX:
         Gearoenix.CPP_FILE.write('namespace ' + mod_name + '\n{\n')
 
 
 @Gearoenix.register
+def camelize_underlined(name):
+    camel = ""
+    must_up = True
+    for c in name:
+        if c == '_':
+            must_up = True
+        elif must_up:
+            camel += c.upper()
+            must_up = False
+        else:
+            camel += c.lower()
+    return camel
+
+
+@Gearoenix.register
 def write_name_id(name, item_id):
     if Gearoenix.EXPORT_VULKUST:
-        Gearoenix.RUST_FILE.write('    ' + name.upper() + ' = ' + str(int(item_id)) + ',\n')
+        Gearoenix.RUST_FILE.write('    ' + Gearoenix.camelize_underlined(name) + ' = ' + str(int(item_id)) + ',\n')
     elif Gearoenix.EXPORT_GEAROENIX:
         Gearoenix.CPP_FILE.write('    const gearoenix::core::Id ' + name + ' = ' + str(item_id) + ';\n')
 
