@@ -536,11 +536,15 @@ class Audio(Gearoenix.ReferenceableObject):
 @Gearoenix.register
 class Light(Gearoenix.RenderObject):
     TYPE_SUN = 1
+    TYPE_POINT = 2
+    TYPE_CONE = 3
 
     @classmethod
     def init(cls):
         super().init()
         cls.SUN_PREFIX = cls.get_prefix() + 'sun-'
+        cls.POINT_PREFIX = cls.get_prefix() + 'point-'
+        cls.CONE_PREFIX = cls.get_prefix() + 'cone-'
 
     def __init__(self, bobj):
         super().__init__(bobj)
@@ -594,7 +598,7 @@ class Camera(Gearoenix.RenderObject):
         Gearoenix.write_float(cam.clip_start)
         Gearoenix.write_float(cam.clip_end)
         if self.my_type == self.TYPE_PERSPECTIVE:
-            Gearoenix.write_float(cam.angle_y)
+            Gearoenix.write_float(cam.angle_x)
         elif self.my_type == self.TYPE_ORTHOGRAPHIC:
             Gearoenix.write_float(cam.ortho_scale)
         else:
@@ -1000,12 +1004,16 @@ class Mesh(Gearoenix.UniRenderObject):
         uv = self.mat.needs_uv()
         vertices = dict()
         last_index = 0
+        self.occlusion_radius = 0.0
         for p in msh.polygons:
             if len(p.vertices) > 3:
                 Gearoenix.terminate('Object', bobj.name, 'is not triangled!')
             for i, li in zip(p.vertices, p.loop_indices):
                 vertex = []
                 v = msh.vertices[i].co
+                occlusion_radius = v.length
+                if occlusion_radius > self.occlusion_radius:
+                    self.occlusion_radius = occlusion_radius
                 vertex.append(v[0])
                 vertex.append(v[1])
                 vertex.append(v[2])
@@ -1050,6 +1058,7 @@ class Mesh(Gearoenix.UniRenderObject):
             for e in vertex:
                 Gearoenix.write_float(e)
         Gearoenix.write_u32_array(self.indices)
+        Gearoenix.write_float(self.occlusion_radius)
         self.mat.write()
 
 
