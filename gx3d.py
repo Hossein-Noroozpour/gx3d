@@ -594,7 +594,11 @@ class Camera(Gearoenix.RenderObject):
         super().write()
         cam = self.bobj.data
         Gearoenix.write_vector(self.bobj.location)
+        Gearoenix.log_info("Camera location is:", 
+            str(self.bobj.location))
         Gearoenix.write_vector(self.bobj.matrix_world.to_quaternion(), 4)
+        Gearoenix.log_info("Camera quaternion is:", 
+            str(self.bobj.matrix_world.to_quaternion()))
         Gearoenix.write_float(cam.clip_start)
         Gearoenix.write_float(cam.clip_end)
         if self.my_type == self.TYPE_PERSPECTIVE:
