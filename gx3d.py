@@ -896,23 +896,22 @@ class Material:
 
     def __init__(self, bobj):
         self.inputs = {
-            'Alpha': None,
-            'AlphaCutoff': None,
-            'AlphaMode': None,
-            'BaseColor': None,
-            'BaseColorFactor': None,
-            'DoubleSided': None,
-            'Emissive': None,
-            'EmissiveFactor': None,
-            'MetallicFactor': None,
-            'MetallicRoughness': None,
-            'Normal': None,
-            'NormalScale': None,
-            'Occlusion': None,
-            'OcclusionStrength': None,
-            'RoughnessFactor': None,
+            'Alpha': [None, 1],
+            'AlphaCutoff': [None, 2],
+            'AlphaMode': [None, 3],
+            'BaseColor': [None, 4],
+            'BaseColorFactor': [None, 5],
+            'DoubleSided': [None, 6],
+            'Emissive': [None, 7],
+            'EmissiveFactor': [None, 8],
+            'MetallicFactor': [None, 9],
+            'MetallicRoughness': [None, 10],
+            'Normal': [None, 11],
+            'NormalScale': [None, 12],
+            'Occlusion': [None, 13],
+            'OcclusionStrength': [None, 14],
+            'RoughnessFactor': [None, 15],
         }
-        self.inputs = collections.OrderedDict(sorted(self.inputs.items(), key=lambda t: t[0]))
         if len(bobj.material_slots) < 1:
             Gearoenix.terminate('There is no material:', bobl.name)
         if len(bobj.material_slots) > 1:
@@ -933,16 +932,18 @@ class Material:
         for k in self.inputs.keys():
             input = node.inputs[k]
             if len(input.links) < 1:
-                self.inputs[k] = input.default_value
+                self.inputs[k][0] = input.default_value
             elif len(input.links) == 1:
                 img = input.links[0].from_node.image
                 txt = Gearoenix.Texture.read(img)
-                self.inputs[k] = txt
+                self.inputs[k][0] = txt
             else:
                 Gearoenix.terminate('Unexpected number of links in:', input)
 
     def write(self):
-        for v in self.inputs.values():
+        Gearoenix.log_info("Matrial properties are:", self.inputs)
+        for v, i in self.inputs.values():
+            Gearoenix.write_u8(i)
             if isinstance(v, Gearoenix.Texture):
                 Gearoenix.write_type_id(self.FIELD_IS_TEXTURE)
                 Gearoenix.write_u64(v.my_id)
