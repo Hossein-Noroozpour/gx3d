@@ -1004,6 +1004,8 @@ class Mesh(Gearoenix.UniRenderObject):
         if bobj.parent is not None:
             Gearoenix.terminate('Origin mesh can not have parent:', bobj.name)
         msh = bobj.data
+        msh.calc_normals_split()
+        msh.calc_tangents()
         nrm = self.mat.needs_normal()
         tng = self.mat.needs_tangent()
         uv = self.mat.needs_uv()
@@ -1024,11 +1026,13 @@ class Mesh(Gearoenix.UniRenderObject):
                 vertex.append(v[2])
                 if nrm:
                     normal = msh.loops[li].normal.normalized()
+                    # Gearoenix.log_info(str(normal))
                     vertex.append(normal[0])
                     vertex.append(normal[1])
                     vertex.append(normal[2])
                 if tng:
                     tangent = msh.loops[li].tangent.normalized()
+                    # Gearoenix.log_info(str(tangent))
                     vertex.append(tangent[0])
                     vertex.append(tangent[1])
                     vertex.append(tangent[2])
