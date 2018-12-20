@@ -1068,7 +1068,6 @@ class Mesh(Gearoenix.UniRenderObject):
                 Gearoenix.write_float(e)
         Gearoenix.write_u32_array(self.indices)
         Gearoenix.write_float(self.occlusion_radius)
-        self.mat.write()
 
 
 @Gearoenix.register
@@ -1200,6 +1199,8 @@ class Model(Gearoenix.RenderObject):
         self.occlusion.write()
         self.collider.write()
         Gearoenix.write_instances_ids(self.meshes)
+        for m in self.meshes:
+            m.mat.write()
         if self.my_type == self.TYPE_WIDGET:
             self.write_widget()
         Gearoenix.write_instances_ids(self.model_children)
