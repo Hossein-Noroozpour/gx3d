@@ -557,8 +557,10 @@ class Light(Gearoenix.RenderObject):
 
     def write(self):
         super().write()
-        Gearoenix.write_vector(self.bobj.location)
-        Gearoenix.write_vector(self.bobj.matrix_world.to_quaternion(), 4)
+        if self.my_type == self.TYPE_POINT:
+            Gearoenix.write_vector(self.bobj.location)
+        if self.my_type == self.TYPE_SUN:
+            Gearoenix.write_vector(self.bobj.matrix_world.to_quaternion(), 4)
         inputs = self.bobj.data.node_tree.nodes['Emission'].inputs
         Gearoenix.write_vector(inputs['Color'].default_value)
         Gearoenix.write_float(inputs['Strength'].default_value)
