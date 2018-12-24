@@ -557,8 +557,10 @@ class Light(Gearoenix.RenderObject):
 
     def write(self):
         super().write()
-        Gearoenix.write_vector(self.bobj.location)
-        Gearoenix.write_vector(self.bobj.matrix_world.to_quaternion(), 4)
+        if self.my_type == self.TYPE_POINT:
+            Gearoenix.write_vector(self.bobj.location)
+        if self.my_type == self.TYPE_SUN:
+            Gearoenix.write_vector(self.bobj.matrix_world.to_quaternion(), 4)
         inputs = self.bobj.data.node_tree.nodes['Emission'].inputs
         Gearoenix.write_vector(inputs['Color'].default_value)
         Gearoenix.write_float(inputs['Strength'].default_value)
@@ -1068,7 +1070,6 @@ class Mesh(Gearoenix.UniRenderObject):
                 Gearoenix.write_float(e)
         Gearoenix.write_u32_array(self.indices)
         Gearoenix.write_float(self.occlusion_radius)
-        self.mat.write()
 
 
 @Gearoenix.register
@@ -1200,6 +1201,8 @@ class Model(Gearoenix.RenderObject):
         self.occlusion.write()
         self.collider.write()
         Gearoenix.write_instances_ids(self.meshes)
+        for m in self.meshes:
+            m.mat.write()
         if self.my_type == self.TYPE_WIDGET:
             self.write_widget()
         Gearoenix.write_instances_ids(self.model_children)
