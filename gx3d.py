@@ -557,6 +557,7 @@ class Light(Gearoenix.RenderObject):
 
     def write(self):
         super().write()
+        Gearoenix.write_bool(self.bobj.data.cycles.cast_shadow)
         if self.my_type == self.TYPE_POINT:
             Gearoenix.write_vector(self.bobj.location)
         if self.my_type == self.TYPE_SUN:
