@@ -551,7 +551,13 @@ class Light(Gearoenix.RenderObject):
         if self.bobj.type != 'LAMP':
             Gearoenix.terminate('Light type is incorrect:', bobj.name)
         if bobj.name.startswith(self.SUN_PREFIX):
+            if bobj.data.type != 'SUN':
+                Gearoenix.terminate(bobj.name, "should be a sun light")
             self.my_type = self.TYPE_SUN
+        elif bobj.name.startswith(self.POINT_PREFIX):
+            if bobj.data.type != 'POINT':
+                Gearoenix.terminate(bobj.name, "should be a point light")
+            self.my_type = self.TYPE_POINT
         else:
             Gearoenix.terminate('Unspecified type in:', bobj.name)
 
@@ -560,7 +566,7 @@ class Light(Gearoenix.RenderObject):
         Gearoenix.write_bool(self.bobj.data.cycles.cast_shadow)
         if self.my_type == self.TYPE_POINT:
             Gearoenix.write_vector(self.bobj.location)
-        if self.my_type == self.TYPE_SUN:
+        elif self.my_type == self.TYPE_SUN:
             Gearoenix.write_vector(self.bobj.matrix_world.to_quaternion(), 4)
         inputs = self.bobj.data.node_tree.nodes['Emission'].inputs
         Gearoenix.write_vector(inputs['Color'].default_value)
