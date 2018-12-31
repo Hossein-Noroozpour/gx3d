@@ -270,6 +270,7 @@ def enum_max_check(e):
 def write_start_module(c):
     mod_name = c.__name__
     if Gearoenix.EXPORT_VULKUST:
+        Gearoenix.RUST_FILE.write('#[allow(dead_code)]\n')
         Gearoenix.RUST_FILE.write('#[cfg_attr(debug_assertions, derive(Debug))]\n')
         Gearoenix.RUST_FILE.write('#[repr(u64)]\n')
         Gearoenix.RUST_FILE.write('pub enum ' + mod_name + ' {\n')
@@ -304,7 +305,7 @@ def write_name_id(name, item_id):
 @Gearoenix.register
 def write_end_modul():
     if Gearoenix.EXPORT_VULKUST:
-        Gearoenix.RUST_FILE.write('}\n')
+        Gearoenix.RUST_FILE.write('}\n\n')
     elif Gearoenix.EXPORT_GEAROENIX:
         Gearoenix.CPP_FILE.write('}\n')
 
