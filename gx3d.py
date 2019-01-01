@@ -905,6 +905,7 @@ class Material:
     FIELD_IS_VECTOR = 3
 
     def __init__(self, bobj):
+        self.bobj = bobj
         self.inputs = {
             'Alpha': [None, 1],
             'AlphaCutoff': [None, 2],
@@ -946,6 +947,8 @@ class Material:
             elif len(input.links) == 1:
                 img = input.links[0].from_node.image
                 txt = Gearoenix.Texture.read(img)
+                if txt is None:
+                    Gearoenix.terminate("Your texture name is worng in ", bobj.name, "(texture-name)", img.name)
                 self.inputs[k][0] = txt
             else:
                 Gearoenix.terminate('Unexpected number of links in:', input)
