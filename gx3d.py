@@ -127,7 +127,7 @@ def write_type_id(n):
 def write_instances_ids(inss):
     Gearoenix.write_u64(len(inss))
     for ins in inss:
-        Gearoenix.write_u64(ins.my_id)
+        Gearoenix.write_id(ins.my_id)
 
 
 @Gearoenix.register
@@ -391,7 +391,7 @@ class RenderObject:
         Gearoenix.write_u64(len(items))
         Gearoenix.log_info('Number of', cls.__name__, len(items))
         for _, item in items:
-            Gearoenix.write_u64(item.my_id)
+            Gearoenix.write_id(item.my_id)
             Gearoenix.write_u64(item.offset)
             Gearoenix.log_info('  id:', item.my_id, 'offset:', item.offset)
             name = Gearoenix.const_string(item.name)[len(common_starting):]
@@ -510,7 +510,7 @@ class Audio(Gearoenix.ReferenceableObject):
             self.my_type = self.TYPE_OBJECT
         else:
             Gearoenix.terminate('Unspecified type in:', bobj.name)
-        self.file = read_file(self.name)
+        self.file = Gearoenix.read_file(self.name)
 
     def write(self):
         super().write()
@@ -805,17 +805,21 @@ class Texture(Gearoenix.ReferenceableObject):
         cls.CUBE_PREFIX = cls.get_prefix() + 'cube-'
 
     def init_6_face(self):
-        prefix = self.CUBE_PREFIX
-        up_prefix = prefix + 'up-'
-        if not self.name.startswith(up_prefix):
-            Gearoenix.terminate('Incorrect 6 face texture:', self.bobj.name)
-        base_name = self.name[len(up_prefix):]
+        extension = self.name[len(self.name) - 4:]
+        up_prefix = self.name[:len(self.name) - 4]
+        if not up_prefix.endswith('-up'):
+            Gearoenix.terminate(
+                'Incorrect 6 face texture:', 
+                self.bobj.name,
+                'cube texture file name must ends with',
+                '-[face-name](up/down/left/right/front/back).[extension]')
+        prefix = up_prefix[:len(up_prefix) - 3]
         self.img_up = Gearoenix.read_file(self.name)
-        self.img_down = Gearoenix.read_file(prefix + 'down-' + base_name)
-        self.img_left = Gearoenix.read_file(prefix + 'left-' + base_name)
-        self.img_right = Gearoenix.read_file(prefix + 'right-' + base_name)
-        self.img_front = Gearoenix.read_file(prefix + 'front-' + base_name)
-        self.img_back = Gearoenix.read_file(prefix + 'back-' + base_name)
+        self.img_down = Gearoenix.read_file(prefix + '-down' + extension)
+        self.img_left = Gearoenix.read_file(prefix + '-left' + extension)
+        self.img_right = Gearoenix.read_file(prefix + '-right' + extension)
+        self.img_front = Gearoenix.read_file(prefix + '-front' + extension)
+        self.img_back = Gearoenix.read_file(prefix + '-back' + extension)
 
     def write_6_face(self):
         Gearoenix.write_file(self.img_up)
@@ -837,7 +841,7 @@ class Texture(Gearoenix.ReferenceableObject):
             self.init_6_face()
             self.my_type = self.TYPE_CUBE
         else:
-            Gearoenix.terminate('Unspecified texture type, in:', bobl.name)
+            Gearoenix.terminate('Unspecified texture type, in:', bobj.name)
 
     def write(self):
         super().write()
@@ -856,6 +860,9 @@ class Texture(Gearoenix.ReferenceableObject):
         if filepath is None or len(filepath) == 0:
             Gearoenix.terminate('Filepass is empty:', bobj.name)
         return filepath
+
+    def is_cube(self):
+        return self.my_type == self.TYPE_CUBE
 
 
 @Gearoenix.register
@@ -876,8 +883,8 @@ class Font(Gearoenix.ReferenceableObject):
         elif bobj.name.startswith(self.D3_PREFIX):
             self.my_type = self.TYPE_D3
         else:
-            Gearoenix.terminate('Unspecified texture type, in:', bobl.name)
-        self.file = read_ttf(self.name)
+            Gearoenix.terminate('Unspecified texture type, in:', bobj.name)
+        self.file = Gearoenix.read_file(self.name)
 
     def write(self):
         super().write()
@@ -959,7 +966,7 @@ class Material:
             Gearoenix.write_u8(i)
             if isinstance(v, Gearoenix.Texture):
                 Gearoenix.write_type_id(self.FIELD_IS_TEXTURE)
-                Gearoenix.write_u64(v.my_id)
+                Gearoenix.write_id(v.my_id)
             elif isinstance(v, float):
                 Gearoenix.write_type_id(self.FIELD_IS_FLOAT)
                 Gearoenix.write_float(v)
@@ -1201,7 +1208,7 @@ class Model(Gearoenix.RenderObject):
             Gearoenix.write_float(self.font_space_character)
             Gearoenix.write_float(self.font_space_word)
             Gearoenix.write_float(self.font_space_line)
-            Gearoenix.write_u64(self.font.my_id)
+            Gearoenix.write_id(self.font.my_id)
             self.font_mat.write()
 
     def write(self):
@@ -1222,23 +1229,30 @@ class Model(Gearoenix.RenderObject):
 @Gearoenix.register
 class Skybox(Gearoenix.RenderObject):
     TYPE_BASIC = 1
+    
+    @classmethod
+    def init(cls):
+        super().init()
+        # for future
+        cls.BASIC_PREFIX = cls.get_prefix() + 'basic-'
 
     def __init__(self, bobj):
         super().__init__(bobj)
-        self.my_type = 1
-        self.mesh = None
-        for c in bobj.children:
-            if self.mesh is not None:
-                Gearoenix.terminate('Only one mesh is accepted.')
-            self.mesh = Mesh.read(c)
-            if self.mesh is None:
-                Gearoenix.terminate('Only one mesh is accepted.')
-        self.mesh.mat = Shading(self.mesh.bobj.material_slots[0].material, self)
+        self.my_type = self.TYPE_BASIC
+        self.texture = None
+        for n in bobj.material_slots[0].material.node_tree.nodes:
+            if n.type == 'TEX_IMAGE':
+                if self.texture is not None:
+                    Gearoenix.terminate('more than one teture found in skybox:', bobj.name)
+                self.texture = Gearoenix.Texture.read(n.image)
+        if self.texture is None:
+            Gearoenix.terminate('texture not found for skybox:', bobj.name)
+        if not self.texture.is_cube():
+            Gearoenix.terminate('texture must be cube for skybox:', bobj.name)
 
     def write(self):
         super().write()
-        Gearoenix.write_u64(self.mesh.my_id)
-        self.mesh.mat.write()
+        Gearoenix.write_id(self.texture.my_id)
 
 
 @Gearoenix.register
@@ -1319,7 +1333,7 @@ class Scene(Gearoenix.RenderObject):
         Gearoenix.write_instances_ids(self.models)
         Gearoenix.write_bool(self.skybox is not None)
         if self.skybox is not None:
-            Gearoenix.write_u64(self.skybox.my_id)
+            Gearoenix.write_id(self.skybox.my_id)
         Gearoenix.write_instances_ids(self.constraints)
         Gearoenix.write_bool(self.boundary_left is not None)
         if self.boundary_left is not None:
