@@ -961,7 +961,7 @@ class Material:
                 Gearoenix.terminate('Unexpected number of links in:', input)
 
     def write(self):
-        Gearoenix.log_info("Matrial properties are:", self.inputs)
+        Gearoenix.log_info("Material properties are:", self.inputs)
         for v, i in self.inputs.values():
             Gearoenix.write_u8(i)
             if isinstance(v, Gearoenix.Texture):
