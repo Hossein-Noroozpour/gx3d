@@ -1440,9 +1440,11 @@ class Exporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
         engine = int(self.export_engine)
         if engine == Gearoenix.ENGINE_GEAROENIX:
             Gearoenix.EXPORT_GEAROENIX = True
+            Gearoenix.EXPORT_VULKUST = False
             Gearoenix.log_info('Exporting for Gearoenix engine')
         elif engine == Gearoenix.ENGINE_VULKUST:
             Gearoenix.EXPORT_VULKUST = True
+            Gearoenix.EXPORT_GEAROENIX = False
             Gearoenix.log_info('Exporting for Vulkust engine')
         else:
             Gearoenix.terminate('Unexpected export engine')
