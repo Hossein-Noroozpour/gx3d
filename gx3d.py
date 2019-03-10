@@ -1218,8 +1218,8 @@ class Model(Gearoenix.RenderObject):
         Gearoenix.write_matrix(self.bobj.matrix_world)
         self.occlusion.write()
         self.collider.write()
-        Gearoenix.write_instances_ids(self.meshes)
         for m in self.meshes:
+            Gearoenix.write_id(m.my_id)
             m.mat.write()
         if self.my_type == self.TYPE_WIDGET:
             self.write_widget()
