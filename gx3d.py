@@ -53,7 +53,7 @@ class Gearoenix:
     CPP_FILE = None
     RUST_FILE = None
 
-    last_id = 1024
+    last_id = None
 
     @classmethod
     def register(cls, c):
@@ -70,7 +70,8 @@ def terminate(*msgs):
 
 
 @Gearoenix.register
-def initialize_pathes():
+def initialize():
+    Gearoenix.last_id = 1024
     Gearoenix.GX3D_FILE = open(Gearoenix.EXPORT_FILE_PATH, mode='wb')
     dirstr = os.path.dirname(Gearoenix.EXPORT_FILE_PATH)
     filename = Gearoenix.EXPORT_FILE_PATH[len(dirstr) + 1:]
@@ -536,14 +537,14 @@ class Audio(Gearoenix.ReferenceableObject):
 
 @Gearoenix.register
 class Light(Gearoenix.RenderObject):
-    TYPE_SUN = 1
-    TYPE_POINT = 2
-    TYPE_CONE = 3
+    TYPE_CONE = 1
+    TYPE_DIRECTIONAL = 2
+    TYPE_POINT = 3
 
     @classmethod
     def init(cls):
         super().init()
-        cls.SUN_PREFIX = cls.get_prefix() + 'sun-'
+        cls.DIRECTIONAL_PREFIX = cls.get_prefix() + 'directional-'
         cls.POINT_PREFIX = cls.get_prefix() + 'point-'
         cls.CONE_PREFIX = cls.get_prefix() + 'cone-'
 
@@ -551,10 +552,10 @@ class Light(Gearoenix.RenderObject):
         super().__init__(bobj)
         if self.bobj.type != 'LAMP':
             Gearoenix.terminate('Light type is incorrect:', bobj.name)
-        if bobj.name.startswith(self.SUN_PREFIX):
+        if bobj.name.startswith(self.DIRECTIONAL_PREFIX):
             if bobj.data.type != 'SUN':
                 Gearoenix.terminate(bobj.name, "should be a sun light")
-            self.my_type = self.TYPE_SUN
+            self.my_type = self.TYPE_DIRECTIONAL
         elif bobj.name.startswith(self.POINT_PREFIX):
             if bobj.data.type != 'POINT':
                 Gearoenix.terminate(bobj.name, "should be a point light")
@@ -564,14 +565,16 @@ class Light(Gearoenix.RenderObject):
 
     def write(self):
         super().write()
-        Gearoenix.write_bool(self.bobj.data.cycles.cast_shadow)
-        if self.my_type == self.TYPE_POINT:
-            Gearoenix.write_vector(self.bobj.location)
-        elif self.my_type == self.TYPE_SUN:
-            Gearoenix.write_vector(self.bobj.matrix_world.to_quaternion(), 4)
         inputs = self.bobj.data.node_tree.nodes['Emission'].inputs
         Gearoenix.write_vector(inputs['Color'].default_value)
         Gearoenix.write_float(inputs['Strength'].default_value)
+        Gearoenix.write_bool(self.bobj.data.cycles.cast_shadow)
+        if self.my_type == self.TYPE_POINT:
+            Gearoenix.write_vector(self.bobj.location)
+        elif self.my_type == self.TYPE_DIRECTIONAL:
+            v = self.bobj.matrix_world * mathutils.Vector((0.0, 0.0, -1.0))
+            v.normalize()
+            Gearoenix.write_vector(v)
 
 
 @Gearoenix.register
@@ -1218,6 +1221,7 @@ class Model(Gearoenix.RenderObject):
         Gearoenix.write_matrix(self.bobj.matrix_world)
         self.occlusion.write()
         self.collider.write()
+        Gearoenix.write_u64(len(self.meshes))
         for m in self.meshes:
             Gearoenix.write_id(m.my_id)
             m.mat.write()
@@ -1369,7 +1373,7 @@ def write_tables():
 
 @Gearoenix.register
 def export_files():
-    Gearoenix.initialize_pathes()
+    Gearoenix.initialize()
     Gearoenix.Audio.init()
     Gearoenix.Light.init()
     Gearoenix.Camera.init()
