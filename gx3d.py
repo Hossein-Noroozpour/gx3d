@@ -1084,7 +1084,6 @@ class Mesh(Gearoenix.UniRenderObject):
 
     def write(self):
         super().write()
-        Gearoenix.write_u8(len(self.vertices[0]))
         Gearoenix.write_u64(len(self.vertices))
         for vertex in self.vertices:
             for e in vertex:
