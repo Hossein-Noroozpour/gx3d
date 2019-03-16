@@ -1093,31 +1093,6 @@ class Mesh(Gearoenix.UniRenderObject):
 
 
 @Gearoenix.register
-class Occlusion:
-    PREFIX = 'occlusion-'
-
-    def __init__(self, bobj):
-        if bobj.empty_draw_type != 'SPHERE':
-            Gearoenix.terminate('The only acceptable shape for an occlusion is sphere. in:', bobj.name)
-        if Gearoenix.has_transformation(bobj):
-            Gearoenix.terminate('Occlusion can not have transformation. in:', bobj.name)
-        radius = bobj.empty_draw_size
-        radius = mathutils.Vector((radius, radius, radius))
-        radius = bobj.matrix_world * radius
-        self.radius = max(radius[0], max(radius[1], radius[2]))
-
-    @classmethod
-    def read(cls, bobj):
-        for c in bobj.children:
-            if c.name.startswith(cls.PREFIX):
-                return cls(c)
-        Gearoenix.terminate('Occlusion not found in: ', bobj.name)
-
-    def write(self):
-        Gearoenix.write_float(self.radius)
-
-
-@Gearoenix.register
 class Model(Gearoenix.RenderObject):
     TYPE_DYNAMIC = 1
     TYPE_STATIC = 2
@@ -1177,7 +1152,6 @@ class Model(Gearoenix.RenderObject):
     def __init__(self, bobj):
         super().__init__(bobj)
         self.matrix = bobj.matrix_world
-        self.occlusion = Gearoenix.Occlusion.read(bobj)
         self.meshes = []
         self.model_children = []
         self.collider = Gearoenix.Collider.read(bobj)
@@ -1218,8 +1192,7 @@ class Model(Gearoenix.RenderObject):
         if self.my_type == self.TYPE_WIDGET:
             Gearoenix.write_u64(self.widget_type)
         Gearoenix.write_matrix(self.bobj.matrix_world)
-        self.occlusion.write()
-        self.collider.write()
+        # self.collider.write()
         Gearoenix.write_u64(len(self.meshes))
         for m in self.meshes:
             Gearoenix.write_id(m.my_id)
