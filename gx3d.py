@@ -919,19 +919,13 @@ class Material:
         self.inputs = {
             'Alpha': [None, 1],
             'AlphaCutoff': [None, 2],
-            'AlphaMode': [None, 3],
-            'BaseColor': [None, 4],
-            'BaseColorFactor': [None, 5],
-            'DoubleSided': [None, 6],
-            'Emissive': [None, 7],
-            'EmissiveFactor': [None, 8],
-            'MetallicFactor': [None, 9],
-            'MetallicRoughness': [None, 10],
-            'Normal': [None, 11],
-            'NormalScale': [None, 12],
-            'Occlusion': [None, 13],
-            'OcclusionStrength': [None, 14],
-            'RoughnessFactor': [None, 15],
+            'BaseColor': [None, 3],
+            'Emissive': [None, 4],
+            'MetallicFactor': [None, 5],
+            'MetallicRoughness': [None, 6],
+            'Normal': [None, 7],
+            'NormalScale': [None, 8],
+            'RoughnessFactor': [None, 9],
         }
         if len(bobj.material_slots) < 1:
             Gearoenix.terminate('There is no material:', bobl.name)
@@ -965,6 +959,7 @@ class Material:
 
     def write(self):
         Gearoenix.log_info("Material properties are:", self.inputs)
+        Gearoenix.write_u8(len(self.inputs.values()))
         for v, i in self.inputs.values():
             Gearoenix.write_u8(i)
             if isinstance(v, Gearoenix.Texture):
