@@ -566,8 +566,11 @@ class Light(Gearoenix.RenderObject):
     def write(self):
         super().write()
         inputs = self.bobj.data.node_tree.nodes['Emission'].inputs
-        Gearoenix.write_vector(inputs['Color'].default_value)
-        Gearoenix.write_float(inputs['Strength'].default_value)
+        color = inputs['Color'].default_value
+        strength = inputs['Strength'].default_value
+        Gearoenix.write_float(color[0] * strength)
+        Gearoenix.write_float(color[1] * strength)
+        Gearoenix.write_float(color[2] * strength)
         Gearoenix.write_bool(self.bobj.data.cycles.cast_shadow)
         if self.my_type == self.TYPE_POINT:
             Gearoenix.write_vector(self.bobj.location)
@@ -619,7 +622,7 @@ class Camera(Gearoenix.RenderObject):
         elif self.my_type == self.TYPE_ORTHOGRAPHIC:
             Gearoenix.write_float(cam.ortho_scale)
         else:
-            Gearoenix.terminate('Unspecified type in:', bobj.name)
+            Gearoenix.terminate('Unspecified type in:', self.bobj.name)
 
 
 @Gearoenix.register
