@@ -219,7 +219,7 @@ def is_zero(f):
 def has_transformation(bobj):
     m = bobj.matrix_world
     if bobj.parent is not None:
-        m = bobj.parent.matrix_world.inverted() * m
+        m = bobj.parent.matrix_world.inverted() @ m
     for i in range(4):
         for j in range(4):
             if i == j:
@@ -550,7 +550,7 @@ class Light(Gearoenix.RenderObject):
 
     def __init__(self, bobj):
         super().__init__(bobj)
-        if self.bobj.type != 'LAMP':
+        if self.bobj.type != 'LIGHT':
             Gearoenix.terminate('Light type is incorrect:', bobj.name)
         if bobj.name.startswith(self.DIRECTIONAL_PREFIX):
             if bobj.data.type != 'SUN':
@@ -565,17 +565,16 @@ class Light(Gearoenix.RenderObject):
 
     def write(self):
         super().write()
-        inputs = self.bobj.data.node_tree.nodes['Emission'].inputs
-        color = inputs['Color'].default_value
-        strength = inputs['Strength'].default_value
+        color = self.bobj.data.color
+        strength = self.bobj.data.energy
         Gearoenix.write_float(color[0] * strength)
         Gearoenix.write_float(color[1] * strength)
         Gearoenix.write_float(color[2] * strength)
-        Gearoenix.write_bool(self.bobj.data.cycles.cast_shadow)
+        Gearoenix.write_bool(self.bobj.data.use_shadow)
         if self.my_type == self.TYPE_POINT:
             Gearoenix.write_vector(self.bobj.location)
         elif self.my_type == self.TYPE_DIRECTIONAL:
-            v = self.bobj.matrix_world * mathutils.Vector((0.0, 0.0, -1.0))
+            v = self.bobj.matrix_world @ mathutils.Vector((0.0, 0.0, -1.0))
             v.normalize()
             Gearoenix.write_vector(v)
 
@@ -1397,11 +1396,11 @@ class Exporter(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
     bl_idname = 'gearoenix_exporter.data_structure'
     bl_label = 'Export Gearoenix 3D'
     filename_ext = '.gx3d'
-    filter_glob = bpy.props.StringProperty(
+    filter_glob: bpy.props.StringProperty(
         default='*.gx3d',
         options={'HIDDEN'},
     )
-    export_engine = bpy.props.EnumProperty(
+    export_engine: bpy.props.EnumProperty(
         name='Game engine',
         description='This item select the game engine',
         items=(
@@ -1436,7 +1435,7 @@ def menu_func_export(self, context):
 @Gearoenix.register
 def register_plugin():
     bpy.utils.register_class(Gearoenix.Exporter)
-    bpy.types.INFO_MT_file_export.append(Gearoenix.menu_func_export)
+    bpy.types.TOPBAR_MT_file_export.append(Gearoenix.menu_func_export)
 
 
 if __name__ == '__main__':
