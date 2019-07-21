@@ -886,9 +886,9 @@ class Font(Gearoenix.ReferenceableObject):
         if bobj.name.startswith(self.D2_PREFIX):
             self.my_type = self.TYPE_2D
         elif bobj.name.startswith(self.D3_PREFIX):
-            self.my_type = self.TYPE_D3
+            self.my_type = self.TYPE_3D
         else:
-            Gearoenix.terminate('Unspecified texture type, in:', bobj.name)
+            Gearoenix.terminate('Unspecified font type, in:', bobj.name)
         self.file = Gearoenix.read_file(self.name)
 
     def write(self):
@@ -920,14 +920,11 @@ class Material:
         self.bobj = bobj
         self.inputs = {
             'Alpha': [None, 1],
-            'AlphaCutoff': [None, 2],
-            'BaseColor': [None, 3],
-            'Emissive': [None, 4],
-            'MetallicFactor': [None, 5],
-            'MetallicRoughness': [None, 6],
-            'Normal': [None, 7],
-            'NormalScale': [None, 8],
-            'RoughnessFactor': [None, 9],
+            'Base Color': [None, 2],
+            'Emissive': [None, 3],
+            'Metallic': [None, 4],
+            'Normal': [None, 5],
+            'Roughness': [None, 6],
         }
         if len(bobj.material_slots) < 1:
             Gearoenix.terminate('There is no material:', bobl.name)
@@ -940,9 +937,9 @@ class Material:
         if mat.node_tree is None:
             Gearoenix.terminate('Material node tree does not exist in:', bobj.name)
         node = mat.node_tree
-        if 'Group' not in node.nodes:
-            Gearoenix.terminate('Material main group node does not exist in:', bobj.name)
-        node = node.nodes['Group']
+        if 'Principled BSDF' not in node.nodes:
+            Gearoenix.terminate('Material "Principled BSDF" node does not exist in:', bobj.name)
+        node = node.nodes['Principled BSDF']
         for input in self.inputs.keys():
             if input not in node.inputs:
                 Gearoenix.terminate('Material is incorrect in:', bobj.name)
@@ -954,10 +951,19 @@ class Material:
                 img = input.links[0].from_node.image
                 txt = Gearoenix.Texture.read(img)
                 if txt is None:
-                    Gearoenix.terminate("Your texture name is worng in ", bobj.name, "(texture-name)", img.name)
+                    Gearoenix.terminate("Your texture name is worng in:", bobj.name, "(texture-name)", img.name)
                 self.inputs[k][0] = txt
             else:
-                Gearoenix.terminate('Unexpected number of links in:', input)
+                Gearoenix.terminate('Unexpected number of links in:', bobj.name)
+        if not mat.use_backface_culling:
+            Gearoenix.terminate('Matrial must be only back-face culling enabled in:', bobj.name)
+        if mat.blend_method not in {'CLIP', 'ADD'}:
+            Gearoenix.terminate('"Blend Mode" in material must be set to "Alpha Clip" or "Additive" in:', bobj.name)
+        self.is_tansparent = mat.blend_method == 'ADD'
+        if mat.shadow_method not in {'CLIP', 'NONE'}:
+            Gearoenix.terminate('"Shadow Mode" in material must be set to "Alpha Clip" or "None" in:', bobj.name)
+        self.is_shadow_caster = mat.shadow_method != 'NONE'
+        self.alpha_cutoff = mat.alpha_threshold
 
     def write(self):
         Gearoenix.log_info("Material properties are:", self.inputs)
@@ -978,6 +984,9 @@ class Material:
                 Gearoenix.write_vector(v, 4)
             else:
                 Gearoenix.terminate('Unexpected type for material input in:', self.bobj.name)
+        Gearoenix.write_bool(self.is_tansparent)
+        Gearoenix.write_bool(self.is_shadow_caster)
+        Gearoenix.write_float(self.alpha_cutoff)
 
     def has_same_attrs(self, other):
         for sv, ov in zip(self.inputs.values(), other.inputs.values()):
@@ -1121,7 +1130,7 @@ class Model(Gearoenix.RenderObject):
         if self.widget_type == self.TYPE_EDIT or \
                 self.widget_type == self.TYPE_TEXT:
             self.text = self.bobj.data.body.strip()
-            self.font = Font.read(self.bobj.data.font)
+            self.font = Gearoenix.Font.read(self.bobj.data.font)
             align_x = self.bobj.data.align_x
             align_y = self.bobj.data.align_y
             self.align = 0
@@ -1141,7 +1150,7 @@ class Model(Gearoenix.RenderObject):
                 self.align += 1
             else:
                 Gearoenix.terminate('Unrecognized text vertical alignment, in:', self.bobj.name)
-            self.font_mat = Gearoenix.Material(self.bobj.material_slots[0].material)
+            self.font_mat = Gearoenix.Material(self.bobj)
             self.font_space_character = self.bobj.data.space_character - 1.0
             self.font_space_word = self.bobj.data.space_word - 1.0
             self.font_space_line = self.bobj.data.space_line
