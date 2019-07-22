@@ -1009,9 +1009,9 @@ class Material:
             Gearoenix.write_float(self.roughness)
         if isinstance(self.normal_map, Gearoenix.Texture):
             Gearoenix.write_bool(True)
+            Gearoenix.write_id(self.normal.my_id)
         else:
             Gearoenix.write_bool(False)
-            Gearoenix.write_vector(self.normal_map)
         Gearoenix.write_bool(self.is_tansparent)
         Gearoenix.write_bool(self.is_shadow_caster)
         Gearoenix.write_float(self.alpha_cutoff)
