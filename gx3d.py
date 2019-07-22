@@ -649,7 +649,7 @@ class Constraint(Gearoenix.RenderObject):
         if self.my_type == self.TYPE_PLACER:
             self.write_placer()
         else:
-            Gearoenix.terminate('Unspecified type in:', bobj.name)
+            Gearoenix.terminate('Unspecified type in:', self.bobj.name)
 
     def init_placer(self):
         BTYPE = 'EMPTY'
@@ -918,18 +918,10 @@ class Material:
 
     def __init__(self, bobj):
         self.bobj = bobj
-        self.inputs = {
-            'Alpha': [None, 1],
-            'Base Color': [None, 2],
-            'Emissive': [None, 3],
-            'Metallic': [None, 4],
-            'Normal': [None, 5],
-            'Roughness': [None, 6],
-        }
         if len(bobj.material_slots) < 1:
-            Gearoenix.terminate('There is no material:', bobl.name)
+            Gearoenix.terminate('There is no material:', bobj.name)
         if len(bobj.material_slots) > 1:
-            Gearoenix.terminate('There must be only one material slot:', bobl.name)
+            Gearoenix.terminate('There must be only one material slot:', bobj.name)
         mat = bobj.material_slots[0]
         if mat.material is None:
             Gearoenix.terminate('Material does not exist in:', bobj.name)
@@ -937,24 +929,43 @@ class Material:
         if mat.node_tree is None:
             Gearoenix.terminate('Material node tree does not exist in:', bobj.name)
         node = mat.node_tree
-        if 'Principled BSDF' not in node.nodes:
-            Gearoenix.terminate('Material "Principled BSDF" node does not exist in:', bobj.name)
-        node = node.nodes['Principled BSDF']
-        for input in self.inputs.keys():
-            if input not in node.inputs:
-                Gearoenix.terminate('Material is incorrect in:', bobj.name)
-        for k in self.inputs.keys():
-            input = node.inputs[k]
-            if len(input.links) < 1:
-                self.inputs[k][0] = input.default_value
-            elif len(input.links) == 1:
-                img = input.links[0].from_node.image
+        NODE_NAME = 'Principled BSDF'
+        if NODE_NAME not in node.nodes:
+            Gearoenix.terminate('Material', NODE_NAME, 'node does not exist in:', bobj.name)
+        node = node.nodes[NODE_NAME]
+        if node is None:
+            Gearoenix.terminate('Node is not correct in', bobj.name)
+        inputs = node.inputs
+        if inputs is None:
+            Gearoenix.terminate('Node inputs are not correct in', bobj.name)
+        def read_linkes(name):
+            if name not in inputs or inputs[name] is None:
+                Gearoenix.terminate('Node input', name, 'is not correct in', bobj.name)
+            i = inputs[name]
+            if len(i.links) < 1:
+                return i.default_value
+            elif len(i.links) == 1:
+                if i.links[0] is None or i.links[0].from_node is None or i.links[0].from_node.image is None:
+                    Gearoenix.terminate('A link can be only a default or a texture link, wrong link in:', bobj.name, 'link:', i.name)
+                img = i.links[0].from_node.image
                 txt = Gearoenix.Texture.read(img)
                 if txt is None:
-                    Gearoenix.terminate("Your texture name is worng in:", bobj.name, "(texture-name)", img.name)
-                self.inputs[k][0] = txt
+                    Gearoenix.terminate('Your texture name is worng in:', bobj.name, 'link:', i.name, 'texture:', img.name)
+                return txt
             else:
-                Gearoenix.terminate('Unexpected number of links in:', bobj.name)
+                Gearoenix.terminate('Unexpected number of links in:', bobj.name, 'link:', i.name)
+        self.alpha = read_linkes('Alpha')
+        self.base_color = read_linkes('Base Color')
+        self.emission = read_linkes('Emission')
+        self.metallic = read_linkes('Metallic')
+        self.normal_map = read_linkes('Normal')
+        self.roughness = read_linkes('Roughness')
+        if isinstance(self.alpha, Gearoenix.Texture) and (not isinstance(self.base_color, Gearoenix.Texture) or self.alpha.my_id != self.base_color.my_id):
+            Gearoenix.terminate('If "Alpha" is texture then it must point to the texture that "Base Color" is pointing:', bobj.name)
+        if isinstance(self.metallic, Gearoenix.Texture) != isinstance(self.roughness, Gearoenix.Texture):
+            Gearoenix.terminate('"Metallic" and "Rouchness" must be both scalar or texture:', bobj.name)
+        if isinstance(self.metallic, Gearoenix.Texture) and self.metallic.my_id != self.roughness.my_id:
+            Gearoenix.terminate('"Metallic" and "Rouchness" must be both pointing to the same texture:', bobj.name)
         if not mat.use_backface_culling:
             Gearoenix.terminate('Matrial must be only back-face culling enabled in:', bobj.name)
         if mat.blend_method not in {'CLIP', 'ADD'}:
@@ -966,24 +977,41 @@ class Material:
         self.alpha_cutoff = mat.alpha_threshold
 
     def write(self):
-        Gearoenix.log_info("Material properties are:", self.inputs)
-        Gearoenix.write_u8(len(self.inputs.values()))
-        for v, i in self.inputs.values():
-            Gearoenix.write_u8(i)
-            if isinstance(v, Gearoenix.Texture):
-                Gearoenix.write_type_id(self.FIELD_IS_TEXTURE)
-                Gearoenix.write_id(v.my_id)
-            elif isinstance(v, float):
-                Gearoenix.write_type_id(self.FIELD_IS_FLOAT)
-                Gearoenix.write_float(v)
-            elif isinstance(v, bpy.types.bpy_prop_array):
-                Gearoenix.write_type_id(self.FIELD_IS_VECTOR)
-                Gearoenix.write_vector(v, 4)
-            elif isinstance(v, mathutils.Vector):
-                Gearoenix.write_type_id(self.FIELD_IS_VECTOR)
-                Gearoenix.write_vector(v, 4)
+        def write_link(l, s = 4):
+            if isinstance(l, Gearoenix.Texture):
+                Gearoenix.write_bool(True)
+                Gearoenix.write_id(l.my_id)
+                return
+            Gearoenix.write_bool(False)
+            if isinstance(l, float):
+                Gearoenix.write_float(l)
+            elif isinstance(l, bpy.types.bpy_prop_array):
+                Gearoenix.write_vector(l, s)
+            elif isinstance(l, mathutils.Vector):
+                Gearoenix.write_vector(l, s)
             else:
                 Gearoenix.terminate('Unexpected type for material input in:', self.bobj.name)
+
+        
+        if isinstance(self.alpha, Gearoenix.Texture):
+            Gearoenix.write_bool(True)
+        else:
+            Gearoenix.write_bool(False)
+            Gearoenix.write_float(self.alpha)
+        write_link(self.base_color)
+        write_link(self.emission)
+        if isinstance(self.metallic, Gearoenix.Texture):
+            Gearoenix.write_bool(True)
+            Gearoenix.write_id(self.metallic.my_id)
+        else:
+            Gearoenix.write_bool(False)
+            Gearoenix.write_float(self.metallic)
+            Gearoenix.write_float(self.roughness)
+        if isinstance(self.normal_map, Gearoenix.Texture):
+            Gearoenix.write_bool(True)
+        else:
+            Gearoenix.write_bool(False)
+            Gearoenix.write_vector(self.normal_map)
         Gearoenix.write_bool(self.is_tansparent)
         Gearoenix.write_bool(self.is_shadow_caster)
         Gearoenix.write_float(self.alpha_cutoff)
@@ -1018,7 +1046,7 @@ class Mesh(Gearoenix.UniRenderObject):
         if bobj.name.startswith(self.BASIC_PREFIX):
             self.my_type = self.TYPE_BASIC
         else:
-            Gearoenix.terminate('Unspecified mesh type, in:', bobl.name)
+            Gearoenix.terminate('Unspecified mesh type, in:', bobj.name)
         if bobj.type != 'MESH':
             Gearoenix.terminate('Mesh must be of type MESH:', bobj.name)
         if Gearoenix.has_transformation(bobj):
@@ -1130,7 +1158,12 @@ class Model(Gearoenix.RenderObject):
         if self.widget_type == self.TYPE_EDIT or \
                 self.widget_type == self.TYPE_TEXT:
             self.text = self.bobj.data.body.strip()
-            self.font = Gearoenix.Font.read(self.bobj.data.font)
+            bfont = self.bobj.data.font
+            if bfont is None:
+                Gearoenix.terminate('Font is none in:', self.bobj.name)
+            self.font = Gearoenix.Font.read(bfont)
+            if self.font is None:
+                Gearoenix.terminate('Font is incorrect in:', self.bobj.name, 'font:', bfont.name)
             align_x = self.bobj.data.align_x
             align_y = self.bobj.data.align_y
             self.align = 0
