@@ -1220,9 +1220,6 @@ class Model(Gearoenix.RenderObject):
                 self.widget_type == self.TYPE_EDIT:
             Gearoenix.write_string(self.text)
             Gearoenix.write_u8(self.align)
-            Gearoenix.write_float(self.font_space_character)
-            Gearoenix.write_float(self.font_space_word)
-            Gearoenix.write_float(self.font_space_line)
             Gearoenix.write_id(self.font.my_id)
             self.font_mat.write()
 
