@@ -574,7 +574,7 @@ class Light(Gearoenix.RenderObject):
         if self.my_type == self.TYPE_POINT:
             Gearoenix.write_vector(self.bobj.location)
         elif self.my_type == self.TYPE_DIRECTIONAL:
-            v = self.bobj.matrix_world @ mathutils.Vector((0.0, 0.0, -1.0))
+            v = self.bobj.matrix_world @ mathutils.Vector((0.0, 0.0, -1.0, 0.0))
             v.normalize()
             Gearoenix.write_vector(v)
 
