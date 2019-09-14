@@ -1017,9 +1017,6 @@ class Material:
         Gearoenix.write_float(self.alpha_cutoff)
 
     def has_same_attrs(self, other):
-        for sv, ov in zip(self.inputs.values(), other.inputs.values()):
-            if isinstance(sv, Gearoenix.Texture) != isinstance(ov, Gearoenix.Texture):
-                return False
         return True
 
     def needs_normal(self):
