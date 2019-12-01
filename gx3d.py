@@ -968,8 +968,8 @@ class Material:
             Gearoenix.terminate('"Metallic" and "Rouchness" must be both pointing to the same texture:', bobj.name)
         if not mat.use_backface_culling:
             Gearoenix.terminate('Matrial must be only back-face culling enabled in:', bobj.name)
-        if mat.blend_method not in {'CLIP', 'ADD'}:
-            Gearoenix.terminate('"Blend Mode" in material must be set to "Alpha Clip" or "Additive" in:', bobj.name)
+        if mat.blend_method not in {'CLIP', 'BLEND'}:
+            Gearoenix.terminate('"Blend Mode" in material must be set to "Alpha Clip" or "Alpha Blend" in:', bobj.name)
         self.is_tansparent = mat.blend_method == 'ADD'
         if mat.shadow_method not in {'CLIP', 'NONE'}:
             Gearoenix.terminate('"Shadow Mode" in material must be set to "Alpha Clip" or "None" in:', bobj.name)
