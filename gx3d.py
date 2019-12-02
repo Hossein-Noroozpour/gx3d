@@ -491,6 +491,31 @@ class ReferenceableObject(Gearoenix.RenderObject):
             return self.offset
         return self.origin_instance.offset
 
+@Gearoenix.register
+class Aabb():
+    def __init__(self):
+        m = sys.float_info.max
+        self.upper = mathutils.Vector((-m, -m, -m))
+        self.lower = mathutils.Vector((m, m, m))
+    
+    def put(self, v):
+        if self.upper.x < v.x:
+            self.upper.x = v.x
+        if self.upper.y < v.y:
+            self.upper.y = v.y
+        if self.upper.z < v.z:
+            self.upper.z = v.z
+        if self.lower.x > v.x:
+            self.lower.x = v.x
+        if self.lower.y > v.y:
+            self.lower.y = v.y
+        if self.lower.z > v.z:
+            self.lower.z = v.z
+    
+    def write(self):
+        Gearoenix.write_vector(self.upper)
+        Gearoenix.write_vector(self.lower)
+    
 
 @Gearoenix.register
 class Audio(Gearoenix.ReferenceableObject):
@@ -970,7 +995,7 @@ class Material:
             Gearoenix.terminate('Matrial must be only back-face culling enabled in:', bobj.name)
         if mat.blend_method not in {'CLIP', 'BLEND'}:
             Gearoenix.terminate('"Blend Mode" in material must be set to "Alpha Clip" or "Alpha Blend" in:', bobj.name)
-        self.is_tansparent = mat.blend_method == 'ADD'
+        self.is_tansparent = mat.blend_method == 'BLEND'
         if mat.shadow_method not in {'CLIP', 'NONE'}:
             Gearoenix.terminate('"Shadow Mode" in material must be set to "Alpha Clip" or "None" in:', bobj.name)
         self.is_shadow_caster = mat.shadow_method != 'NONE'
@@ -999,7 +1024,7 @@ class Material:
             Gearoenix.write_bool(False)
             Gearoenix.write_float(self.alpha)
         write_link(self.base_color)
-        write_link(self.emission)
+        write_link(self.emission, 3)
         if isinstance(self.metallic, Gearoenix.Texture):
             Gearoenix.write_bool(True)
             Gearoenix.write_id(self.metallic.my_id)
@@ -1040,6 +1065,7 @@ class Mesh(Gearoenix.UniRenderObject):
 
     def __init__(self, bobj):
         super().__init__(bobj)
+        self.box = Gearoenix.Aabb()
         if bobj.name.startswith(self.BASIC_PREFIX):
             self.my_type = self.TYPE_BASIC
         else:
@@ -1065,16 +1091,13 @@ class Mesh(Gearoenix.UniRenderObject):
         uv = self.mat.needs_uv()
         vertices = dict()
         last_index = 0
-        self.occlusion_radius = 0.0
         for p in msh.polygons:
             if len(p.vertices) > 3:
                 Gearoenix.terminate('Object', bobj.name, 'is not triangled!')
             for i, li in zip(p.vertices, p.loop_indices):
                 vertex = []
                 v = msh.vertices[i].co
-                occlusion_radius = v.length
-                if occlusion_radius > self.occlusion_radius:
-                    self.occlusion_radius = occlusion_radius
+                self.box.put(v)
                 vertex.append(v[0])
                 vertex.append(v[1])
                 vertex.append(v[2])
@@ -1120,7 +1143,7 @@ class Mesh(Gearoenix.UniRenderObject):
             for e in vertex:
                 Gearoenix.write_float(e)
         Gearoenix.write_u32_array(self.indices)
-        Gearoenix.write_float(self.occlusion_radius)
+        self.box.write()
 
 
 @Gearoenix.register
