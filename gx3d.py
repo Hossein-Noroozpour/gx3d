@@ -1383,6 +1383,36 @@ class Skybox(Gearoenix.RenderObject):
 
 
 @Gearoenix.register
+class Reflection(Gearoenix.RenderObject):
+    TYPE_BAKED = 1
+    TYPE_RUNTIME = 2
+
+    @classmethod
+    def init(cls):
+        super().init()
+        cls.BAKED_PREFIX = cls.get_prefix() + 'baked-'
+        cls.RUNTIME_PREFIX = cls.get_prefix() + 'runtime-'
+
+    def __init__(self, b_obj):
+        super().__init__(b_obj)
+        if b_obj.name.startswith(self.BAKED_PREFIX):
+            self.my_type = self.TYPE_BAKED
+        elif b_obj.name.startswith(self.RUNTIME_PREFIX):
+            self.my_type = self.TYPE_RUNTIME
+        else:
+            Gearoenix.terminate('Unspecified reflection probe type, in:', b_obj.name)
+        Gearoenix.terminate("Unimplemented")
+
+    def write(self):
+        super().write()
+        if self.TYPE_RUNTIME == self.my_type:
+            pass
+        elif self.TYPE_BAKED == self.my_type:
+            pass
+        Gearoenix.terminate("Unimplemented")
+
+
+@Gearoenix.register
 class Scene(Gearoenix.RenderObject):
     TYPE_GAME = 1
     TYPE_UI = 2
@@ -1401,6 +1431,7 @@ class Scene(Gearoenix.RenderObject):
         self.lights = []
         self.audios = []
         self.constraints = []
+        self.reflections = []
         for o in b_obj.objects:
             if o.parent is not None:
                 continue
@@ -1411,6 +1442,10 @@ class Scene(Gearoenix.RenderObject):
             ins = Gearoenix.Skybox.read(o)
             if ins is not None:
                 self.skyboxes.append(ins)
+                continue
+            ins = Gearoenix.Reflection.read(o)
+            if ins is not None:
+                self.reflections.append(ins)
                 continue
             ins = Gearoenix.Camera.read(o)
             if ins is not None:
@@ -1445,6 +1480,7 @@ class Scene(Gearoenix.RenderObject):
         Gearoenix.write_instances_ids(self.lights)
         Gearoenix.write_instances_ids(self.models)
         Gearoenix.write_instances_ids(self.skyboxes)
+        Gearoenix.write_instances_ids(self.reflections)
         Gearoenix.write_instances_ids(self.constraints)
 
     @classmethod
@@ -1462,6 +1498,7 @@ def write_tables():
     Gearoenix.Font.write_table()
     Gearoenix.Mesh.write_table()
     Gearoenix.Model.write_table()
+    Gearoenix.Reflection.write_table()
     Gearoenix.Skybox.write_table()
     Gearoenix.Constraint.write_table()
     Gearoenix.Scene.write_table()
@@ -1479,6 +1516,7 @@ def export_files():
     Gearoenix.Model.init()
     Gearoenix.Skybox.init()
     Gearoenix.Constraint.init()
+    Gearoenix.Reflection.init()
     Gearoenix.Scene.init()
     Gearoenix.Scene.read_all()
     Gearoenix.write_bool(sys.byteorder == 'little')
@@ -1492,6 +1530,7 @@ def export_files():
     Gearoenix.Font.write_all()
     Gearoenix.Mesh.write_all()
     Gearoenix.Model.write_all()
+    Gearoenix.Reflection.write_all()
     Gearoenix.Skybox.write_all()
     Gearoenix.Constraint.write_all()
     Gearoenix.Scene.write_all()
