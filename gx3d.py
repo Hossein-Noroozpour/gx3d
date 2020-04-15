@@ -11,6 +11,7 @@ import gc
 import enum
 import ctypes
 import collections
+
 itemsbl_info = {
     'name': 'Gearoenix 3D Blender',
     'author': 'Hossein Noroozpour',
@@ -996,10 +997,68 @@ class Font(Gearoenix.ReferenceableObject):
 
 @Gearoenix.register
 class Material:
+    TYPE_PBR = 1
+    TYPE_UNLIT = 2
+
+    PBR_PREFIX = 'pbr-'
+    UNLIT_PREFIX = 'unlit-'
 
     FIELD_IS_FLOAT = 1
     FIELD_IS_TEXTURE = 2
     FIELD_IS_VECTOR = 3
+
+    def read_links(name):
+        if name not in self.inputs or self.inputs[name] is None:
+            Gearoenix.terminate('Node input', name,
+                                'is not correct in', b_obj.name)
+        i = self.inputs[name]
+        if len(i.links) < 1:
+            return i.default_value
+        elif len(i.links) == 1:
+            if i.links[0] is None or i.links[0].from_node is None or i.links[0].from_node.image is None:
+                Gearoenix.terminate(
+                    'A link can be only a default or a texture link, wrong link in:', b_obj.name, 'link:', i.name)
+            img = i.links[0].from_node.image
+            txt = Gearoenix.Texture.read(img)
+            if txt is None:
+                Gearoenix.terminate(
+                    'Your texture name is wrong in:', b_obj.name, 'link:', i.name, 'texture:', img.name)
+            return txt
+        else:
+            Gearoenix.terminate(
+                'Unexpected number of links in:', b_obj.name, 'link:', i.name)
+
+    def init_pbr(self):
+        self.init_unlit()
+        self.emission = self.read_links('Emission')
+        self.metallic = self.read_links('Metallic')
+        self.normal_map = self.read_links('Normal')
+        self.roughness = self.read_links('Roughness')
+        if isinstance(self.metallic, Gearoenix.Texture) != isinstance(self.roughness, Gearoenix.Texture):
+            Gearoenix.terminate(
+                '"Metallic" and "Roughness" must be both scalar or texture:', self.b_obj.name)
+        if isinstance(self.metallic, Gearoenix.Texture) and self.metallic.my_id != self.roughness.my_id:
+            Gearoenix.terminate(
+                '"Metallic" and "Roughness" must be both pointing to the same texture:', self.b_obj.name)
+
+    def init_unlit(self):
+        self.alpha = self.read_links('Alpha')
+        self.base_color = self.read_links('Base Color')
+        if isinstance(self.alpha, Gearoenix.Texture) and (not isinstance(self.base_color, Gearoenix.Texture) or self.alpha.my_id != self.base_color.my_id):
+            Gearoenix.terminate(
+                'If "Alpha" is texture then it must point to the texture that "Base Color" is pointing:', self.b_obj.name)
+        if not self.mat.use_backface_culling:
+            Gearoenix.terminate(
+                'Matrial must be only back-face culling enabled in:', self.b_obj.name)
+        if self.mat.blend_method not in {'CLIP', 'BLEND'}:
+            Gearoenix.terminate(
+                '"Blend Mode" in material must be set to "Alpha Clip" or "Alpha Blend" in:', self.b_obj.name)
+        self.is_tansparent = self.mat.blend_method == 'BLEND'
+        if self.mat.shadow_method not in {'CLIP', 'NONE'}:
+            Gearoenix.terminate(
+                '"Shadow Mode" in material must be set to "Alpha Clip" or "None" in:', self.b_obj.name)
+        self.is_shadow_caster = self.mat.shadow_method != 'NONE'
+        self.alpha_cutoff = self.mat.alpha_threshold
 
     def __init__(self, b_obj):
         self.b_obj = b_obj
@@ -1011,11 +1070,11 @@ class Material:
         mat = b_obj.material_slots[0]
         if mat.material is None:
             Gearoenix.terminate('Material does not exist in:', b_obj.name)
-        mat = mat.material
-        if mat.node_tree is None:
+        self.mat = mat.material
+        if self.mat.node_tree is None:
             Gearoenix.terminate(
                 'Material node tree does not exist in:', b_obj.name)
-        node = mat.node_tree
+        node = self.mat.node_tree
         NODE_NAME = 'Principled BSDF'
         if NODE_NAME not in node.nodes:
             Gearoenix.terminate('Material', NODE_NAME,
@@ -1023,81 +1082,37 @@ class Material:
         node = node.nodes[NODE_NAME]
         if node is None:
             Gearoenix.terminate('Node is not correct in', b_obj.name)
-        inputs = node.inputs
-        if inputs is None:
+        self.inputs = node.inputs
+        if self.inputs is None:
             Gearoenix.terminate('Node inputs are not correct in', b_obj.name)
-
-        def read_links(name):
-            if name not in inputs or inputs[name] is None:
-                Gearoenix.terminate('Node input', name,
-                                    'is not correct in', b_obj.name)
-            i = inputs[name]
-            if len(i.links) < 1:
-                return i.default_value
-            elif len(i.links) == 1:
-                if i.links[0] is None or i.links[0].from_node is None or i.links[0].from_node.image is None:
-                    Gearoenix.terminate(
-                        'A link can be only a default or a texture link, wrong link in:', b_obj.name, 'link:', i.name)
-                img = i.links[0].from_node.image
-                txt = Gearoenix.Texture.read(img)
-                if txt is None:
-                    Gearoenix.terminate(
-                        'Your texture name is wrong in:', b_obj.name, 'link:', i.name, 'texture:', img.name)
-                return txt
-            else:
-                Gearoenix.terminate(
-                    'Unexpected number of links in:', b_obj.name, 'link:', i.name)
-        self.alpha = read_links('Alpha')
-        self.base_color = read_links('Base Color')
-        self.emission = read_links('Emission')
-        self.metallic = read_links('Metallic')
-        self.normal_map = read_links('Normal')
-        self.roughness = read_links('Roughness')
-        if isinstance(self.alpha, Gearoenix.Texture) and (not isinstance(self.base_color, Gearoenix.Texture) or self.alpha.my_id != self.base_color.my_id):
-            Gearoenix.terminate(
-                'If "Alpha" is texture then it must point to the texture that "Base Color" is pointing:', b_obj.name)
-        if isinstance(self.metallic, Gearoenix.Texture) != isinstance(self.roughness, Gearoenix.Texture):
-            Gearoenix.terminate(
-                '"Metallic" and "Roughness" must be both scalar or texture:', b_obj.name)
-        if isinstance(self.metallic, Gearoenix.Texture) and self.metallic.my_id != self.roughness.my_id:
-            Gearoenix.terminate(
-                '"Metallic" and "Roughness" must be both pointing to the same texture:', b_obj.name)
-        if not mat.use_backface_culling:
-            Gearoenix.terminate(
-                'Matrial must be only back-face culling enabled in:', b_obj.name)
-        if mat.blend_method not in {'CLIP', 'BLEND'}:
-            Gearoenix.terminate(
-                '"Blend Mode" in material must be set to "Alpha Clip" or "Alpha Blend" in:', b_obj.name)
-        self.is_tansparent = mat.blend_method == 'BLEND'
-        if mat.shadow_method not in {'CLIP', 'NONE'}:
-            Gearoenix.terminate(
-                '"Shadow Mode" in material must be set to "Alpha Clip" or "None" in:', b_obj.name)
-        self.is_shadow_caster = mat.shadow_method != 'NONE'
-        self.alpha_cutoff = mat.alpha_threshold
-
-    def write(self):
-        def write_link(l, s=4):
-            if isinstance(l, Gearoenix.Texture):
-                Gearoenix.write_bool(True)
-                Gearoenix.write_id(l.my_id)
-                return
-            Gearoenix.write_bool(False)
-            if isinstance(l, float):
-                Gearoenix.write_float(l)
-            elif isinstance(l, bpy.types.bpy_prop_array):
-                Gearoenix.write_vector(l, s)
-            elif isinstance(l, mathutils.Vector):
-                Gearoenix.write_vector(l, s)
-            else:
-                Gearoenix.terminate(
-                    'Unexpected type for material input in:', self.b_obj.name)
-
-        if isinstance(self.alpha, Gearoenix.Texture):
-            Gearoenix.write_bool(True)
+        if self.mat.name.startswith(self.PBR_PREFIX):
+            self.my_type = self.TYPE_PBR
+            self.init_pbr()
+        elif self.mat.name.startswith(self.UNLIT_PREFIX):
+            self.my_type = self.TYPE_UNLIT
+            self.init_unlit()
         else:
-            Gearoenix.write_bool(False)
-            Gearoenix.write_float(self.alpha)
-        write_link(self.base_color)
+            Gearoenix.terminate(
+                'Unexpected material type in:', self.b_obj.name)
+
+    def write_link(l, s=4):
+        if isinstance(l, Gearoenix.Texture):
+            Gearoenix.write_bool(True)
+            Gearoenix.write_id(l.my_id)
+            return
+        Gearoenix.write_bool(False)
+        if isinstance(l, float):
+            Gearoenix.write_float(l)
+        elif isinstance(l, bpy.types.bpy_prop_array):
+            Gearoenix.write_vector(l, s)
+        elif isinstance(l, mathutils.Vector):
+            Gearoenix.write_vector(l, s)
+        else:
+            Gearoenix.terminate(
+                'Unexpected type for material input in:', self.b_obj.name)
+
+    def write_pbr(self):
+        self.write_unlit()
         write_link(self.emission, 3)
         if isinstance(self.metallic, Gearoenix.Texture):
             Gearoenix.write_bool(True)
@@ -1111,21 +1126,27 @@ class Material:
             Gearoenix.write_id(self.normal.my_id)
         else:
             Gearoenix.write_bool(False)
+
+    def write_unlit(self):
+        if isinstance(self.alpha, Gearoenix.Texture):
+            Gearoenix.write_bool(True)
+        else:
+            Gearoenix.write_bool(False)
+            Gearoenix.write_float(self.alpha)
+        self.write_link(self.base_color)
         Gearoenix.write_bool(self.is_tansparent)
         Gearoenix.write_bool(self.is_shadow_caster)
         Gearoenix.write_float(self.alpha_cutoff)
 
-    def has_same_attrs(self, other):
-        return True
-
-    def needs_normal(self):
-        return True  # todo
-
-    def needs_tangent(self):
-        return True  # todo
-
-    def needs_uv(self):
-        return True  # todo
+    def write(self):
+        Gearoenix.write_type_id(self.my_type)
+        if self.my_type == self.TYPE_PBR:
+            self.write_pbr()
+        elif self.my_type == self.TYPE_UNLIT:
+            self.write_unlit()
+        else:
+            Gearoenix.terminate(
+                "Unexpected internal error in material of:", self.b_obj.name)
 
 
 @Gearoenix.register
@@ -1400,7 +1421,8 @@ class Reflection(Gearoenix.RenderObject):
         elif b_obj.name.startswith(self.RUNTIME_PREFIX):
             self.my_type = self.TYPE_RUNTIME
         else:
-            Gearoenix.terminate('Unspecified reflection probe type, in:', b_obj.name)
+            Gearoenix.terminate(
+                'Unspecified reflection probe type, in:', b_obj.name)
         Gearoenix.terminate("Unimplemented")
 
     def write(self):
