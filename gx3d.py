@@ -1007,7 +1007,7 @@ class Material:
     FIELD_IS_TEXTURE = 2
     FIELD_IS_VECTOR = 3
 
-    def read_links(name):
+    def read_links(self, name):
         if name not in self.inputs or self.inputs[name] is None:
             Gearoenix.terminate('Node input', name,
                                 'is not correct in', b_obj.name)
@@ -1095,7 +1095,7 @@ class Material:
             Gearoenix.terminate(
                 'Unexpected material type in:', self.b_obj.name)
 
-    def write_link(l, s=4):
+    def write_link(self, l, s=4):
         if isinstance(l, Gearoenix.Texture):
             Gearoenix.write_bool(True)
             Gearoenix.write_id(l.my_id)
@@ -1113,7 +1113,7 @@ class Material:
 
     def write_pbr(self):
         self.write_unlit()
-        write_link(self.emission, 3)
+        self.write_link(self.emission, 3)
         if isinstance(self.metallic, Gearoenix.Texture):
             Gearoenix.write_bool(True)
             Gearoenix.write_id(self.metallic.my_id)
@@ -1174,18 +1174,12 @@ class Mesh(Gearoenix.UniRenderObject):
             Gearoenix.terminate('Mesh can not have children:', b_obj.name)
         self.mat = Gearoenix.Material(b_obj)
         if self.origin_instance is not None:
-            if not self.mat.has_same_attrs(self.origin_instance.mat):
-                Gearoenix.terminate(
-                    'Different mesh attributes, in: ' + b_obj.name)
             return
         if b_obj.parent is not None:
             Gearoenix.terminate('Origin mesh can not have parent:', b_obj.name)
         msh = b_obj.data
         msh.calc_normals_split()
         msh.calc_tangents()
-        nrm = self.mat.needs_normal()
-        tng = self.mat.needs_tangent()
-        uv = self.mat.needs_uv()
         vertices = dict()
         last_index = 0
         for p in msh.polygons:
@@ -1199,27 +1193,28 @@ class Mesh(Gearoenix.UniRenderObject):
                 vertex.append(v[0])
                 vertex.append(v[1])
                 vertex.append(v[2])
-                if nrm:
-                    normal = msh.loops[li].normal.normalized()
-                    # Gearoenix.log_info(str(normal))
-                    vertex.append(normal[0])
-                    vertex.append(normal[1])
-                    vertex.append(normal[2])
-                if tng:
-                    tangent = msh.loops[li].tangent.normalized()
-                    # Gearoenix.log_info(str(tangent))
-                    vertex.append(tangent[0])
-                    vertex.append(tangent[1])
-                    vertex.append(tangent[2])
-                    vertex.append(msh.loops[li].bitangent_sign)
-                if uv:
-                    uv_leyers = msh.uv_layers
-                    if len(uv_leyers) > 1 or len(uv_leyers) < 1:
-                        Gearoenix.terminate(
-                            'Unexpected number of uv layers in', b_obj.name)
-                    tex_co = uv_leyers.active.data[li].uv
-                    vertex.append(tex_co[0])
-                    vertex.append(1.0 - tex_co[1])
+            
+                normal = msh.loops[li].normal.normalized()
+                # Gearoenix.log_info(str(normal))
+                vertex.append(normal[0])
+                vertex.append(normal[1])
+                vertex.append(normal[2])
+            
+                tangent = msh.loops[li].tangent.normalized()
+                # Gearoenix.log_info(str(tangent))
+                vertex.append(tangent[0])
+                vertex.append(tangent[1])
+                vertex.append(tangent[2])
+                vertex.append(msh.loops[li].bitangent_sign)
+
+                uv_leyers = msh.uv_layers
+                if len(uv_leyers) > 1 or len(uv_leyers) < 1:
+                    Gearoenix.terminate(
+                        'Unexpected number of uv layers in', b_obj.name)
+                tex_co = uv_leyers.active.data[li].uv
+                vertex.append(tex_co[0])
+                vertex.append(1.0 - tex_co[1])
+
                 vertex = tuple(vertex)
                 if vertex in vertices:
                     vertices[vertex].append(last_index)
