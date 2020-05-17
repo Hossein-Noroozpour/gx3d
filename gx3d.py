@@ -222,7 +222,6 @@ class Gearoenix:
     def write_string(s):
         bs = bytes(s, 'utf-8')
         Gearoenix.write_u64(len(bs))
-        Gearoenix.log_info("len(bs)", len(bs))
         for b in bs:
             Gearoenix.write_u8(b)
 
@@ -482,7 +481,8 @@ class Asset:
 
     def get_reference_name(self):
         """The name that will be used in table as a reference."""
-        return self.name[len(self.__class__.get_prefix()):]
+        name = self.name[len(self.__class__.get_prefix()):]
+        return name[name.find('-') + 1:]
 
     @classmethod
     def find_common_starting(cls) -> str:
@@ -498,7 +498,25 @@ class Asset:
         return common_starting
 
     @classmethod
+    def check_names(cls):
+        """Checks the names that required and their uniqueness"""
+        if not Gearoenix.DEBUG_MODE:
+            return
+        names = set()
+        const_names = set()
+        for k, item in cls.instances.items():
+            const_name = Gearoenix.const_string(k)
+            name = item.get_reference_name()
+            if const_name in const_names or name in names:
+                Gearoenix.terminate(
+                    "Duplicated name in module", item.__class__.name,
+                    "name:", item.blender_object.name)
+            names.add(name)
+            const_names.add(const_name)
+
+    @classmethod
     def write_table(cls):
+        cls.check_names()
         Gearoenix.write_start_module(cls)
         instances = sorted(
             cls.instances.items(),
@@ -788,8 +806,9 @@ class Camera(Gearoenix.Asset):
         super().write()
         cam = self.blender_object.data
         Gearoenix.write_vector(self.blender_object.location)
-        Gearoenix.log_info("Camera location is:",
-                           str(self.blender_object.location))
+        Gearoenix.log_info(
+            "Camera location is:",
+            str(self.blender_object.location))
         Gearoenix.write_vector(
             self.blender_object.matrix_world.to_quaternion(), 4)
         Gearoenix.log_info("Camera quaternion is:",
@@ -1050,7 +1069,15 @@ class Texture(Gearoenix.ReferencingAsset):
 
     def write(self):
         super().write()
-        if self.instance_type == self.TYPE_2D or self.instance_type == self.TYPE_3D:
+        Gearoenix.write_u8(13)  # texture_format TextureFormat::RgbaUint8
+        Gearoenix.write_u8(7)   # min_filter     Filter::LinearMipmapLinear;
+        Gearoenix.write_u8(5)   # mag_filter     Filter::Linear;
+        Gearoenix.write_u8(3)   # wrap_s         Wrap::Repeat;
+        Gearoenix.write_u8(3)   # wrap_t         Wrap::Repeat;
+        Gearoenix.write_u8(3)   # wrap_r         Wrap::Repeat;
+        if self.instance_type == self.TYPE_2D:
+            Gearoenix.write_u16(self.blender_object.size[0])
+            Gearoenix.write_u16(self.blender_object.size[1])
             Gearoenix.write_file(self.file)
         elif self.instance_type == self.TYPE_CUBE:
             self.write_6_face()
@@ -1069,6 +1096,11 @@ class Texture(Gearoenix.ReferencingAsset):
 
     def is_cube(self):
         return self.instance_type == self.TYPE_CUBE
+
+    def get_reference_name(self):
+        """Overrided methode of Asset."""
+        name = self.blender_object.name[len(self.__class__.get_prefix()):]
+        return name[name.find('-') + 1:]
 
 
 Gearoenix.Texture = Texture
@@ -1142,7 +1174,8 @@ class Material:
             txt = Gearoenix.Texture.read(img)
             if txt is None:
                 Gearoenix.terminate(
-                    'Your texture name is wrong in:', blender_object.name, 'link:', i.name, 'texture:', img.name)
+                    'Your texture name is wrong in:', self.blender_object.name,
+                    'link:', i.name, 'texture:', img.name)
             return txt
         else:
             Gearoenix.terminate(
