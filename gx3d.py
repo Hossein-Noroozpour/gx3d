@@ -1509,7 +1509,7 @@ class Model(Gearoenix.Asset):
     def write(self):
         super().write()
         if self.instance_type == self.TYPE_WIDGET:
-            Gearoenix.write_u64(self.widget_type)
+            Gearoenix.write_type_id(self.widget_type)
         Gearoenix.write_matrix(self.blender_object.matrix_world)
         # self.collider.write()
         Gearoenix.write_u64(len(self.meshes))
