@@ -1072,12 +1072,15 @@ class Texture(Gearoenix.ReferencingAsset):
         Gearoenix.write_u8(13)  # texture_format TextureFormat::RgbaUint8
         Gearoenix.write_u8(7)   # min_filter     Filter::LinearMipmapLinear;
         Gearoenix.write_u8(5)   # mag_filter     Filter::Linear;
-        Gearoenix.write_u8(3)   # wrap_s         Wrap::Repeat;
-        Gearoenix.write_u8(3)   # wrap_t         Wrap::Repeat;
-        Gearoenix.write_u8(3)   # wrap_r         Wrap::Repeat;
+        wrap = 3  # repeat
+        if self.blender_object.extension == 'EXTEND':
+            wrap = 1  # clamp to edge
+        Gearoenix.write_u8(wrap)
+        Gearoenix.write_u8(wrap)
+        Gearoenix.write_u8(wrap)
         if self.instance_type == self.TYPE_2D:
-            Gearoenix.write_u16(self.blender_object.size[0])
-            Gearoenix.write_u16(self.blender_object.size[1])
+            Gearoenix.write_u16(self.blender_object.image.size[0])
+            Gearoenix.write_u16(self.blender_object.image.size[1])
             Gearoenix.write_file(self.file)
         elif self.instance_type == self.TYPE_CUBE:
             self.write_6_face()
@@ -1087,11 +1090,11 @@ class Texture(Gearoenix.ReferencingAsset):
 
     @staticmethod
     def get_name_from_blender_object(blender_object):
-        if blender_object.type != 'IMAGE':
+        if blender_object.type != 'TEX_IMAGE':
             Gearoenix.terminate('Unrecognized type for texture')
-        filepath = bpy.path.abspath(blender_object.filepath_raw).strip()
+        filepath = bpy.path.abspath(blender_object.image.filepath_raw).strip()
         if filepath is None or len(filepath) == 0:
-            Gearoenix.terminate('Filepass is empty:', blender_object.name)
+            Gearoenix.terminate('Filepath is empty:', blender_object.name)
         return filepath
 
     def is_cube(self):
@@ -1170,7 +1173,7 @@ class Material:
             if i.links[0] is None or i.links[0].from_node is None or i.links[0].from_node.image is None:
                 Gearoenix.terminate(
                     'A link can be only a default or a texture link, wrong link in:', blender_object.name, 'link:', i.name)
-            img = i.links[0].from_node.image
+            img = i.links[0].from_node
             txt = Gearoenix.Texture.read(img)
             if txt is None:
                 Gearoenix.terminate(
@@ -1544,9 +1547,9 @@ class Skybox(Gearoenix.Asset):
             Gearoenix.terminate(
                 'Unspecified skybox type, in:', blender_object.name)
         image = blender_object.material_slots[0].material.node_tree.nodes['Principled BSDF']
-        image = image.inputs['Base Color'].links[0].from_node.image
+        image = image.inputs['Base Color'].links[0].from_node
         if self.TYPE_EQUIRECTANGULAR == self.instance_type:
-            self.image_file = bpy.path.abspath(image.filepath).strip()
+            self.image_file = bpy.path.abspath(image.image.filepath).strip()
         elif self.TYPE_CUBE == self.instance_type:
             self.texture = Gearoenix.Texture.read(image)
             if self.texture is None:
@@ -1655,14 +1658,17 @@ class Scene(Gearoenix.Asset):
                 continue
         if blender_object.name.startswith(self.GAME_PREFIX):
             self.instance_type = self.TYPE_GAME
+            if len(self.cameras) < 1:
+                Gearoenix.terminate(
+                    'Game scene must have at least one camera, in:', blender_object.name)
         elif blender_object.name.startswith(self.UI_PREFIX):
             self.instance_type = self.TYPE_UI
+            if len(self.cameras) > 0:
+                Gearoenix.terminate(
+                    'Ui scene should not have camera, in:', blender_object.name)
         else:
             Gearoenix.terminate(
                 'Unspecified scene type, in:', blender_object.name)
-        if len(self.cameras) < 1:
-            Gearoenix.terminate(
-                'Scene must have at least one camera, in:', blender_object.name)
 
     def write(self):
         super().write()
