@@ -37,6 +37,7 @@ class Gearoenix:
     TYPE_BOOLEAN = ctypes.c_uint8
     TYPE_BYTE = ctypes.c_uint8
     TYPE_FLOAT = ctypes.c_float
+    TYPE_DOUBLE = ctypes.c_double
     TYPE_U64 = ctypes.c_uint64
     TYPE_U32 = ctypes.c_uint32
     TYPE_U16 = ctypes.c_uint16
@@ -100,6 +101,10 @@ class Gearoenix:
     @staticmethod
     def write_float(f):
         Gearoenix.GX3D_FILE.write(Gearoenix.TYPE_FLOAT(f))
+
+    @staticmethod
+    def write_double(f):
+        Gearoenix.GX3D_FILE.write(Gearoenix.TYPE_DOUBLE(f))
 
     @staticmethod
     def write_u64(n):
@@ -1449,26 +1454,29 @@ class Model(Gearoenix.Asset):
                                     self.blender_object.name, 'font:', b_font.name)
             align_x = self.blender_object.data.align_x
             align_y = self.blender_object.data.align_y
-            self.align = 0
+            self.h_align = 0
             if align_x == 'LEFT':
-                self.align += 3
+                self.h_align = 2
             elif align_x == 'CENTER':
-                self.align += 0
+                self.h_align = 1
             elif align_x == 'RIGHT':
-                self.align += 6
+                self.h_align = 3
             else:
                 Gearoenix.terminate(
                     'Unrecognized text horizontal alignment, in:', self.blender_object.name)
             if align_y == 'TOP':
-                self.align += 3
+                self.v_align = 2
             elif align_y == 'CENTER':
-                self.align += 2
+                self.v_align = 1
             elif align_y == 'BOTTOM':
-                self.align += 1
+                self.v_align = 3
             else:
                 Gearoenix.terminate(
                     'Unrecognized text vertical alignment, in:', self.blender_object.name)
-            self.font_mat = Gearoenix.Material(self.blender_object)
+            self.font_color = self.blender_object.material_slots[0]
+            self.font_color = self.font_color.material.node_tree
+            self.font_color = self.font_color.nodes['Principled BSDF']
+            self.font_color = self.font_color.inputs['Base Color'].default_value
             self.font_space_character = self.blender_object.data.space_character - 1.0
             self.font_space_word = self.blender_object.data.space_word - 1.0
             self.font_space_line = self.blender_object.data.space_line
@@ -1505,9 +1513,13 @@ class Model(Gearoenix.Asset):
         if self.widget_type == self.TYPE_TEXT or\
                 self.widget_type == self.TYPE_EDIT:
             Gearoenix.write_string(self.text)
-            Gearoenix.write_u8(self.align)
+            Gearoenix.write_u8(self.v_align)
+            Gearoenix.write_u8(self.h_align)
             Gearoenix.write_id(self.font.instance_id)
-            self.font_mat.write()
+            Gearoenix.write_vector(self.font_color, 4)
+            Gearoenix.write_double(self.font_space_character)
+            Gearoenix.write_double(self.font_space_word)
+            Gearoenix.write_double(self.font_space_line)
 
     def write(self):
         super().write()
@@ -1519,9 +1531,9 @@ class Model(Gearoenix.Asset):
         for m in self.meshes:
             Gearoenix.write_id(m.instance_id)
             m.mat.write()
+        Gearoenix.write_instances_ids(self.model_children)
         if self.instance_type == self.TYPE_WIDGET:
             self.write_widget()
-        Gearoenix.write_instances_ids(self.model_children)
 
 
 Gearoenix.Model = Model
