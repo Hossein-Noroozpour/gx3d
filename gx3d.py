@@ -514,7 +514,7 @@ class Asset:
             name = item.get_reference_name()
             if const_name in const_names or name in names:
                 Gearoenix.terminate(
-                    "Duplicated name in module", item.__class__.name,
+                    "Duplicated name in module", str(item.__class__),
                     "name:", item.blender_object.name)
             names.add(name)
             const_names.add(const_name)
@@ -1286,7 +1286,7 @@ class Material:
             Gearoenix.write_float(self.roughness)
         if isinstance(self.normal_map, Gearoenix.Texture):
             Gearoenix.write_bool(True)
-            Gearoenix.write_id(self.normal.instance_id)
+            Gearoenix.write_id(self.normal_map.instance_id)
         else:
             Gearoenix.write_bool(False)
 
